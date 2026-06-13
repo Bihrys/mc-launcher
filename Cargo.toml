@@ -2,5 +2,6 @@
 resolver = "3"
 members = [
     "crates/launcher-core",
-    "crates/launcher-cli"
+    "crates/launcher-cli",
+    "crates/launcher-qt"
 ]
