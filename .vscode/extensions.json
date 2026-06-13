@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "rust-lang.rust-analyzer",
+    "theqtcompany.qt",
+    "theqtcompany.qt-qml",
+    "theqtcompany.qt-cpp",
+    "ms-vscode.cmake-tools",
+    "llvm-vs-code-extensions.vscode-clangd",
+    "vadimcn.vscode-lldb",
+    "tamasfe.even-better-toml",
+    "usernamehw.errorlens"
+  ]
+}
