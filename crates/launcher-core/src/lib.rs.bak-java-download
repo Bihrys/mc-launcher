@@ -1,8 +1,6 @@
 pub mod java;
-pub mod java_download;
 
 pub use java::{JavaRuntime, detect_java_runtimes};
-pub use java_download::{JavaDownloadResult, download_java_runtime};
 
 pub struct LauncherInfo {
     pub name: &'static str,

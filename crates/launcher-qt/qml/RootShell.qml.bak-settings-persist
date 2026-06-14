@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Layouts
-import QtCore
 import "components"
 import "pages"
 
@@ -11,18 +10,7 @@ Item {
     required property var backend
 
     property string currentPage: "main"
-    property string launcherTheme: appSettings.launcherTheme
-
-    Settings {
-        id: appSettings
-
-        category: "appearance"
-        property string launcherTheme: "light"
-    }
-
-    onLauncherThemeChanged: {
-        appSettings.launcherTheme = root.launcherTheme
-    }
+    property string launcherTheme: "light"
 
     SystemPalette {
         id: systemPalette
@@ -102,18 +90,9 @@ Item {
                     }
                 }
 
-                JavaPage {
-                    anchors.fill: parent
-                    visible: root.currentPage === "java"
-                    style: style
-                    backend: root.backend
-                }
-
                 PlaceholderPage {
                     anchors.fill: parent
-                    visible: root.currentPage !== "main"
-                             && root.currentPage !== "settings"
-                             && root.currentPage !== "java"
+                    visible: root.currentPage !== "main" && root.currentPage !== "settings"
                     style: style
                     titleText: root.getPageTitle(root.currentPage)
                 }

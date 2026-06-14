@@ -14,7 +14,6 @@ fn main() {
             "qml/pages/MainPage.qml",
             "qml/pages/PlaceholderPage.qml",
             "qml/pages/SettingsPage.qml",
-            "qml/pages/JavaPage.qml",
         ]),
     )
     .qt_module("Network")

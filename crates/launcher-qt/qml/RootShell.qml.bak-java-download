@@ -102,18 +102,9 @@ Item {
                     }
                 }
 
-                JavaPage {
-                    anchors.fill: parent
-                    visible: root.currentPage === "java"
-                    style: style
-                    backend: root.backend
-                }
-
                 PlaceholderPage {
                     anchors.fill: parent
-                    visible: root.currentPage !== "main"
-                             && root.currentPage !== "settings"
-                             && root.currentPage !== "java"
+                    visible: root.currentPage !== "main" && root.currentPage !== "settings"
                     style: style
                     titleText: root.getPageTitle(root.currentPage)
                 }
