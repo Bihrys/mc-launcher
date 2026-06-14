@@ -5,8 +5,6 @@ pub mod java_download;
 
 pub use auth::{
     AuthAccount,
-    delete_account,
-    load_accounts,
     login_microsoft_browser,
     login_offline,
     login_yggdrasil,

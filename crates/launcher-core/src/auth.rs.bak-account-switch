@@ -244,53 +244,6 @@ pub fn save_account(account: &AuthAccount) -> Result<PathBuf, AuthError> {
     Ok(path)
 }
 
-pub fn load_accounts() -> Result<Vec<AuthAccount>, AuthError> {
-    let path = accounts_path()?;
-
-    let text = match fs::read_to_string(&path) {
-        Ok(text) => text,
-        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(err) => return Err(Box::new(err)),
-    };
-
-    if text.trim().is_empty() {
-        return Ok(Vec::new());
-    }
-
-    Ok(serde_json::from_str(&text)?)
-}
-
-pub fn delete_account(
-    kind: &str,
-    uuid: &str,
-    server_url: Option<&str>,
-) -> Result<Vec<AuthAccount>, AuthError> {
-    let path = accounts_path()?;
-    let mut accounts = load_accounts()?;
-
-    let before = accounts.len();
-
-    accounts.retain(|account| {
-        let same_server = account.server_url.as_deref().unwrap_or("")
-            == server_url.unwrap_or("");
-
-        !(account.kind == kind && account.uuid == uuid && same_server)
-    });
-
-    if accounts.len() == before {
-        return Err(simple_error("没有找到要删除的账户。"));
-    }
-
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
-    fs::write(&path, serde_json::to_string_pretty(&accounts)?)?;
-
-    Ok(accounts)
-}
-
-
 fn exchange_microsoft_code(
     client_id: &str,
     redirect_uri: &str,

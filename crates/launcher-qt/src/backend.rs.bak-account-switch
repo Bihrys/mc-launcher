@@ -13,7 +13,6 @@ pub mod qobject {
         #[qproperty(QString, current_account_name, cxx_name = "currentAccountName")]
         #[qproperty(QString, current_account_kind, cxx_name = "currentAccountKind")]
         #[qproperty(QString, current_account_avatar_url, cxx_name = "currentAccountAvatarUrl")]
-        #[qproperty(QString, accounts_json, cxx_name = "accountsJson")]
         #[qproperty(QString, download_catalog_json, cxx_name = "downloadCatalogJson")]
         #[namespace = "launcher_backend"]
         type LauncherBackend = super::LauncherBackendRust;
@@ -49,18 +48,6 @@ pub mod qobject {
         fn login_microsoft_browser(self: Pin<&mut LauncherBackend>, client_id: QString);
 
         #[qinvokable]
-        #[cxx_name = "refreshAccounts"]
-        fn refresh_accounts(self: Pin<&mut LauncherBackend>) -> QString;
-
-        #[qinvokable]
-        #[cxx_name = "switchAccount"]
-        fn switch_account(self: Pin<&mut LauncherBackend>, index: QString);
-
-        #[qinvokable]
-        #[cxx_name = "deleteAccount"]
-        fn delete_account(self: Pin<&mut LauncherBackend>, index: QString);
-
-        #[qinvokable]
         #[cxx_name = "refreshDownloadCatalog"]
         fn refresh_download_catalog(self: Pin<&mut LauncherBackend>, source: QString) -> QString;
 
@@ -86,7 +73,6 @@ pub struct LauncherBackendRust {
     current_account_name: QString,
     current_account_kind: QString,
     current_account_avatar_url: QString,
-    accounts_json: QString,
     download_catalog_json: QString,
 }
 
@@ -181,10 +167,9 @@ impl qobject::LauncherBackend {
         }) {
             Ok((account, path)) => {
                 set_current_account(self.as_mut(), &account);
-                refresh_accounts_property(self.as_mut());
 
                 self.as_mut().set_output(QString::from(&format!(
-                    "离线账户添加完成，并已切换到该账户。\n\n玩家名: {}\nUUID: {}\n账户文件:\n{}",
+                    "离线账户添加完成。\n\n玩家名: {}\nUUID: {}\n账户文件:\n{}",
                     account.username,
                     account.uuid,
                     path.display()
@@ -217,10 +202,9 @@ impl qobject::LauncherBackend {
         }) {
             Ok((account, path)) => {
                 set_current_account(self.as_mut(), &account);
-                refresh_accounts_property(self.as_mut());
 
                 self.as_mut().set_output(QString::from(&format!(
-                    "第三方服务器登录完成，并已切换到该账户。\n\n服务器: {}\n角色名: {}\nUUID: {}\n账户文件:\n{}",
+                    "第三方服务器登录完成。\n\n服务器: {}\n角色名: {}\nUUID: {}\n账户文件:\n{}",
                     account.server_url.as_deref().unwrap_or("unknown"),
                     account.username,
                     account.uuid,
@@ -245,10 +229,9 @@ impl qobject::LauncherBackend {
         }) {
             Ok((account, path)) => {
                 set_current_account(self.as_mut(), &account);
-                refresh_accounts_property(self.as_mut());
 
                 self.as_mut().set_output(QString::from(&format!(
-                    "微软账户登录完成，并已切换到该账户。\n\n角色名: {}\nUUID: {}\n{}\n\n账户文件:\n{}",
+                    "微软账户登录完成。\n\n角色名: {}\nUUID: {}\n{}\n\n账户文件:\n{}",
                     account.username,
                     account.uuid,
                     account.note.unwrap_or_default(),
@@ -258,122 +241,6 @@ impl qobject::LauncherBackend {
             Err(err) => {
                 self.as_mut()
                     .set_output(QString::from(&format!("微软账户登录失败。\n\n{err}")));
-            }
-        }
-    }
-
-    pub fn refresh_accounts(mut self: Pin<&mut Self>) -> QString {
-        match launcher_core::load_accounts() {
-            Ok(accounts) => {
-                let json = accounts_public_json(&accounts);
-                self.as_mut().set_accounts_json(QString::from(&json));
-
-                if accounts.is_empty() {
-                    clear_current_account(self.as_mut());
-                }
-
-                QString::from(&json)
-            }
-            Err(err) => {
-                let json = serde_json::json!({
-                    "accounts": [],
-                    "error": err.to_string()
-                })
-                .to_string();
-
-                self.as_mut().set_accounts_json(QString::from(&json));
-                self.as_mut()
-                    .set_output(QString::from(&format!("读取账户列表失败。\n\n{err}")));
-
-                QString::from(&json)
-            }
-        }
-    }
-
-    pub fn switch_account(mut self: Pin<&mut Self>, index: QString) {
-        let index = match index.to_string().parse::<usize>() {
-            Ok(value) => value,
-            Err(err) => {
-                self.as_mut()
-                    .set_output(QString::from(&format!("切换账户失败：无效索引。\n\n{err}")));
-                return;
-            }
-        };
-
-        match launcher_core::load_accounts() {
-            Ok(accounts) => {
-                let Some(account) = accounts.get(index) else {
-                    self.as_mut()
-                        .set_output(QString::from("切换账户失败：账户索引不存在。"));
-                    return;
-                };
-
-                set_current_account(self.as_mut(), account);
-                self.as_mut().set_output(QString::from(&format!(
-                    "已切换账户。\n\n账户: {}\n类型: {}\nUUID: {}",
-                    account.username,
-                    display_account_kind(&account.kind),
-                    account.uuid
-                )));
-            }
-            Err(err) => {
-                self.as_mut()
-                    .set_output(QString::from(&format!("切换账户失败。\n\n{err}")));
-            }
-        }
-    }
-
-    pub fn delete_account(mut self: Pin<&mut Self>, index: QString) {
-        let index = match index.to_string().parse::<usize>() {
-            Ok(value) => value,
-            Err(err) => {
-                self.as_mut()
-                    .set_output(QString::from(&format!("删除账户失败：无效索引。\n\n{err}")));
-                return;
-            }
-        };
-
-        match launcher_core::load_accounts() {
-            Ok(accounts) => {
-                let Some(account) = accounts.get(index) else {
-                    self.as_mut()
-                        .set_output(QString::from("删除账户失败：账户索引不存在。"));
-                    return;
-                };
-
-                let deleted_name = account.username.clone();
-                let deleted_kind = account.kind.clone();
-                let deleted_uuid = account.uuid.clone();
-                let deleted_server = account.server_url.clone();
-
-                match launcher_core::delete_account(
-                    &deleted_kind,
-                    &deleted_uuid,
-                    deleted_server.as_deref(),
-                ) {
-                    Ok(accounts) => {
-                        let json = accounts_public_json(&accounts);
-                        self.as_mut().set_accounts_json(QString::from(&json));
-
-                        if let Some(first) = accounts.first() {
-                            set_current_account(self.as_mut(), first);
-                        } else {
-                            clear_current_account(self.as_mut());
-                        }
-
-                        self.as_mut().set_output(QString::from(&format!(
-                            "已删除账户：{deleted_name}"
-                        )));
-                    }
-                    Err(err) => {
-                        self.as_mut()
-                            .set_output(QString::from(&format!("删除账户失败。\n\n{err}")));
-                    }
-                }
-            }
-            Err(err) => {
-                self.as_mut()
-                    .set_output(QString::from(&format!("删除账户失败。\n\n{err}")));
             }
         }
     }
@@ -463,14 +330,6 @@ impl qobject::LauncherBackend {
     }
 }
 
-fn refresh_accounts_property(mut qobject: Pin<&mut qobject::LauncherBackend>) {
-    if let Ok(accounts) = launcher_core::load_accounts() {
-        qobject
-            .as_mut()
-            .set_accounts_json(QString::from(&accounts_public_json(&accounts)));
-    }
-}
-
 fn set_current_account(mut qobject: Pin<&mut qobject::LauncherBackend>, account: &AuthAccount) {
     qobject
         .as_mut()
@@ -478,56 +337,11 @@ fn set_current_account(mut qobject: Pin<&mut qobject::LauncherBackend>, account:
 
     qobject
         .as_mut()
-        .set_current_account_kind(QString::from(&display_account_kind(&account.kind)));
+        .set_current_account_kind(QString::from(&account.kind));
 
     qobject
         .as_mut()
         .set_current_account_avatar_url(QString::from(&avatar_url_for_account(account)));
-}
-
-fn clear_current_account(mut qobject: Pin<&mut qobject::LauncherBackend>) {
-    qobject
-        .as_mut()
-        .set_current_account_name(QString::from(""));
-
-    qobject
-        .as_mut()
-        .set_current_account_kind(QString::from(""));
-
-    qobject
-        .as_mut()
-        .set_current_account_avatar_url(QString::from(""));
-}
-
-fn accounts_public_json(accounts: &[AuthAccount]) -> String {
-    let values = accounts
-        .iter()
-        .map(|account| {
-            serde_json::json!({
-                "username": account.username,
-                "uuid": account.uuid,
-                "kind": account.kind,
-                "displayKind": display_account_kind(&account.kind),
-                "serverUrl": account.server_url,
-                "avatarUrl": avatar_url_for_account(account),
-                "note": account.note,
-            })
-        })
-        .collect::<Vec<_>>();
-
-    serde_json::json!({
-        "accounts": values
-    })
-    .to_string()
-}
-
-fn display_account_kind(kind: &str) -> String {
-    match kind {
-        "offline" => "离线账户".to_string(),
-        "microsoft" => "Microsoft".to_string(),
-        "yggdrasil" => "第三方服务器".to_string(),
-        other => other.to_string(),
-    }
 }
 
 fn avatar_url_for_account(account: &AuthAccount) -> String {

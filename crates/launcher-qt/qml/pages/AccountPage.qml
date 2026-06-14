@@ -16,23 +16,54 @@ Item {
     property string yggdrasilUsername: ""
     property string yggdrasilPassword: ""
 
+    ListModel {
+        id: accountsModel
+    }
+
+    Component.onCompleted: {
+        root.reloadAccounts()
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 24
         anchors.bottomMargin: 96
         spacing: 18
 
-        Text {
-            text: "账户管理"
-            color: root.style.cTextOnSurface
-            font.pixelSize: 24
-            font.bold: true
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 12
+
+            Column {
+                Layout.fillWidth: true
+                spacing: 4
+
+                Text {
+                    text: "账户管理"
+                    color: root.style.cTextOnSurface
+                    font.pixelSize: 24
+                    font.bold: true
+                }
+
+                Text {
+                    text: "管理已添加账户，点击账户即可切换。"
+                    color: root.style.cTextOnSurfaceVariant
+                    font.pixelSize: 12
+                }
+            }
+
+            ActionButton {
+                style: root.style
+                text: "刷新账户"
+                primary: false
+                onClicked: root.reloadAccounts()
+            }
         }
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.maximumWidth: 900
-            Layout.preferredHeight: 380
+            Layout.maximumWidth: 960
+            Layout.preferredHeight: 430
             radius: root.style.radiusValue
             color: root.style.cSurfaceContainerHigh
             border.color: root.style.cBorder
@@ -44,54 +75,126 @@ Item {
                 spacing: 14
 
                 Rectangle {
-                    Layout.preferredWidth: 245
+                    Layout.preferredWidth: 300
                     Layout.fillHeight: true
                     radius: root.style.radiusValue
                     color: root.style.cSurfaceContainer
                     border.color: root.style.cBorder
                     border.width: 1
+                    clip: true
 
-                    Column {
+                    ColumnLayout {
                         anchors.fill: parent
                         anchors.margins: 10
                         spacing: 8
 
                         Text {
-                            text: "添加账户"
+                            text: "已有账户"
                             color: root.style.cTextOnSurface
                             font.pixelSize: 16
                             font.bold: true
                         }
 
                         Text {
-                            width: parent.width
-                            text: "选择账户类型"
+                            text: accountsModel.count > 0
+                                  ? "点击账户切换，右侧可继续添加账户。"
+                                  : "还没有账户。先在右侧添加一个。"
                             color: root.style.cTextOnSurfaceVariant
                             font.pixelSize: 12
+                            wrapMode: Text.WordWrap
+                            Layout.fillWidth: true
                         }
 
-                        AccountTypeItem {
-                            style: root.style
-                            title: "离线账户"
-                            subtitle: "本地用户名，不验证正版"
-                            selected: root.loginMode === "offline"
-                            onClicked: root.loginMode = "offline"
-                        }
+                        ListView {
+                            id: accountsList
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            clip: true
+                            model: accountsModel
+                            spacing: 8
 
-                        AccountTypeItem {
-                            style: root.style
-                            title: "Microsoft"
-                            subtitle: "打开浏览器登录正版账户"
-                            selected: root.loginMode === "microsoft"
-                            onClicked: root.loginMode = "microsoft"
-                        }
+                            delegate: Rectangle {
+                                id: accountItem
 
-                        AccountTypeItem {
-                            style: root.style
-                            title: "第三方服务器"
-                            subtitle: "Yggdrasil / authlib-injector"
-                            selected: root.loginMode === "yggdrasil"
-                            onClicked: root.loginMode = "yggdrasil"
+                                width: accountsList.width
+                                height: 74
+                                radius: 8
+                                color: mouse.containsMouse ? root.style.cNavHover : "transparent"
+                                border.width: root.backend.currentAccountName === username ? 1 : 0
+                                border.color: root.style.cButtonSelected
+
+                                MouseArea {
+                                    id: mouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.switchAccount(index)
+                                }
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.margins: 8
+                                    spacing: 10
+
+                                    Rectangle {
+                                        Layout.preferredWidth: 48
+                                        Layout.preferredHeight: 48
+                                        radius: 8
+                                        color: root.style.cButtonSurface
+                                        border.color: root.style.cBorder
+                                        border.width: 1
+                                        clip: true
+
+                                        Image {
+                                            anchors.fill: parent
+                                            anchors.margins: 2
+                                            source: avatarUrl
+                                            fillMode: Image.PreserveAspectFit
+                                            visible: avatarUrl.length > 0
+                                        }
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: username.length > 0 ? username.substring(0, 1).toUpperCase() : "?"
+                                            color: root.style.cTextOnSurfaceVariant
+                                            font.pixelSize: 22
+                                            font.bold: true
+                                            visible: avatarUrl.length === 0
+                                        }
+                                    }
+
+                                    Column {
+                                        Layout.fillWidth: true
+                                        spacing: 4
+
+                                        Text {
+                                            width: parent.width
+                                            text: username
+                                            color: root.style.cTextOnSurface
+                                            font.pixelSize: 14
+                                            font.bold: root.backend.currentAccountName === username
+                                            elide: Text.ElideRight
+                                        }
+
+                                        Text {
+                                            width: parent.width
+                                            text: displayKind + (serverUrl ? " · " + serverUrl : "")
+                                            color: root.style.cTextOnSurfaceVariant
+                                            font.pixelSize: 11
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+
+                                    SmallButton {
+                                        style: root.style
+                                        text: "删除"
+                                        onClicked: {
+                                            root.backend.deleteAccount(String(index))
+                                            root.reloadAccounts()
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -105,168 +208,208 @@ Item {
                     border.width: 1
                     clip: true
 
-                    ScrollView {
-                        id: formScroll
+                    ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 18
-                        clip: true
-                        contentWidth: availableWidth
-                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                        ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                        anchors.margins: 14
+                        spacing: 12
 
-                        ColumnLayout {
-                            width: formScroll.availableWidth
-                            spacing: 12
+                        Row {
+                            spacing: 8
 
-                            PageHeader {
-                                visible: root.loginMode === "offline"
-                                Layout.fillWidth: true
+                            ChoiceButton {
                                 style: root.style
-                                title: "离线账户"
-                                subtitle: "创建一个离线账户。适合本地测试、离线游戏或不需要正版验证的环境。"
+                                text: "离线"
+                                selected: root.loginMode === "offline"
+                                onClicked: root.loginMode = "offline"
                             }
 
-                            AccountField {
-                                visible: root.loginMode === "offline"
-                                Layout.fillWidth: true
+                            ChoiceButton {
                                 style: root.style
-                                label: "玩家名"
-                                textValue: root.offlineName
-                                placeholderText: "Steve"
-                                onEdited: function(value) {
-                                    root.offlineName = value
-                                }
+                                text: "Microsoft"
+                                selected: root.loginMode === "microsoft"
+                                onClicked: root.loginMode = "microsoft"
                             }
 
-                            ActionButton {
-                                visible: root.loginMode === "offline"
+                            ChoiceButton {
                                 style: root.style
-                                text: "添加离线账户"
-                                primary: true
-                                onClicked: root.backend.loginOffline(root.offlineName)
+                                text: "第三方服务器"
+                                selected: root.loginMode === "yggdrasil"
+                                onClicked: root.loginMode = "yggdrasil"
                             }
+                        }
 
-                            PageHeader {
-                                visible: root.loginMode === "microsoft"
-                                Layout.fillWidth: true
-                                style: root.style
-                                title: "Microsoft 账户"
-                                subtitle: "点击登录后会打开系统浏览器。授权完成后，浏览器会跳回启动器本地回调地址。"
-                            }
+                        ScrollView {
+                            id: addScroll
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            clip: true
+                            contentWidth: availableWidth
+                            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                            ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
-                            Rectangle {
-                                visible: root.loginMode === "microsoft"
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 62
-                                radius: root.style.radiusValue
-                                color: root.style.cSurfaceContainerHigh
-                                border.color: root.style.cBorder
-                                border.width: 1
+                            ColumnLayout {
+                                width: addScroll.availableWidth
+                                spacing: 12
 
-                                Text {
-                                    anchors.fill: parent
-                                    anchors.margins: 10
-                                    text: "需要你自己的 Azure Public Client ID。不能复用 HMCL 官方客户端 ID。"
-                                    color: root.style.cTextOnSurfaceVariant
-                                    font.pixelSize: 12
-                                    wrapMode: Text.WordWrap
-                                    verticalAlignment: Text.AlignVCenter
-                                }
-                            }
-
-                            AccountField {
-                                visible: root.loginMode === "microsoft"
-                                Layout.fillWidth: true
-                                style: root.style
-                                label: "Microsoft Client ID"
-                                textValue: root.microsoftClientId
-                                placeholderText: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                                onEdited: function(value) {
-                                    root.microsoftClientId = value
-                                }
-                            }
-
-                            ActionButton {
-                                visible: root.loginMode === "microsoft"
-                                style: root.style
-                                text: "打开浏览器登录 Microsoft"
-                                primary: true
-                                width: 220
-                                onClicked: root.backend.loginMicrosoftBrowser(root.microsoftClientId)
-                            }
-
-                            PageHeader {
-                                visible: root.loginMode === "yggdrasil"
-                                Layout.fillWidth: true
-                                style: root.style
-                                title: "第三方服务器账户"
-                                subtitle: "适用于 LittleSkin、Blessing Skin 或其他 Yggdrasil/authlib-injector 兼容服务器。此区域支持鼠标滚轮滚动。"
-                            }
-
-                            AccountField {
-                                visible: root.loginMode === "yggdrasil"
-                                Layout.fillWidth: true
-                                style: root.style
-                                label: "服务器 API 根地址"
-                                textValue: root.yggdrasilServer
-                                placeholderText: "https://littleskin.cn/api/yggdrasil"
-                                onEdited: function(value) {
-                                    root.yggdrasilServer = value
-                                }
-                            }
-
-                            Row {
-                                visible: root.loginMode === "yggdrasil"
-                                spacing: 8
-
-                                SmallButton {
+                                PageHeader {
+                                    visible: root.loginMode === "offline"
+                                    Layout.fillWidth: true
                                     style: root.style
-                                    text: "LittleSkin"
-                                    onClicked: root.yggdrasilServer = "https://littleskin.cn/api/yggdrasil"
+                                    title: "添加离线账户"
+                                    subtitle: "离线账户不会验证正版身份，适合本地测试和离线游戏。"
                                 }
 
-                                SmallButton {
+                                AccountField {
+                                    visible: root.loginMode === "offline"
+                                    Layout.fillWidth: true
                                     style: root.style
-                                    text: "清空"
-                                    onClicked: root.yggdrasilServer = ""
+                                    label: "玩家名"
+                                    textValue: root.offlineName
+                                    placeholderText: "Steve"
+                                    onEdited: function(value) {
+                                        root.offlineName = value
+                                    }
                                 }
-                            }
 
-                            AccountField {
-                                visible: root.loginMode === "yggdrasil"
-                                Layout.fillWidth: true
-                                style: root.style
-                                label: "用户名 / 邮箱"
-                                textValue: root.yggdrasilUsername
-                                placeholderText: "name@example.com"
-                                onEdited: function(value) {
-                                    root.yggdrasilUsername = value
+                                ActionButton {
+                                    visible: root.loginMode === "offline"
+                                    style: root.style
+                                    text: "添加并切换"
+                                    primary: true
+                                    onClicked: {
+                                        root.backend.loginOffline(root.offlineName)
+                                        root.reloadAccounts()
+                                    }
                                 }
-                            }
 
-                            AccountField {
-                                visible: root.loginMode === "yggdrasil"
-                                Layout.fillWidth: true
-                                style: root.style
-                                label: "密码"
-                                textValue: root.yggdrasilPassword
-                                placeholderText: "Password"
-                                password: true
-                                onEdited: function(value) {
-                                    root.yggdrasilPassword = value
+                                PageHeader {
+                                    visible: root.loginMode === "microsoft"
+                                    Layout.fillWidth: true
+                                    style: root.style
+                                    title: "添加 Microsoft 账户"
+                                    subtitle: "打开系统浏览器完成登录。登录成功后会自动加入账户列表并切换到该账户。"
                                 }
-                            }
 
-                            ActionButton {
-                                visible: root.loginMode === "yggdrasil"
-                                style: root.style
-                                text: "登录第三方服务器"
-                                primary: true
-                                onClicked: root.backend.loginYggdrasil(
-                                    root.yggdrasilServer,
-                                    root.yggdrasilUsername,
-                                    root.yggdrasilPassword
-                                )
+                                Rectangle {
+                                    visible: root.loginMode === "microsoft"
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 62
+                                    radius: root.style.radiusValue
+                                    color: root.style.cSurfaceContainerHigh
+                                    border.color: root.style.cBorder
+                                    border.width: 1
+
+                                    Text {
+                                        anchors.fill: parent
+                                        anchors.margins: 10
+                                        text: "需要你自己的 Azure Public Client ID。不能复用 HMCL 官方客户端 ID。"
+                                        color: root.style.cTextOnSurfaceVariant
+                                        font.pixelSize: 12
+                                        wrapMode: Text.WordWrap
+                                        verticalAlignment: Text.AlignVCenter
+                                    }
+                                }
+
+                                AccountField {
+                                    visible: root.loginMode === "microsoft"
+                                    Layout.fillWidth: true
+                                    style: root.style
+                                    label: "Microsoft Client ID"
+                                    textValue: root.microsoftClientId
+                                    placeholderText: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                    onEdited: function(value) {
+                                        root.microsoftClientId = value
+                                    }
+                                }
+
+                                ActionButton {
+                                    visible: root.loginMode === "microsoft"
+                                    style: root.style
+                                    text: "打开浏览器登录 Microsoft"
+                                    primary: true
+                                    width: 220
+                                    onClicked: {
+                                        root.backend.loginMicrosoftBrowser(root.microsoftClientId)
+                                        root.reloadAccounts()
+                                    }
+                                }
+
+                                PageHeader {
+                                    visible: root.loginMode === "yggdrasil"
+                                    Layout.fillWidth: true
+                                    style: root.style
+                                    title: "添加第三方服务器账户"
+                                    subtitle: "适用于 LittleSkin、Blessing Skin 或其他 Yggdrasil/authlib-injector 兼容服务器。"
+                                }
+
+                                AccountField {
+                                    visible: root.loginMode === "yggdrasil"
+                                    Layout.fillWidth: true
+                                    style: root.style
+                                    label: "服务器 API 根地址"
+                                    textValue: root.yggdrasilServer
+                                    placeholderText: "https://littleskin.cn/api/yggdrasil"
+                                    onEdited: function(value) {
+                                        root.yggdrasilServer = value
+                                    }
+                                }
+
+                                Row {
+                                    visible: root.loginMode === "yggdrasil"
+                                    spacing: 8
+
+                                    SmallButton {
+                                        style: root.style
+                                        text: "LittleSkin"
+                                        onClicked: root.yggdrasilServer = "https://littleskin.cn/api/yggdrasil"
+                                    }
+
+                                    SmallButton {
+                                        style: root.style
+                                        text: "清空"
+                                        onClicked: root.yggdrasilServer = ""
+                                    }
+                                }
+
+                                AccountField {
+                                    visible: root.loginMode === "yggdrasil"
+                                    Layout.fillWidth: true
+                                    style: root.style
+                                    label: "用户名 / 邮箱"
+                                    textValue: root.yggdrasilUsername
+                                    placeholderText: "name@example.com"
+                                    onEdited: function(value) {
+                                        root.yggdrasilUsername = value
+                                    }
+                                }
+
+                                AccountField {
+                                    visible: root.loginMode === "yggdrasil"
+                                    Layout.fillWidth: true
+                                    style: root.style
+                                    label: "密码"
+                                    textValue: root.yggdrasilPassword
+                                    placeholderText: "Password"
+                                    password: true
+                                    onEdited: function(value) {
+                                        root.yggdrasilPassword = value
+                                    }
+                                }
+
+                                ActionButton {
+                                    visible: root.loginMode === "yggdrasil"
+                                    style: root.style
+                                    text: "登录并切换"
+                                    primary: true
+                                    onClicked: {
+                                        root.backend.loginYggdrasil(
+                                            root.yggdrasilServer,
+                                            root.yggdrasilUsername,
+                                            root.yggdrasilPassword
+                                        )
+                                        root.reloadAccounts()
+                                    }
+                                }
                             }
                         }
                     }
@@ -276,14 +419,40 @@ Item {
 
         OutputPanel {
             Layout.fillWidth: true
-            Layout.maximumWidth: 900
+            Layout.maximumWidth: 960
             Layout.fillHeight: true
-            Layout.minimumHeight: 170
+            Layout.minimumHeight: 150
             style: root.style
-            title: "输出"
             text: root.backend.output
-            placeholderText: "登录结果会显示在这里。账户会保存到 ~/.config/mc-launcher/accounts.json"
         }
+    }
+
+    function reloadAccounts() {
+        var raw = root.backend.refreshAccounts()
+        var payload = JSON.parse(raw)
+
+        accountsModel.clear()
+
+        if (!payload.accounts) {
+            return
+        }
+
+        for (var i = 0; i < payload.accounts.length; i++) {
+            var account = payload.accounts[i]
+            accountsModel.append({
+                "username": account.username || "",
+                "uuid": account.uuid || "",
+                "kind": account.kind || "",
+                "displayKind": account.displayKind || "",
+                "serverUrl": account.serverUrl || "",
+                "avatarUrl": account.avatarUrl || "",
+                "note": account.note || ""
+            })
+        }
+    }
+
+    function switchAccount(index) {
+        root.backend.switchAccount(String(index))
     }
 
     component PageHeader: ColumnLayout {
@@ -307,62 +476,6 @@ Item {
             color: parent.style.cTextOnSurfaceVariant
             font.pixelSize: 12
             wrapMode: Text.WordWrap
-        }
-    }
-
-    component AccountTypeItem: Rectangle {
-        id: item
-
-        required property var style
-        property string title: ""
-        property string subtitle: ""
-        property bool selected: false
-
-        signal clicked()
-
-        width: parent ? parent.width : 220
-        height: 64
-        radius: 8
-
-        color: selected
-               ? style.cNavSelected
-               : mouse.containsMouse ? style.cNavHover : "transparent"
-
-        border.width: selected ? 1 : 0
-        border.color: style.cBorder
-
-        MouseArea {
-            id: mouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: item.clicked()
-        }
-
-        Column {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 12
-            anchors.rightMargin: 12
-            spacing: 4
-
-            Text {
-                width: parent.width
-                text: item.title
-                color: item.style.cTextOnSurface
-                font.pixelSize: 14
-                font.bold: item.selected
-                elide: Text.ElideRight
-            }
-
-            Text {
-                width: parent.width
-                text: item.subtitle
-                color: item.style.cTextOnSurfaceVariant
-                font.pixelSize: 11
-                elide: Text.ElideRight
-            }
         }
     }
 
@@ -416,28 +529,33 @@ Item {
         }
     }
 
-    component SmallButton: Rectangle {
+    component ChoiceButton: Rectangle {
         id: button
 
         required property var style
         property string text: ""
+        property bool selected: false
 
         signal clicked()
 
-        width: Math.max(74, label.implicitWidth + 22)
-        height: 30
-        radius: 15
+        width: Math.max(74, label.implicitWidth + 24)
+        height: 34
+        radius: 17
 
-        color: mouse.containsMouse ? style.cButtonHover : style.cButtonSurface
-        border.width: 1
+        color: selected
+               ? style.cButtonSelected
+               : mouse.containsMouse ? style.cButtonHover : style.cButtonSurface
+
+        border.width: selected ? 0 : 1
         border.color: style.cBorder
 
         Text {
             id: label
             anchors.centerIn: parent
             text: button.text
-            color: button.style.cTextOnSurface
-            font.pixelSize: 12
+            color: button.selected ? button.style.cButtonSelectedText : button.style.cTextOnSurface
+            font.pixelSize: 13
+            font.bold: button.selected
         }
 
         MouseArea {
@@ -469,12 +587,6 @@ Item {
         border.width: primary ? 0 : 1
         border.color: style.cBorder
 
-        Behavior on color {
-            ColorAnimation {
-                duration: 120
-            }
-        }
-
         Text {
             id: label
             anchors.centerIn: parent
@@ -493,13 +605,44 @@ Item {
         }
     }
 
+    component SmallButton: Rectangle {
+        id: button
+
+        required property var style
+        property string text: ""
+
+        signal clicked()
+
+        width: Math.max(58, label.implicitWidth + 18)
+        height: 28
+        radius: 14
+
+        color: mouse.containsMouse ? style.cButtonHover : style.cButtonSurface
+        border.width: 1
+        border.color: style.cBorder
+
+        Text {
+            id: label
+            anchors.centerIn: parent
+            text: button.text
+            color: button.style.cTextOnSurface
+            font.pixelSize: 12
+        }
+
+        MouseArea {
+            id: mouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: button.clicked()
+        }
+    }
+
     component OutputPanel: Rectangle {
         id: panel
 
         required property var style
-        property string title: "输出"
         property string text: ""
-        property string placeholderText: ""
 
         radius: style.radiusValue
         color: style.cSurfaceContainer
@@ -512,7 +655,7 @@ Item {
             spacing: 8
 
             Text {
-                text: panel.title
+                text: "输出"
                 color: panel.style.cTextOnSurface
                 font.pixelSize: 14
                 font.bold: true
@@ -531,7 +674,7 @@ Item {
                     wrapMode: TextEdit.Wrap
                     selectByMouse: true
                     text: panel.text
-                    placeholderText: panel.placeholderText
+                    placeholderText: "账户操作结果会显示在这里。"
                     color: panel.style.cTextOnSurface
                     placeholderTextColor: panel.style.cTextOnSurfaceVariant
                     background: Item {}
