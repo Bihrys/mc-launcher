@@ -14,12 +14,6 @@ Item {
     property string versionGroup: "release"
     property var catalog: null
     property var activeVersionModel: releaseVersionModel
-    property var downloadTaskStatus: ({
-        "active": false,
-        "percent": 0,
-        "title": "空闲",
-        "message": "还没有下载任务。"
-    })
 
     ListModel { id: releaseVersionModel }
     ListModel { id: snapshotVersionModel }
@@ -31,14 +25,6 @@ Item {
     ListModel { id: quiltLoaderModel }
     ListModel { id: forgeInstallerModel }
     ListModel { id: neoforgeInstallerModel }
-
-    Timer {
-        id: downloadTaskPoller
-        interval: 300
-        repeat: true
-        running: true
-        onTriggered: root.pollDownloadTask()
-    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -458,14 +444,6 @@ Item {
             }
         }
 
-        DownloadTaskPanel {
-            Layout.fillWidth: true
-            Layout.maximumWidth: 1060
-            Layout.preferredHeight: 104
-            style: root.style
-            status: root.downloadTaskStatus
-        }
-
         OutputPanel {
             Layout.fillWidth: true
             Layout.maximumWidth: 1060
@@ -473,20 +451,6 @@ Item {
             Layout.minimumHeight: 150
             style: root.style
             text: root.backend.output
-        }
-    }
-
-    function pollDownloadTask() {
-        var raw = root.backend.pollDownloadTask()
-
-        if (!raw || raw.length === 0) {
-            return
-        }
-
-        try {
-            root.downloadTaskStatus = JSON.parse(raw)
-        } catch (e) {
-            console.log("Failed to parse download task status", e)
         }
     }
 
@@ -706,8 +670,6 @@ Item {
             root.selectedLoaderKind,
             root.selectedLoaderVersion()
         )
-
-        root.pollDownloadTask()
     }
 
     component CategoryItem: Rectangle {
@@ -860,66 +822,6 @@ Item {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: button.clicked()
-        }
-    }
-
-    component DownloadTaskPanel: Rectangle {
-        id: panel
-
-        required property var style
-        property var status: ({
-            "active": false,
-            "percent": 0,
-            "title": "空闲",
-            "message": "还没有下载任务。"
-        })
-
-        radius: style.radiusValue
-        color: style.cSurfaceContainer
-        border.color: style.cBorder
-        border.width: 1
-
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 12
-            spacing: 8
-
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 10
-
-                Text {
-                    Layout.fillWidth: true
-                    text: panel.status.title || "下载任务"
-                    color: panel.style.cTextOnSurface
-                    font.pixelSize: 14
-                    font.bold: true
-                    elide: Text.ElideRight
-                }
-
-                Text {
-                    text: String(Math.round(panel.status.percent || 0)) + "%"
-                    color: panel.style.cTextOnSurfaceVariant
-                    font.pixelSize: 12
-                    font.bold: true
-                }
-            }
-
-            ProgressBar {
-                Layout.fillWidth: true
-                from: 0
-                to: 100
-                value: Math.max(0, Math.min(100, panel.status.percent || 0))
-                indeterminate: panel.status.active && (panel.status.percent || 0) <= 1
-            }
-
-            Text {
-                Layout.fillWidth: true
-                text: panel.status.message || "还没有下载任务。"
-                color: panel.style.cTextOnSurfaceVariant
-                font.pixelSize: 11
-                elide: Text.ElideRight
-            }
         }
     }
 
