@@ -10,17 +10,9 @@ Item {
     required property var backend
 
     property string currentPage: "main"
-    property string launcherTheme: "light"
-
-    SystemPalette {
-        id: systemPalette
-        colorGroup: SystemPalette.Active
-    }
 
     Style {
         id: style
-        themeMode: root.launcherTheme
-        systemDark: root.isSystemDark(systemPalette.window)
     }
 
     Rectangle {
@@ -29,12 +21,12 @@ Item {
         gradient: Gradient {
             GradientStop {
                 position: 0.0
-                color: style.cBgStart
+                color: "#F8F6FF"
             }
 
             GradientStop {
                 position: 1.0
-                color: style.cBgEnd
+                color: "#DDE2FF"
             }
         }
     }
@@ -80,19 +72,9 @@ Item {
                     backend: root.backend
                 }
 
-                SettingsPage {
-                    anchors.fill: parent
-                    visible: root.currentPage === "settings"
-                    style: style
-                    themeMode: root.launcherTheme
-                    onThemeSelected: function(mode) {
-                        root.launcherTheme = mode
-                    }
-                }
-
                 PlaceholderPage {
                     anchors.fill: parent
-                    visible: root.currentPage !== "main" && root.currentPage !== "settings"
+                    visible: root.currentPage !== "main"
                     style: style
                     titleText: root.getPageTitle(root.currentPage)
                 }
@@ -116,11 +98,6 @@ Item {
                 }
             }
         }
-    }
-
-    function isSystemDark(colorValue) {
-        var brightness = colorValue.r * 0.299 + colorValue.g * 0.587 + colorValue.b * 0.114
-        return brightness < 0.5
     }
 
     function getPageTitle(page) {

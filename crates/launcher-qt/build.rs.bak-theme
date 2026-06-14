@@ -13,7 +13,6 @@ fn main() {
             "qml/components/SplitLaunchButton.qml",
             "qml/pages/MainPage.qml",
             "qml/pages/PlaceholderPage.qml",
-            "qml/pages/SettingsPage.qml",
         ]),
     )
     .qt_module("Network")
