@@ -105,29 +105,22 @@ Item {
                     border.width: 1
                     clip: true
 
-                    ScrollView {
-                        id: formScroll
+                    Item {
                         anchors.fill: parent
                         anchors.margins: 18
-                        clip: true
-                        contentWidth: availableWidth
-                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                        ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                        visible: root.loginMode === "offline"
 
                         ColumnLayout {
-                            width: formScroll.availableWidth
+                            anchors.fill: parent
                             spacing: 12
 
                             PageHeader {
-                                visible: root.loginMode === "offline"
-                                Layout.fillWidth: true
                                 style: root.style
                                 title: "离线账户"
                                 subtitle: "创建一个离线账户。适合本地测试、离线游戏或不需要正版验证的环境。"
                             }
 
                             AccountField {
-                                visible: root.loginMode === "offline"
                                 Layout.fillWidth: true
                                 style: root.style
                                 label: "玩家名"
@@ -138,24 +131,35 @@ Item {
                                 }
                             }
 
+                            Item {
+                                Layout.fillHeight: true
+                            }
+
                             ActionButton {
-                                visible: root.loginMode === "offline"
                                 style: root.style
                                 text: "添加离线账户"
                                 primary: true
                                 onClicked: root.backend.loginOffline(root.offlineName)
                             }
+                        }
+                    }
+
+                    Item {
+                        anchors.fill: parent
+                        anchors.margins: 18
+                        visible: root.loginMode === "microsoft"
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            spacing: 12
 
                             PageHeader {
-                                visible: root.loginMode === "microsoft"
-                                Layout.fillWidth: true
                                 style: root.style
                                 title: "Microsoft 账户"
                                 subtitle: "点击登录后会打开系统浏览器。授权完成后，浏览器会跳回启动器本地回调地址。"
                             }
 
                             Rectangle {
-                                visible: root.loginMode === "microsoft"
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 62
                                 radius: root.style.radiusValue
@@ -175,7 +179,6 @@ Item {
                             }
 
                             AccountField {
-                                visible: root.loginMode === "microsoft"
                                 Layout.fillWidth: true
                                 style: root.style
                                 label: "Microsoft Client ID"
@@ -186,25 +189,36 @@ Item {
                                 }
                             }
 
+                            Item {
+                                Layout.fillHeight: true
+                            }
+
                             ActionButton {
-                                visible: root.loginMode === "microsoft"
                                 style: root.style
                                 text: "打开浏览器登录 Microsoft"
                                 primary: true
                                 width: 220
                                 onClicked: root.backend.loginMicrosoftBrowser(root.microsoftClientId)
                             }
+                        }
+                    }
+
+                    Item {
+                        anchors.fill: parent
+                        anchors.margins: 18
+                        visible: root.loginMode === "yggdrasil"
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            spacing: 10
 
                             PageHeader {
-                                visible: root.loginMode === "yggdrasil"
-                                Layout.fillWidth: true
                                 style: root.style
                                 title: "第三方服务器账户"
-                                subtitle: "适用于 LittleSkin、Blessing Skin 或其他 Yggdrasil/authlib-injector 兼容服务器。此区域支持鼠标滚轮滚动。"
+                                subtitle: "适用于 LittleSkin、Blessing Skin 或其他 Yggdrasil/authlib-injector 兼容服务器。"
                             }
 
                             AccountField {
-                                visible: root.loginMode === "yggdrasil"
                                 Layout.fillWidth: true
                                 style: root.style
                                 label: "服务器 API 根地址"
@@ -216,7 +230,6 @@ Item {
                             }
 
                             AccountField {
-                                visible: root.loginMode === "yggdrasil"
                                 Layout.fillWidth: true
                                 style: root.style
                                 label: "用户名 / 邮箱"
@@ -228,7 +241,6 @@ Item {
                             }
 
                             AccountField {
-                                visible: root.loginMode === "yggdrasil"
                                 Layout.fillWidth: true
                                 style: root.style
                                 label: "密码"
@@ -240,8 +252,11 @@ Item {
                                 }
                             }
 
+                            Item {
+                                Layout.fillHeight: true
+                            }
+
                             ActionButton {
-                                visible: root.loginMode === "yggdrasil"
                                 style: root.style
                                 text: "登录第三方服务器"
                                 primary: true
@@ -257,19 +272,41 @@ Item {
             }
         }
 
-        OutputPanel {
+        Rectangle {
             Layout.fillWidth: true
             Layout.maximumWidth: 900
             Layout.fillHeight: true
-            Layout.minimumHeight: 170
-            style: root.style
-            title: "输出"
-            text: root.backend.output
-            placeholderText: "登录结果会显示在这里。账户会保存到 ~/.config/mc-launcher/accounts.json"
+            Layout.minimumHeight: 150
+            radius: root.style.radiusValue
+            color: root.style.cSurfaceContainer
+            border.color: root.style.cBorder
+            border.width: 1
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 12
+                spacing: 8
+
+                Text {
+                    text: "输出"
+                    color: root.style.cTextOnSurface
+                    font.pixelSize: 14
+                    font.bold: true
+                }
+
+                TextArea {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    readOnly: true
+                    wrapMode: TextEdit.Wrap
+                    text: root.backend.output
+                    placeholderText: "登录结果会显示在这里。账户会保存到 ~/.config/mc-launcher/accounts.json"
+                }
+            }
         }
     }
 
-    component PageHeader: ColumnLayout {
+    component PageHeader: Column {
         required property var style
         property string title: ""
         property string subtitle: ""
@@ -277,7 +314,6 @@ Item {
         spacing: 5
 
         Text {
-            Layout.fillWidth: true
             text: parent.title
             color: parent.style.cTextOnSurface
             font.pixelSize: 18
@@ -285,7 +321,7 @@ Item {
         }
 
         Text {
-            Layout.fillWidth: true
+            width: parent.width
             text: parent.subtitle
             color: parent.style.cTextOnSurfaceVariant
             font.pixelSize: 12
@@ -440,53 +476,6 @@ Item {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: button.clicked()
-        }
-    }
-
-    component OutputPanel: Rectangle {
-        id: panel
-
-        required property var style
-        property string title: "输出"
-        property string text: ""
-        property string placeholderText: ""
-
-        radius: style.radiusValue
-        color: style.cSurfaceContainer
-        border.color: style.cBorder
-        border.width: 1
-
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 12
-            spacing: 8
-
-            Text {
-                text: panel.title
-                color: panel.style.cTextOnSurface
-                font.pixelSize: 14
-                font.bold: true
-            }
-
-            ScrollView {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                clip: true
-                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                ScrollBar.vertical.policy: ScrollBar.AsNeeded
-
-                TextArea {
-                    width: parent.width
-                    readOnly: true
-                    wrapMode: TextEdit.Wrap
-                    selectByMouse: true
-                    text: panel.text
-                    placeholderText: panel.placeholderText
-                    color: panel.style.cTextOnSurface
-                    placeholderTextColor: panel.style.cTextOnSurfaceVariant
-                    background: Item {}
-                }
-            }
         }
     }
 }

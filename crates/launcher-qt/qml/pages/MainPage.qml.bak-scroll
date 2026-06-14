@@ -77,24 +77,13 @@ Item {
                     font.pixelSize: 14
                 }
 
-                ScrollView {
+                TextArea {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    clip: true
-                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
-
-                    TextArea {
-                        width: parent.width
-                        readOnly: true
-                        wrapMode: TextEdit.Wrap
-                        selectByMouse: true
-                        text: root.backend.output
-                        placeholderText: "等待 Rust 后端输出..."
-                        color: root.style.cTextOnSurface
-                        placeholderTextColor: root.style.cTextOnSurfaceVariant
-                        background: Item {}
-                    }
+                    readOnly: true
+                    wrapMode: TextEdit.Wrap
+                    text: root.backend.output
+                    placeholderText: "等待 Rust 后端输出..."
                 }
             }
         }

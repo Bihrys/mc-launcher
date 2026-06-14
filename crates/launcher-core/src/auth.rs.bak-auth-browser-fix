@@ -1,15 +1,10 @@
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fs;
-use std::io::{self, Read, Write};
-use std::net::TcpListener;
+use std::io;
 use std::path::PathBuf;
-use std::process::Command;
-use std::time::Duration;
 use uuid::Uuid;
 
 pub type AuthError = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -25,10 +20,36 @@ pub struct AuthAccount {
     pub note: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MicrosoftDeviceCode {
+    pub device_code: String,
+    pub user_code: String,
+    pub verification_uri: String,
+    pub expires_in: u64,
+    pub interval: u64,
+    pub message: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
-struct MicrosoftTokenResponse {
+struct DeviceCodeResponse {
+    device_code: String,
+    user_code: String,
+    verification_uri: String,
+    expires_in: u64,
+    interval: Option<u64>,
+    message: Option<String>,
+    error: Option<String>,
+    error_description: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TokenPollResponse {
     access_token: Option<String>,
     refresh_token: Option<String>,
+    #[allow(dead_code)]
+    token_type: Option<String>,
+    #[allow(dead_code)]
+    expires_in: Option<u64>,
     error: Option<String>,
     error_description: Option<String>,
 }
@@ -56,6 +77,9 @@ struct XboxDisplayClaims {
 #[derive(Debug, Deserialize)]
 struct MinecraftLoginResponse {
     access_token: String,
+    token_type: String,
+    expires_in: u64,
+    username: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -68,6 +92,10 @@ struct MinecraftProfileResponse {
 struct YggdrasilAuthResponse {
     #[serde(rename = "accessToken")]
     access_token: Option<String>,
+
+    #[serde(rename = "clientToken")]
+    #[allow(dead_code)]
+    client_token: Option<String>,
 
     #[serde(rename = "selectedProfile")]
     selected_profile: Option<YggdrasilProfile>,
@@ -110,7 +138,7 @@ pub fn login_offline(username: &str) -> Result<AuthAccount, AuthError> {
         access_token: "0".to_string(),
         refresh_token: None,
         server_url: None,
-        note: Some("离线账户，不进行正版验证。".to_string()),
+        note: Some("离线账户，不会进行正版验证。".to_string()),
     })
 }
 
@@ -191,32 +219,81 @@ pub fn login_yggdrasil(
     })
 }
 
-pub fn login_microsoft_browser(client_id: &str) -> Result<AuthAccount, AuthError> {
+pub fn request_microsoft_device_code(client_id: &str) -> Result<MicrosoftDeviceCode, AuthError> {
     let client_id = normalize_client_id(client_id)?;
 
-    let listener = TcpListener::bind(("127.0.0.1", 0))?;
-    let port = listener.local_addr()?.port();
-    let redirect_uri = format!("http://127.0.0.1:{port}/callback");
+    let response: DeviceCodeResponse = http_client()?
+        .post("https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode")
+        .form(&[
+            ("client_id", client_id.as_str()),
+            ("scope", "XboxLive.signin offline_access"),
+        ])
+        .send()?
+        .json()?;
 
-    let state = Uuid::new_v4().to_string();
-    let code_verifier = create_pkce_verifier();
-    let code_challenge = create_pkce_challenge(&code_verifier);
+    if let Some(error) = response.error {
+        return Err(simple_error(format!(
+            "微软设备码请求失败：{}\n{}",
+            error,
+            response.error_description.unwrap_or_default()
+        )));
+    }
 
-    let authorize_url = format!(
-        "https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize?client_id={}&response_type=code&redirect_uri={}&scope={}&prompt=select_account&state={}&code_challenge={}&code_challenge_method=S256",
-        url_encode(&client_id),
-        url_encode(&redirect_uri),
-        url_encode("XboxLive.signin offline_access"),
-        url_encode(&state),
-        url_encode(&code_challenge),
-    );
+    Ok(MicrosoftDeviceCode {
+        device_code: response.device_code,
+        user_code: response.user_code,
+        verification_uri: response.verification_uri,
+        expires_in: response.expires_in,
+        interval: response.interval.unwrap_or(5),
+        message: response.message,
+    })
+}
 
-    open_browser(&authorize_url)?;
+pub fn complete_microsoft_device_login(
+    client_id: &str,
+    device_code: &str,
+) -> Result<AuthAccount, AuthError> {
+    let client_id = normalize_client_id(client_id)?;
 
-    let code = wait_for_oauth_callback(listener, &state)?;
-    let token = exchange_microsoft_code(&client_id, &redirect_uri, &code, &code_verifier)?;
+    if device_code.trim().is_empty() {
+        return Err(simple_error("缺少微软 device_code，请先点击“获取验证码”。"));
+    }
 
-    authenticate_minecraft_with_live_token(token.access_token, token.refresh_token)
+    let token: TokenPollResponse = http_client()?
+        .post("https://login.microsoftonline.com/consumers/oauth2/v2.0/token")
+        .form(&[
+            ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
+            ("client_id", client_id.as_str()),
+            ("device_code", device_code.trim()),
+        ])
+        .send()?
+        .json()?;
+
+    if let Some(error) = token.error {
+        let message = token.error_description.unwrap_or_default();
+
+        if error == "authorization_pending" {
+            return Err(simple_error("微软授权尚未完成。请先在浏览器完成授权，然后再点“检查授权并登录”。"));
+        }
+
+        if error == "expired_token" {
+            return Err(simple_error("微软验证码已过期，请重新获取验证码。"));
+        }
+
+        if error == "slow_down" {
+            return Err(simple_error("微软要求降低轮询频率。等几秒后再点“检查授权并登录”。"));
+        }
+
+        return Err(simple_error(format!("微软 OAuth 登录失败：{error}\n{message}")));
+    }
+
+    let live_access_token = token
+        .access_token
+        .ok_or_else(|| simple_error("微软 OAuth 没有返回 access_token。"))?;
+
+    let live_refresh_token = token.refresh_token;
+
+    authenticate_minecraft_with_live_token(live_access_token, live_refresh_token)
 }
 
 pub fn save_account(account: &AuthAccount) -> Result<PathBuf, AuthError> {
@@ -244,55 +321,10 @@ pub fn save_account(account: &AuthAccount) -> Result<PathBuf, AuthError> {
     Ok(path)
 }
 
-fn exchange_microsoft_code(
-    client_id: &str,
-    redirect_uri: &str,
-    code: &str,
-    code_verifier: &str,
-) -> Result<MicrosoftTokenResponse, AuthError> {
-    let response = http_client()?
-        .post("https://login.microsoftonline.com/consumers/oauth2/v2.0/token")
-        .form(&[
-            ("client_id", client_id),
-            ("grant_type", "authorization_code"),
-            ("code", code),
-            ("redirect_uri", redirect_uri),
-            ("scope", "XboxLive.signin offline_access"),
-            ("code_verifier", code_verifier),
-        ])
-        .send()?;
-
-    let status = response.status();
-    let text = response.text()?;
-
-    let parsed: MicrosoftTokenResponse = serde_json::from_str(&text).map_err(|err| {
-        simple_error(format!(
-            "微软 token 响应不是有效 JSON。\n\nHTTP: {status}\n\n{err}\n\n{text}"
-        ))
-    })?;
-
-    if !status.is_success() || parsed.error.is_some() {
-        return Err(simple_error(format!(
-            "微软 OAuth 换取 token 失败。\n\nHTTP: {status}\n错误: {}\n{}",
-            parsed.error.unwrap_or_else(|| "unknown".to_string()),
-            parsed.error_description.unwrap_or_default()
-        )));
-    }
-
-    if parsed.access_token.is_none() {
-        return Err(simple_error("微软 OAuth 响应缺少 access_token。"));
-    }
-
-    Ok(parsed)
-}
-
 fn authenticate_minecraft_with_live_token(
-    live_access_token: Option<String>,
+    live_access_token: String,
     live_refresh_token: Option<String>,
 ) -> Result<AuthAccount, AuthError> {
-    let live_access_token =
-        live_access_token.ok_or_else(|| simple_error("微软 OAuth 没有返回 access_token。"))?;
-
     let client = http_client()?;
 
     let xbox: XboxAuthResponse = client
@@ -350,7 +382,6 @@ fn authenticate_minecraft_with_live_token(
             "identityToken": format!("XBL3.0 x={uhs};{xsts_token}")
         }))
         .send()?
-        .error_for_status()?
         .json()?;
 
     let profile: MinecraftProfileResponse = client
@@ -367,107 +398,13 @@ fn authenticate_minecraft_with_live_token(
         access_token: minecraft.access_token,
         refresh_token: live_refresh_token,
         server_url: None,
-        note: Some("Microsoft 浏览器登录。".to_string()),
+        note: Some(format!(
+            "Microsoft / Minecraft Services，token_type={}, expires_in={}s, user={}",
+            minecraft.token_type,
+            minecraft.expires_in,
+            minecraft.username.unwrap_or_else(|| "unknown".to_string())
+        )),
     })
-}
-
-fn wait_for_oauth_callback(listener: TcpListener, expected_state: &str) -> Result<String, AuthError> {
-    listener.set_nonblocking(false)?;
-
-    let (mut stream, _) = listener.accept()?;
-    stream.set_read_timeout(Some(Duration::from_secs(300)))?;
-
-    let mut buffer = [0_u8; 8192];
-    let n = stream.read(&mut buffer)?;
-    let request = String::from_utf8_lossy(&buffer[..n]);
-
-    let first_line = request.lines().next().unwrap_or_default();
-    let target = first_line.split_whitespace().nth(1).unwrap_or_default();
-    let query = target
-        .split_once('?')
-        .map(|(_, query)| query)
-        .unwrap_or_default();
-
-    let params = parse_query(query);
-
-    if let Some(error) = params.get("error") {
-        let response_html = format!(
-            "<html><body><h2>登录失败</h2><p>{}</p><p>可以关闭此页面。</p></body></html>",
-            html_escape(error)
-        );
-
-        write_http_response(&mut stream, &response_html)?;
-
-        return Err(simple_error(format!(
-            "微软浏览器授权失败：{}\n{}",
-            error,
-            params.get("error_description").cloned().unwrap_or_default()
-        )));
-    }
-
-    let state = params
-        .get("state")
-        .ok_or_else(|| simple_error("微软回调缺少 state。"))?;
-
-    if state != expected_state {
-        write_http_response(
-            &mut stream,
-            "<html><body><h2>登录失败</h2><p>state 不匹配，可以关闭此页面。</p></body></html>",
-        )?;
-
-        return Err(simple_error("微软回调 state 不匹配。"));
-    }
-
-    let code = params
-        .get("code")
-        .ok_or_else(|| simple_error("微软回调缺少 code。"))?
-        .to_string();
-
-    write_http_response(
-        &mut stream,
-        "<html><body><h2>登录完成</h2><p>已经收到 Microsoft 授权，可以回到启动器。</p><p>此页面可以关闭。</p></body></html>",
-    )?;
-
-    Ok(code)
-}
-
-fn write_http_response(stream: &mut std::net::TcpStream, html: &str) -> Result<(), AuthError> {
-    let body = html.as_bytes();
-
-    write!(
-        stream,
-        "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-        body.len()
-    )?;
-
-    stream.write_all(body)?;
-
-    Ok(())
-}
-
-fn open_browser(url: &str) -> Result<(), AuthError> {
-    let mut command = match std::env::consts::OS {
-        "linux" => {
-            let mut command = Command::new("xdg-open");
-            command.arg(url);
-            command
-        }
-        "macos" => {
-            let mut command = Command::new("open");
-            command.arg(url);
-            command
-        }
-        "windows" => {
-            let mut command = Command::new("cmd");
-            command.args(["/C", "start", "", url]);
-            command
-        }
-        other => return Err(simple_error(format!("暂不支持打开浏览器的系统：{other}"))),
-    };
-
-    command.spawn()?;
-
-    Ok(())
 }
 
 fn extract_uhs(response: &XboxAuthResponse) -> Result<String, AuthError> {
@@ -516,20 +453,6 @@ fn is_valid_minecraft_name(value: &str) -> bool {
         .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
 }
 
-fn create_pkce_verifier() -> String {
-    format!(
-        "{}{}{}",
-        Uuid::new_v4().simple(),
-        Uuid::new_v4().simple(),
-        Uuid::new_v4().simple()
-    )
-}
-
-fn create_pkce_challenge(verifier: &str) -> String {
-    let digest = Sha256::digest(verifier.as_bytes());
-    URL_SAFE_NO_PAD.encode(digest)
-}
-
 fn accounts_path() -> Result<PathBuf, AuthError> {
     let config_home = if let Some(value) = std::env::var_os("XDG_CONFIG_HOME") {
         if !value.is_empty() {
@@ -556,86 +479,6 @@ fn http_client() -> Result<Client, AuthError> {
         .build()?)
 }
 
-fn parse_query(query: &str) -> HashMap<String, String> {
-    let mut out = HashMap::new();
-
-    for pair in query.split('&') {
-        if pair.is_empty() {
-            continue;
-        }
-
-        let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
-        out.insert(percent_decode(key), percent_decode(value));
-    }
-
-    out
-}
-
-fn percent_decode(value: &str) -> String {
-    let bytes = value.as_bytes();
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut i = 0;
-
-    while i < bytes.len() {
-        match bytes[i] {
-            b'+' => {
-                out.push(b' ');
-                i += 1;
-            }
-            b'%' if i + 2 < bytes.len() => {
-                let hi = from_hex(bytes[i + 1]);
-                let lo = from_hex(bytes[i + 2]);
-
-                if let (Some(hi), Some(lo)) = (hi, lo) {
-                    out.push((hi << 4) | lo);
-                    i += 3;
-                } else {
-                    out.push(bytes[i]);
-                    i += 1;
-                }
-            }
-            b => {
-                out.push(b);
-                i += 1;
-            }
-        }
-    }
-
-    String::from_utf8_lossy(&out).to_string()
-}
-
-fn from_hex(value: u8) -> Option<u8> {
-    match value {
-        b'0'..=b'9' => Some(value - b'0'),
-        b'a'..=b'f' => Some(value - b'a' + 10),
-        b'A'..=b'F' => Some(value - b'A' + 10),
-        _ => None,
-    }
-}
-
-fn url_encode(value: &str) -> String {
-    let mut out = String::new();
-
-    for byte in value.bytes() {
-        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
-            out.push(byte as char);
-        } else {
-            out.push_str(&format!("%{byte:02X}"));
-        }
-    }
-
-    out
-}
-
-fn html_escape(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#39;")
-}
-
 fn simple_error(message: impl Into<String>) -> AuthError {
-    Box::new(io::Error::other(message.into()))
+    Box::new(io::Error::new(io::ErrorKind::Other, message.into()))
 }
