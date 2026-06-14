@@ -11,16 +11,9 @@ Item {
     property string downloadSource: "official"
     property string selectedGameVersion: ""
     property string selectedLoaderKind: "vanilla"
-    property string versionGroup: "release"
     property var catalog: null
-    property var activeVersionModel: releaseVersionModel
 
-    ListModel { id: releaseVersionModel }
-    ListModel { id: snapshotVersionModel }
-    ListModel { id: aprilFoolsVersionModel }
-    ListModel { id: oldBetaVersionModel }
-    ListModel { id: oldAlphaVersionModel }
-
+    ListModel { id: gameModel }
     ListModel { id: fabricLoaderModel }
     ListModel { id: quiltLoaderModel }
     ListModel { id: forgeInstallerModel }
@@ -48,7 +41,7 @@ Item {
                 }
 
                 Text {
-                    text: "按版本类型分组选择，不把所有版本混在一个列表里。"
+                    text: "按 HMCL 的结构移植：游戏版本列表 + 加载器版本 + 安装任务。"
                     color: root.style.cTextOnSurfaceVariant
                     font.pixelSize: 12
                 }
@@ -78,8 +71,8 @@ Item {
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.maximumWidth: 1060
-            Layout.preferredHeight: 460
+            Layout.maximumWidth: 980
+            Layout.preferredHeight: 430
             radius: root.style.radiusValue
             color: root.style.cSurfaceContainerHigh
             border.color: root.style.cBorder
@@ -91,84 +84,7 @@ Item {
                 spacing: 14
 
                 Rectangle {
-                    Layout.preferredWidth: 230
-                    Layout.fillHeight: true
-                    radius: root.style.radiusValue
-                    color: root.style.cSurfaceContainer
-                    border.color: root.style.cBorder
-                    border.width: 1
-
-                    Column {
-                        anchors.fill: parent
-                        anchors.margins: 10
-                        spacing: 8
-
-                        Text {
-                            text: "版本分类"
-                            color: root.style.cTextOnSurface
-                            font.pixelSize: 16
-                            font.bold: true
-                        }
-
-                        Text {
-                            width: parent.width
-                            text: root.catalog
-                                  ? "正式版 " + root.catalog.latestRelease + " / 快照 " + root.catalog.latestSnapshot
-                                  : "点击刷新列表"
-                            color: root.style.cTextOnSurfaceVariant
-                            font.pixelSize: 11
-                            elide: Text.ElideRight
-                        }
-
-                        CategoryItem {
-                            style: root.style
-                            title: "正式版"
-                            subtitle: "稳定发布版本"
-                            count: releaseVersionModel.count
-                            selected: root.versionGroup === "release"
-                            onClicked: root.setVersionGroup("release")
-                        }
-
-                        CategoryItem {
-                            style: root.style
-                            title: "快照版"
-                            subtitle: "Snapshot / Pre-release / RC"
-                            count: snapshotVersionModel.count
-                            selected: root.versionGroup === "snapshot"
-                            onClicked: root.setVersionGroup("snapshot")
-                        }
-
-                        CategoryItem {
-                            style: root.style
-                            title: "愚人节 / 特殊版本"
-                            subtitle: "20w14∞ / One Block 等"
-                            count: aprilFoolsVersionModel.count
-                            selected: root.versionGroup === "april"
-                            onClicked: root.setVersionGroup("april")
-                        }
-
-                        CategoryItem {
-                            style: root.style
-                            title: "远古 Beta"
-                            subtitle: "old_beta"
-                            count: oldBetaVersionModel.count
-                            selected: root.versionGroup === "old_beta"
-                            onClicked: root.setVersionGroup("old_beta")
-                        }
-
-                        CategoryItem {
-                            style: root.style
-                            title: "远古 Alpha"
-                            subtitle: "old_alpha"
-                            count: oldAlphaVersionModel.count
-                            selected: root.versionGroup === "old_alpha"
-                            onClicked: root.setVersionGroup("old_alpha")
-                        }
-                    }
-                }
-
-                Rectangle {
-                    Layout.preferredWidth: 285
+                    Layout.preferredWidth: 265
                     Layout.fillHeight: true
                     radius: root.style.radiusValue
                     color: root.style.cSurfaceContainer
@@ -182,19 +98,19 @@ Item {
                         spacing: 8
 
                         Text {
-                            text: root.groupTitle(root.versionGroup)
+                            text: "Minecraft 版本"
                             color: root.style.cTextOnSurface
                             font.pixelSize: 16
                             font.bold: true
                         }
 
                         Text {
-                            Layout.fillWidth: true
-                            text: root.activeVersionModel && root.activeVersionModel.count > 0
-                                  ? "共 " + root.activeVersionModel.count + " 个版本"
-                                  : "该分类暂无版本"
+                            text: root.catalog
+                                  ? "Release: " + root.catalog.latestRelease + " / Snapshot: " + root.catalog.latestSnapshot
+                                  : "点击刷新列表"
                             color: root.style.cTextOnSurfaceVariant
                             font.pixelSize: 11
+                            elide: Text.ElideRight
                         }
 
                         ListView {
@@ -202,17 +118,16 @@ Item {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             clip: true
-                            model: root.activeVersionModel
-                            spacing: 6
+                            model: gameModel
 
                             delegate: Rectangle {
                                 width: gameList.width
                                 height: 56
                                 radius: 8
-                                color: root.selectedGameVersion === versionId
+                                color: root.selectedGameVersion === id
                                        ? root.style.cNavSelected
                                        : gameMouse.containsMouse ? root.style.cNavHover : "transparent"
-                                border.width: root.selectedGameVersion === versionId ? 1 : 0
+                                border.width: root.selectedGameVersion === id ? 1 : 0
                                 border.color: root.style.cBorder
 
                                 MouseArea {
@@ -221,7 +136,7 @@ Item {
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        root.selectedGameVersion = versionId
+                                        root.selectedGameVersion = id
                                         root.rebuildInstallerModels()
                                     }
                                 }
@@ -236,10 +151,10 @@ Item {
 
                                     Text {
                                         width: parent.width
-                                        text: versionId
+                                        text: id
                                         color: root.style.cTextOnSurface
                                         font.pixelSize: 14
-                                        font.bold: root.selectedGameVersion === versionId
+                                        font.bold: root.selectedGameVersion === id
                                         elide: Text.ElideRight
                                     }
 
@@ -446,7 +361,7 @@ Item {
 
         OutputPanel {
             Layout.fillWidth: true
-            Layout.maximumWidth: 1060
+            Layout.maximumWidth: 980
             Layout.fillHeight: true
             Layout.minimumHeight: 150
             style: root.style
@@ -458,36 +373,17 @@ Item {
         var raw = root.backend.refreshDownloadCatalog(root.downloadSource)
         root.catalog = JSON.parse(raw)
 
-        releaseVersionModel.clear()
-        snapshotVersionModel.clear()
-        aprilFoolsVersionModel.clear()
-        oldBetaVersionModel.clear()
-        oldAlphaVersionModel.clear()
-
+        gameModel.clear()
         fabricLoaderModel.clear()
         quiltLoaderModel.clear()
 
         for (var i = 0; i < root.catalog.gameVersions.length; i++) {
             var game = root.catalog.gameVersions[i]
-            var item = {
-                "versionId": game.id,
+            gameModel.append({
+                "id": game.id,
                 "versionType": game.versionType,
                 "releaseTime": game.releaseTime
-            }
-
-            var group = root.classifyGameVersion(game)
-
-            if (group === "release") {
-                releaseVersionModel.append(item)
-            } else if (group === "snapshot") {
-                snapshotVersionModel.append(item)
-            } else if (group === "april") {
-                aprilFoolsVersionModel.append(item)
-            } else if (group === "old_beta") {
-                oldBetaVersionModel.append(item)
-            } else if (group === "old_alpha") {
-                oldAlphaVersionModel.append(item)
-            }
+            })
         }
 
         for (var f = 0; f < root.catalog.fabricLoaders.length; f++) {
@@ -504,92 +400,11 @@ Item {
             })
         }
 
-        root.setVersionGroup(root.versionGroup)
-
-        if (root.selectedGameVersion.length === 0) {
-            root.setVersionGroup("release")
+        if (gameModel.count > 0 && root.selectedGameVersion.length === 0) {
+            root.selectedGameVersion = gameModel.get(0).id
         }
 
         root.rebuildInstallerModels()
-    }
-
-    function classifyGameVersion(game) {
-        if (root.isAprilFoolsVersion(game.id)) {
-            return "april"
-        }
-
-        if (game.versionType === "release") {
-            return "release"
-        }
-
-        if (game.versionType === "snapshot") {
-            return "snapshot"
-        }
-
-        if (game.versionType === "old_beta") {
-            return "old_beta"
-        }
-
-        if (game.versionType === "old_alpha") {
-            return "old_alpha"
-        }
-
-        return "snapshot"
-    }
-
-    function isAprilFoolsVersion(id) {
-        var lower = String(id).toLowerCase()
-
-        if (id === "2.0") return true
-        if (id === "15w14a") return true
-        if (id === "1.RV-Pre1") return true
-
-        return lower.indexOf("infinite") >= 0
-            || lower.indexOf("oneblockatatime") >= 0
-            || lower.indexOf("_or_b") >= 0
-            || lower.indexOf("potato") >= 0
-            || lower.indexOf("craftmine") >= 0
-            || lower.indexOf("shareware") >= 0
-            || lower.indexOf("3d shareware") >= 0
-    }
-
-    function setVersionGroup(group) {
-        root.versionGroup = group
-
-        if (group === "release") {
-            root.activeVersionModel = releaseVersionModel
-        } else if (group === "snapshot") {
-            root.activeVersionModel = snapshotVersionModel
-        } else if (group === "april") {
-            root.activeVersionModel = aprilFoolsVersionModel
-        } else if (group === "old_beta") {
-            root.activeVersionModel = oldBetaVersionModel
-        } else if (group === "old_alpha") {
-            root.activeVersionModel = oldAlphaVersionModel
-        } else {
-            root.activeVersionModel = releaseVersionModel
-        }
-
-        root.selectFirstVersionInActiveGroup()
-        root.rebuildInstallerModels()
-    }
-
-    function selectFirstVersionInActiveGroup() {
-        if (!root.activeVersionModel || root.activeVersionModel.count <= 0) {
-            root.selectedGameVersion = ""
-            return
-        }
-
-        root.selectedGameVersion = root.activeVersionModel.get(0).versionId
-    }
-
-    function groupTitle(group) {
-        if (group === "release") return "正式版"
-        if (group === "snapshot") return "快照版"
-        if (group === "april") return "愚人节 / 特殊版本"
-        if (group === "old_beta") return "远古 Beta"
-        if (group === "old_alpha") return "远古 Alpha"
-        return "版本"
     }
 
     function rebuildInstallerModels() {
@@ -651,7 +466,7 @@ Item {
         var loaderVersion = root.selectedLoaderVersion()
 
         if (root.selectedLoaderKind === "vanilla") {
-            return "将安装 " + root.groupTitle(root.versionGroup) + "：Minecraft " + root.selectedGameVersion + " 原版。"
+            return "将安装 Minecraft " + root.selectedGameVersion + " 原版。"
         }
 
         if (loaderVersion.length === 0) {
@@ -670,83 +485,6 @@ Item {
             root.selectedLoaderKind,
             root.selectedLoaderVersion()
         )
-    }
-
-    component CategoryItem: Rectangle {
-        id: item
-
-        required property var style
-        property string title: ""
-        property string subtitle: ""
-        property int count: 0
-        property bool selected: false
-
-        signal clicked()
-
-        width: parent ? parent.width : 200
-        height: 62
-        radius: 8
-
-        color: selected
-               ? style.cNavSelected
-               : mouse.containsMouse ? style.cNavHover : "transparent"
-
-        border.width: selected ? 1 : 0
-        border.color: style.cBorder
-
-        MouseArea {
-            id: mouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: item.clicked()
-        }
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
-            spacing: 8
-
-            Column {
-                Layout.fillWidth: true
-                spacing: 4
-
-                Text {
-                    width: parent.width
-                    text: item.title
-                    color: item.style.cTextOnSurface
-                    font.pixelSize: 14
-                    font.bold: item.selected
-                    elide: Text.ElideRight
-                }
-
-                Text {
-                    width: parent.width
-                    text: item.subtitle
-                    color: item.style.cTextOnSurfaceVariant
-                    font.pixelSize: 10
-                    elide: Text.ElideRight
-                }
-            }
-
-            Rectangle {
-                Layout.preferredWidth: 42
-                Layout.preferredHeight: 24
-                radius: 12
-                color: item.selected ? item.style.cButtonSelected : item.style.cButtonSurface
-                border.width: item.selected ? 0 : 1
-                border.color: item.style.cBorder
-
-                Text {
-                    anchors.centerIn: parent
-                    text: String(item.count)
-                    color: item.selected ? item.style.cButtonSelectedText : item.style.cTextOnSurfaceVariant
-                    font.pixelSize: 11
-                    font.bold: item.selected
-                }
-            }
-        }
     }
 
     component ChoiceButton: Rectangle {
