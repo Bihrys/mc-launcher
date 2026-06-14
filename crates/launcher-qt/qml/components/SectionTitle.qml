@@ -1,13 +1,23 @@
 import QtQuick
 
-Text {
-    required property var style
+Item {
+    id: root
 
-    width: parent ? parent.width : implicitWidth
-    color: style.onSurfaceVariant
-    font.pixelSize: 11
-    font.bold: true
-    leftPadding: 10
-    topPadding: 14
-    bottomPadding: 5
+    required property var style
+    property string title: ""
+
+    width: parent ? parent.width : 220
+    height: 34
+
+    Text {
+        anchors.left: parent.left
+        anchors.leftMargin: 10
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 5
+
+        text: root.title
+        color: root.style.cTextOnSurfaceVariant
+        font.pixelSize: 11
+        font.bold: true
+    }
 }

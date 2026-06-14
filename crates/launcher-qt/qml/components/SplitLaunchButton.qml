@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls
 
 Rectangle {
     id: root
@@ -15,9 +14,10 @@ Rectangle {
     width: 245
     height: 56
     radius: 8
-    color: launchMouse.containsMouse || menuMouse.containsMouse
-           ? style.launchButtonHover
-           : style.launchButton
+
+    color: launchMainMouse.containsMouse || launchMenuMouse.containsMouse
+           ? style.cLaunchButtonHover
+           : style.cLaunchButton
 
     Row {
         anchors.fill: parent
@@ -33,7 +33,7 @@ Rectangle {
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: root.title
-                    color: style.launchButtonText
+                    color: root.style.cLaunchButtonText
                     font.bold: true
                     font.pixelSize: 16
                 }
@@ -41,14 +41,14 @@ Rectangle {
                 Text {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: root.subtitle
-                    color: style.launchButtonText
+                    color: root.style.cLaunchButtonText
                     opacity: 0.82
                     font.pixelSize: 11
                 }
             }
 
             MouseArea {
-                id: launchMouse
+                id: launchMainMouse
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
@@ -69,12 +69,12 @@ Rectangle {
             Text {
                 anchors.centerIn: parent
                 text: "▲"
-                color: style.launchButtonText
+                color: root.style.cLaunchButtonText
                 font.pixelSize: 12
             }
 
             MouseArea {
-                id: menuMouse
+                id: launchMenuMouse
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor

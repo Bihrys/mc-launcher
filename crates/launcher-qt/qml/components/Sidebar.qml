@@ -1,19 +1,16 @@
 import QtQuick
 import QtQuick.Controls
-import "../components"
 
 Rectangle {
     id: root
 
     required property var style
-    required property var backend
-
     property string currentPage: "main"
 
     signal navigate(string page)
 
-    width: style.sidebarWidth
-    color: style.surfaceTransparent
+    width: style.sidebarWidthValue
+    color: style.cSurfaceTransparent
 
     ScrollView {
         anchors.fill: parent
@@ -26,69 +23,90 @@ Rectangle {
             spacing: 6
 
             SectionTitle {
-                text: "ACCOUNT"
                 style: root.style
+                title: "ACCOUNT"
             }
 
             NavItem {
+                style: root.style
                 title: "离线账户"
                 subtitle: "Steve"
-                selected: root.currentPage === "account"
-                style: root.style
-                onClicked: root.navigate("account")
+                page: "account"
+                currentPage: root.currentPage
+                onClicked: function(page) {
+                    root.navigate(page)
+                }
             }
 
             SectionTitle {
-                text: "VERSION"
                 style: root.style
+                title: "VERSION"
             }
 
             NavItem {
+                style: root.style
                 title: "当前游戏"
                 subtitle: "未选择版本"
-                selected: root.currentPage === "main"
-                style: root.style
-                onClicked: root.navigate("main")
+                page: "main"
+                currentPage: root.currentPage
+                onClicked: function(page) {
+                    root.navigate(page)
+                }
             }
 
             NavItem {
+                style: root.style
                 title: "版本管理"
-                selected: root.currentPage === "versions"
-                style: root.style
-                onClicked: root.navigate("versions")
+                page: "versions"
+                currentPage: root.currentPage
+                onClicked: function(page) {
+                    root.navigate(page)
+                }
             }
 
             NavItem {
-                title: "下载"
-                selected: root.currentPage === "download"
                 style: root.style
-                onClicked: root.navigate("download")
+                title: "下载"
+                page: "download"
+                currentPage: root.currentPage
+                onClicked: function(page) {
+                    root.navigate(page)
+                }
             }
 
             SectionTitle {
-                text: "SETTINGS"
                 style: root.style
+                title: "SETTINGS"
             }
 
             NavItem {
+                style: root.style
                 title: "启动器设置"
-                selected: root.currentPage === "settings"
-                style: root.style
-                onClicked: root.navigate("settings")
+                page: "settings"
+                currentPage: root.currentPage
+                onClicked: function(page) {
+                    root.navigate(page)
+                }
             }
 
             NavItem {
+                style: root.style
                 title: "Java 管理"
-                selected: root.currentPage === "java"
-                style: root.style
-                onClicked: root.navigate("java")
+                page: "java"
+                currentPage: root.currentPage
+                onClicked: function(page) {
+                    root.navigate(page)
+                }
             }
 
             NavItem {
-                title: "反馈"
-                selected: root.currentPage === "feedback"
                 style: root.style
-                onClicked: root.navigate("feedback")
+                title: "反馈"
+                page: "feedback"
+                currentPage: root.currentPage
+                onClicked: function(page) {
+                    root.navigate(page)
+                }
             }
         }
     }

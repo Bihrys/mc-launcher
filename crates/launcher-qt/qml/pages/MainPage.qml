@@ -20,8 +20,8 @@ Item {
         Rectangle {
             width: Math.min(parent.width, 520)
             height: 108
-            radius: style.radius
-            color: style.surfaceContainerHigh
+            radius: root.style.radiusValue
+            color: root.style.cSurfaceContainerHigh
 
             Column {
                 anchors.fill: parent
@@ -30,7 +30,7 @@ Item {
 
                 Text {
                     text: "Hello Minecraft! Launcher 风格首页"
-                    color: style.onSurface
+                    color: root.style.cTextOnSurface
                     font.pixelSize: 19
                     font.bold: true
                 }
@@ -38,7 +38,7 @@ Item {
                 Text {
                     width: parent.width
                     text: "这是 Qt/QML 主界面壳。后续可以把账号、版本、下载、设置等页面逐步接入 Rust 后端。"
-                    color: style.onSurfaceVariant
+                    color: root.style.cTextOnSurfaceVariant
                     font.pixelSize: 13
                     wrapMode: Text.WordWrap
                 }
@@ -50,28 +50,20 @@ Item {
 
             Button {
                 text: "检测 Java"
-                onClicked: {
-                    if (backend && typeof backend.detectJava === "function") {
-                        backend.detectJava()
-                    }
-                }
+                onClicked: root.backend.detectJava()
             }
 
             Button {
                 text: "刷新版本"
-                onClicked: {
-                    if (backend && typeof backend.refreshVersions === "function") {
-                        backend.refreshVersions()
-                    }
-                }
+                onClicked: console.log("refresh versions")
             }
         }
 
         Rectangle {
             width: Math.min(parent.width, 620)
             height: 230
-            radius: style.radius
-            color: style.surfaceContainer
+            radius: root.style.radiusValue
+            color: root.style.cSurfaceContainer
 
             ColumnLayout {
                 anchors.fill: parent
@@ -80,7 +72,7 @@ Item {
 
                 Text {
                     text: "后端输出"
-                    color: style.onSurface
+                    color: root.style.cTextOnSurface
                     font.bold: true
                     font.pixelSize: 14
                 }
@@ -90,7 +82,7 @@ Item {
                     Layout.fillHeight: true
                     readOnly: true
                     wrapMode: TextEdit.Wrap
-                    text: backend.output
+                    text: root.backend.output
                     placeholderText: "等待 Rust 后端输出..."
                 }
             }

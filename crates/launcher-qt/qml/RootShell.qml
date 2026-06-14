@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 import "components"
 import "pages"
@@ -7,7 +6,7 @@ import "pages"
 Item {
     id: root
 
-    required property var window
+    required property var appWindow
     required property var backend
 
     property string currentPage: "main"
@@ -18,6 +17,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
+
         gradient: Gradient {
             GradientStop {
                 position: 0.0
@@ -33,7 +33,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        color: style.surfaceTransparent
+        color: style.cSurfaceTransparent
     }
 
     ColumnLayout {
@@ -42,7 +42,7 @@ Item {
 
         TitleBar {
             Layout.fillWidth: true
-            window: root.window
+            appWindow: root.appWindow
             style: style
         }
 
@@ -52,10 +52,9 @@ Item {
             spacing: 0
 
             Sidebar {
-                Layout.preferredWidth: style.sidebarWidth
+                Layout.preferredWidth: style.sidebarWidthValue
                 Layout.fillHeight: true
                 style: style
-                backend: root.backend
                 currentPage: root.currentPage
                 onNavigate: function(page) {
                     root.currentPage = page
@@ -77,23 +76,22 @@ Item {
                     anchors.fill: parent
                     visible: root.currentPage !== "main"
                     style: style
-                    pageTitle: root.pageTitle(root.currentPage)
+                    titleText: root.getPageTitle(root.currentPage)
                 }
 
                 SplitLaunchButton {
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
                     anchors.margins: 24
+
                     style: style
                     title: "启动游戏"
                     subtitle: "未选择版本"
+
                     onLaunchClicked: {
-                        if (backend && typeof backend.launch === "function") {
-                            backend.launch()
-                        } else {
-                            console.log("launch")
-                        }
+                        console.log("launch")
                     }
+
                     onMenuClicked: {
                         root.currentPage = "versions"
                     }
@@ -102,7 +100,7 @@ Item {
         }
     }
 
-    function pageTitle(page) {
+    function getPageTitle(page) {
         switch (page) {
         case "account":
             return "账户管理"

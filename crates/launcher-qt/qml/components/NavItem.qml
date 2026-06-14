@@ -7,14 +7,18 @@ Rectangle {
 
     property string title: ""
     property string subtitle: ""
-    property bool selected: false
+    property string page: ""
+    property string currentPage: ""
 
-    signal clicked()
+    signal clicked(string page)
 
     width: parent ? parent.width : 220
     height: subtitle.length > 0 ? 58 : 46
     radius: 6
-    color: selected ? style.navSelected : mouse.containsMouse ? style.navHover : "transparent"
+
+    color: page === currentPage
+           ? style.cNavSelected
+           : navMouse.containsMouse ? style.cNavHover : "transparent"
 
     Behavior on color {
         ColorAnimation {
@@ -23,11 +27,11 @@ Rectangle {
     }
 
     MouseArea {
-        id: mouse
+        id: navMouse
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        onClicked: root.clicked()
+        onClicked: root.clicked(root.page)
     }
 
     Column {
@@ -41,9 +45,9 @@ Rectangle {
         Text {
             width: parent.width
             text: root.title
-            color: style.onSurface
+            color: root.style.cTextOnSurface
             font.pixelSize: 14
-            font.bold: root.selected
+            font.bold: root.page === root.currentPage
             elide: Text.ElideRight
         }
 
@@ -51,7 +55,7 @@ Rectangle {
             width: parent.width
             visible: root.subtitle.length > 0
             text: root.subtitle
-            color: style.onSurfaceVariant
+            color: root.style.cTextOnSurfaceVariant
             font.pixelSize: 11
             elide: Text.ElideRight
         }

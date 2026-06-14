@@ -1,26 +1,25 @@
 import QtQuick
 
 QtObject {
-    property color primary: "#4352A5"
-    property color primaryContainer: "#5C6BC0"
-    property color onPrimaryContainer: "#F8F6FF"
+    property color cPrimary: "#4352A5"
+    property color cPrimaryContainer: "#5C6BC0"
+    property color cTextOnPrimaryContainer: "#F8F6FF"
 
-    property color surface: "#FBF8FF"
-    property color surfaceTransparent: "#EEFBF8FF"
-    property color surfaceContainer: "#CCF5F2FA"
-    property color surfaceContainerHigh: "#E8F5F2FA"
+    property color cSurfaceTransparent: "#EEFBF8FF"
+    property color cSurfaceContainer: "#CCF5F2FA"
+    property color cSurfaceContainerHigh: "#E8F5F2FA"
 
-    property color onSurface: "#1B1B21"
-    property color onSurfaceVariant: "#454651"
+    property color cTextOnSurface: "#1B1B21"
+    property color cTextOnSurfaceVariant: "#454651"
 
-    property color navSelected: "#80D0D5FD"
-    property color navHover: "#44D0D5FD"
+    property color cNavSelected: "#80D0D5FD"
+    property color cNavHover: "#44D0D5FD"
 
-    property color launchButton: "#4352A5"
-    property color launchButtonHover: "#5363BF"
-    property color launchButtonText: "#FFFFFF"
+    property color cLaunchButton: "#4352A5"
+    property color cLaunchButtonHover: "#5363BF"
+    property color cLaunchButtonText: "#FFFFFF"
 
-    property int titleBarHeight: 42
-    property int sidebarWidth: 245
-    property int radius: 8
+    property int titleBarHeightValue: 42
+    property int sidebarWidthValue: 245
+    property int radiusValue: 8
 }
