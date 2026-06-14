@@ -1,0 +1,588 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import QtQuick.Window
+import com.bihrys.launcher
+
+ApplicationWindow {
+    id: window
+
+    width: 960
+    height: 600
+    minimumWidth: 840
+    minimumHeight: 520
+    visible: true
+    title: "MC Launcher"
+    flags: Qt.Window | Qt.FramelessWindowHint
+    color: "transparent"
+
+    property string currentPage: "main"
+
+    QtObject {
+        id: style
+
+        property color primary: "#4352A5"
+        property color primaryContainer: "#5C6BC0"
+        property color textOnPrimaryContainer: "#F8F6FF"
+
+        property color surfaceTransparent: "#EEFBF8FF"
+        property color surfaceContainer: "#CCF5F2FA"
+        property color surfaceContainerHigh: "#E8F5F2FA"
+
+        property color textOnSurface: "#1B1B21"
+        property color textOnSurfaceVariant: "#454651"
+
+        property color navSelected: "#80D0D5FD"
+        property color navHover: "#44D0D5FD"
+
+        property color launchButton: "#4352A5"
+        property color launchButtonHover: "#5363BF"
+        property color launchButtonText: "#FFFFFF"
+
+        property int titleBarHeight: 42
+        property int sidebarWidth: 245
+        property int radius: 8
+    }
+
+    LauncherBackend {
+        id: backend
+    }
+
+    Rectangle {
+        anchors.fill: parent
+
+        gradient: Gradient {
+            GradientStop {
+                position: 0.0
+                color: "#F8F6FF"
+            }
+
+            GradientStop {
+                position: 1.0
+                color: "#DDE2FF"
+            }
+        }
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        color: style.surfaceTransparent
+    }
+
+    ColumnLayout {
+        anchors.fill: parent
+        spacing: 0
+
+        Rectangle {
+            id: titleBar
+
+            Layout.fillWidth: true
+            height: style.titleBarHeight
+            color: style.primaryContainer
+
+            DragHandler {
+                onActiveChanged: {
+                    if (active) {
+                        window.startSystemMove()
+                    }
+                }
+            }
+
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 14
+                spacing: 8
+
+                Rectangle {
+                    width: 22
+                    height: 22
+                    radius: 5
+                    color: style.primary
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "M"
+                        color: style.launchButtonText
+                        font.bold: true
+                        font.pixelSize: 13
+                    }
+                }
+
+                Text {
+                    text: "MC Launcher"
+                    color: style.textOnPrimaryContainer
+                    font.bold: true
+                    font.pixelSize: 14
+                    Layout.fillWidth: true
+                }
+
+                TitleButton {
+                    label: "—"
+                    onClicked: window.showMinimized()
+                }
+
+                TitleButton {
+                    label: window.visibility === Window.Maximized ? "❐" : "□"
+                    onClicked: {
+                        if (window.visibility === Window.Maximized) {
+                            window.showNormal()
+                        } else {
+                            window.showMaximized()
+                        }
+                    }
+                }
+
+                TitleButton {
+                    label: "×"
+                    danger: true
+                    onClicked: Qt.quit()
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            spacing: 0
+
+            Rectangle {
+                id: sidebar
+
+                Layout.preferredWidth: style.sidebarWidth
+                Layout.fillHeight: true
+                color: style.surfaceTransparent
+
+                ScrollView {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    clip: true
+                    contentWidth: availableWidth
+
+                    Column {
+                        width: sidebar.width - 20
+                        spacing: 6
+
+                        SectionTitle {
+                            text: "ACCOUNT"
+                        }
+
+                        NavItem {
+                            title: "离线账户"
+                            subtitle: "Steve"
+                            selected: window.currentPage === "account"
+                            onClicked: window.currentPage = "account"
+                        }
+
+                        SectionTitle {
+                            text: "VERSION"
+                        }
+
+                        NavItem {
+                            title: "当前游戏"
+                            subtitle: "未选择版本"
+                            selected: window.currentPage === "main"
+                            onClicked: window.currentPage = "main"
+                        }
+
+                        NavItem {
+                            title: "版本管理"
+                            selected: window.currentPage === "versions"
+                            onClicked: window.currentPage = "versions"
+                        }
+
+                        NavItem {
+                            title: "下载"
+                            selected: window.currentPage === "download"
+                            onClicked: window.currentPage = "download"
+                        }
+
+                        SectionTitle {
+                            text: "SETTINGS"
+                        }
+
+                        NavItem {
+                            title: "启动器设置"
+                            selected: window.currentPage === "settings"
+                            onClicked: window.currentPage = "settings"
+                        }
+
+                        NavItem {
+                            title: "Java 管理"
+                            selected: window.currentPage === "java"
+                            onClicked: window.currentPage = "java"
+                        }
+
+                        NavItem {
+                            title: "反馈"
+                            selected: window.currentPage === "feedback"
+                            onClicked: window.currentPage = "feedback"
+                        }
+                    }
+                }
+            }
+
+            Item {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+
+                MainContent {
+                    anchors.fill: parent
+                    visible: window.currentPage === "main"
+                }
+
+                PlaceholderContent {
+                    anchors.fill: parent
+                    visible: window.currentPage !== "main"
+                    pageTitle: pageTitle(window.currentPage)
+                }
+
+                SplitLaunchButton {
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    anchors.margins: 24
+
+                    title: "启动游戏"
+                    subtitle: "未选择版本"
+
+                    onLaunchClicked: {
+                        if (backend && typeof backend.launch === "function") {
+                            backend.launch()
+                        } else {
+                            console.log("launch")
+                        }
+                    }
+
+                    onMenuClicked: {
+                        window.currentPage = "versions"
+                    }
+                }
+            }
+        }
+    }
+
+    function pageTitle(page) {
+        switch (page) {
+        case "account":
+            return "账户管理"
+        case "versions":
+            return "版本管理"
+        case "download":
+            return "下载"
+        case "settings":
+            return "启动器设置"
+        case "java":
+            return "Java 管理"
+        case "feedback":
+            return "反馈"
+        default:
+            return "页面"
+        }
+    }
+
+    component TitleButton: Rectangle {
+        id: btn
+
+        property string label: ""
+        property bool danger: false
+
+        signal clicked()
+
+        width: 42
+        height: style.titleBarHeight
+        color: mouse.containsMouse
+               ? danger ? "#D32F2F" : "#225B62C8"
+               : "transparent"
+
+        Text {
+            anchors.centerIn: parent
+            text: btn.label
+            color: style.textOnPrimaryContainer
+            font.pixelSize: 15
+        }
+
+        MouseArea {
+            id: mouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: btn.clicked()
+        }
+    }
+
+    component SectionTitle: Text {
+        width: parent ? parent.width : implicitWidth
+        color: style.textOnSurfaceVariant
+        font.pixelSize: 11
+        font.bold: true
+        leftPadding: 10
+        topPadding: 14
+        bottomPadding: 5
+    }
+
+    component NavItem: Rectangle {
+        id: nav
+
+        property string title: ""
+        property string subtitle: ""
+        property bool selected: false
+
+        signal clicked()
+
+        width: parent ? parent.width : 220
+        height: subtitle.length > 0 ? 58 : 46
+        radius: 6
+        color: selected ? style.navSelected : navMouse.containsMouse ? style.navHover : "transparent"
+
+        Behavior on color {
+            ColorAnimation {
+                duration: 120
+            }
+        }
+
+        MouseArea {
+            id: navMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: nav.clicked()
+        }
+
+        Column {
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.left: parent.left
+            anchors.leftMargin: 16
+            anchors.right: parent.right
+            anchors.rightMargin: 12
+            spacing: 3
+
+            Text {
+                width: parent.width
+                text: nav.title
+                color: style.textOnSurface
+                font.pixelSize: 14
+                font.bold: nav.selected
+                elide: Text.ElideRight
+            }
+
+            Text {
+                width: parent.width
+                visible: nav.subtitle.length > 0
+                text: nav.subtitle
+                color: style.textOnSurfaceVariant
+                font.pixelSize: 11
+                elide: Text.ElideRight
+            }
+        }
+    }
+
+    component MainContent: Item {
+        Column {
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.margins: 24
+            anchors.bottomMargin: 96
+            spacing: 14
+
+            Rectangle {
+                width: Math.min(parent.width, 520)
+                height: 108
+                radius: style.radius
+                color: style.surfaceContainerHigh
+
+                Column {
+                    anchors.fill: parent
+                    anchors.margins: 16
+                    spacing: 8
+
+                    Text {
+                        text: "Hello Minecraft! Launcher 风格首页"
+                        color: style.textOnSurface
+                        font.pixelSize: 19
+                        font.bold: true
+                    }
+
+                    Text {
+                        width: parent.width
+                        text: "这是 Qt/QML 主界面壳。后续可以把账号、版本、下载、设置等页面逐步接入 Rust 后端。"
+                        color: style.textOnSurfaceVariant
+                        font.pixelSize: 13
+                        wrapMode: Text.WordWrap
+                    }
+                }
+            }
+
+            Row {
+                spacing: 10
+
+                Button {
+                    text: "检测 Java"
+                    onClicked: {
+                        if (backend && typeof backend.detectJava === "function") {
+                            backend.detectJava()
+                        }
+                    }
+                }
+
+                Button {
+                    text: "刷新版本"
+                    onClicked: {
+                        if (backend && typeof backend.refreshVersions === "function") {
+                            backend.refreshVersions()
+                        } else {
+                            console.log("refresh versions")
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                width: Math.min(parent.width, 620)
+                height: 230
+                radius: style.radius
+                color: style.surfaceContainer
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 12
+                    spacing: 8
+
+                    Text {
+                        text: "后端输出"
+                        color: style.textOnSurface
+                        font.bold: true
+                        font.pixelSize: 14
+                    }
+
+                    TextArea {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        readOnly: true
+                        wrapMode: TextEdit.Wrap
+                        text: backend.output
+                        placeholderText: "等待 Rust 后端输出..."
+                    }
+                }
+            }
+        }
+    }
+
+    component PlaceholderContent: Item {
+        id: placeholder
+
+        property string pageTitle: ""
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.margins: 24
+            width: Math.min(parent.width - 48, 520)
+            height: 120
+            radius: style.radius
+            color: style.surfaceContainerHigh
+
+            Column {
+                anchors.fill: parent
+                anchors.margins: 18
+                spacing: 8
+
+                Text {
+                    text: placeholder.pageTitle
+                    color: style.textOnSurface
+                    font.pixelSize: 21
+                    font.bold: true
+                }
+
+                Text {
+                    width: parent.width
+                    text: "页面占位。下一步把 HMCL 对应页面的控件和 Rust 后端接口接进这里。"
+                    color: style.textOnSurfaceVariant
+                    font.pixelSize: 13
+                    wrapMode: Text.WordWrap
+                }
+            }
+        }
+    }
+
+    component SplitLaunchButton: Rectangle {
+        id: launchRoot
+
+        property string title: "启动游戏"
+        property string subtitle: "未选择版本"
+
+        signal launchClicked()
+        signal menuClicked()
+
+        width: 245
+        height: 56
+        radius: 8
+        color: launchMouse.containsMouse || menuMouse.containsMouse
+               ? style.launchButtonHover
+               : style.launchButton
+
+        Row {
+            anchors.fill: parent
+
+            Item {
+                width: launchRoot.width - 38
+                height: launchRoot.height
+
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 2
+
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: launchRoot.title
+                        color: style.launchButtonText
+                        font.bold: true
+                        font.pixelSize: 16
+                    }
+
+                    Text {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        text: launchRoot.subtitle
+                        color: style.launchButtonText
+                        opacity: 0.82
+                        font.pixelSize: 11
+                    }
+                }
+
+                MouseArea {
+                    id: launchMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: launchRoot.launchClicked()
+                }
+            }
+
+            Rectangle {
+                width: 1
+                height: launchRoot.height
+                color: "#55FFFFFF"
+            }
+
+            Item {
+                width: 37
+                height: launchRoot.height
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "▲"
+                    color: style.launchButtonText
+                    font.pixelSize: 12
+                }
+
+                MouseArea {
+                    id: menuMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: launchRoot.menuClicked()
+                }
+            }
+        }
+    }
+}

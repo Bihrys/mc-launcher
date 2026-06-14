@@ -1,3 +1,4 @@
 [env]
-QMAKE = "/usr/bin/qmake6"
-QT_VERSION_MAJOR = "6"
+CC = { value = "/usr/bin/clang", force = true }
+CXX = { value = "/usr/bin/clang++", force = true }
+CXXFLAGS = { value = "-stdlib=libstdc++", force = true }
