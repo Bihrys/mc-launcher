@@ -29,8 +29,8 @@ Rectangle {
 
             NavItem {
                 style: root.style
-                title: "账户管理"
-                subtitle: "离线 / 微软 / 第三方"
+                title: "离线账户"
+                subtitle: "Steve"
                 page: "account"
                 currentPage: root.currentPage
                 onClicked: function(page) {

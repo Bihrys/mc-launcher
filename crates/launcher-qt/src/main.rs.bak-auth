@@ -1,0 +1,56 @@
+pub mod backend;
+
+use std::pin::Pin;
+
+use cxx_qt::casting::Upcast;
+use cxx_qt_lib::{
+    QGuiApplication,
+    QQmlApplicationEngine,
+    QQmlEngine,
+    QString,
+    QUrl,
+};
+
+fn main() {
+    let mut app = QGuiApplication::new();
+
+    if let Some(mut app_ref) = app.as_mut() {
+        app_ref
+            .as_mut()
+            .set_application_name(&QString::from("MC Launcher"));
+
+        app_ref
+            .as_mut()
+            .set_application_version(&QString::from(env!("CARGO_PKG_VERSION")));
+
+        app_ref
+            .as_mut()
+            .set_organization_name(&QString::from("Bihrys"));
+
+        app_ref
+            .as_mut()
+            .set_organization_domain(&QString::from("bihrys.github.io"));
+    }
+
+    let mut engine = QQmlApplicationEngine::new();
+
+    if let Some(mut engine_ref) = engine.as_mut() {
+        engine_ref
+            .as_mut()
+            .load(&QUrl::from("qrc:/qt/qml/com/bihrys/launcher/qml/main.qml"));
+    }
+
+    if let Some(mut engine_ref) = engine.as_mut() {
+        let engine_ref: Pin<&mut QQmlEngine> = engine_ref.as_mut().upcast_pin();
+
+        engine_ref
+            .on_quit(|_| {
+                println!("QML quit");
+            })
+            .release();
+    }
+
+    if let Some(mut app_ref) = app.as_mut() {
+        app_ref.as_mut().exec();
+    }
+}

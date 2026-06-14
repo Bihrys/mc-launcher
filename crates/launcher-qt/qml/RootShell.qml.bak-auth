@@ -92,13 +92,6 @@ Item {
                     backend: root.backend
                 }
 
-                AccountPage {
-                    anchors.fill: parent
-                    visible: root.currentPage === "account"
-                    style: style
-                    backend: root.backend
-                }
-
                 SettingsPage {
                     anchors.fill: parent
                     visible: root.currentPage === "settings"
@@ -119,7 +112,6 @@ Item {
                 PlaceholderPage {
                     anchors.fill: parent
                     visible: root.currentPage !== "main"
-                             && root.currentPage !== "account"
                              && root.currentPage !== "settings"
                              && root.currentPage !== "java"
                     style: style

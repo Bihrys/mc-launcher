@@ -1,0 +1,481 @@
+use reqwest::blocking::Client;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use std::collections::HashMap;
+use std::fs;
+use std::io;
+use std::path::PathBuf;
+use uuid::Uuid;
+
+pub type AuthError = Box<dyn std::error::Error + Send + Sync + 'static>;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthAccount {
+    pub kind: String,
+    pub username: String,
+    pub uuid: String,
+    pub access_token: String,
+    pub refresh_token: Option<String>,
+    pub server_url: Option<String>,
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MicrosoftDeviceCode {
+    pub device_code: String,
+    pub user_code: String,
+    pub verification_uri: String,
+    pub expires_in: u64,
+    pub interval: u64,
+    pub message: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DeviceCodeResponse {
+    device_code: String,
+    user_code: String,
+    verification_uri: String,
+    expires_in: u64,
+    interval: Option<u64>,
+    message: Option<String>,
+    error: Option<String>,
+    error_description: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct TokenPollResponse {
+    access_token: Option<String>,
+    refresh_token: Option<String>,
+    token_type: Option<String>,
+    expires_in: Option<u64>,
+    error: Option<String>,
+    error_description: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct XboxAuthResponse {
+    #[serde(rename = "Token")]
+    token: Option<String>,
+
+    #[serde(rename = "DisplayClaims")]
+    display_claims: Option<XboxDisplayClaims>,
+
+    #[serde(rename = "XErr")]
+    xerr: Option<u64>,
+
+    #[serde(rename = "Message")]
+    message: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct XboxDisplayClaims {
+    xui: Vec<HashMap<String, String>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MinecraftLoginResponse {
+    access_token: String,
+    token_type: String,
+    expires_in: u64,
+    username: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MinecraftProfileResponse {
+    id: String,
+    name: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct YggdrasilAuthResponse {
+    #[serde(rename = "accessToken")]
+    access_token: Option<String>,
+
+    #[serde(rename = "clientToken")]
+    client_token: Option<String>,
+
+    #[serde(rename = "selectedProfile")]
+    selected_profile: Option<YggdrasilProfile>,
+
+    #[serde(rename = "availableProfiles")]
+    available_profiles: Option<Vec<YggdrasilProfile>>,
+
+    error: Option<String>,
+
+    #[serde(rename = "errorMessage")]
+    error_message: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct YggdrasilProfile {
+    id: String,
+    name: String,
+}
+
+pub fn login_offline(username: &str) -> Result<AuthAccount, AuthError> {
+    let username = username.trim();
+
+    if username.is_empty() {
+        return Err(simple_error("离线用户名不能为空。"));
+    }
+
+    if !is_valid_minecraft_name(username) {
+        return Err(simple_error("离线用户名只能包含 3-16 位字母、数字或下划线。"));
+    }
+
+    let uuid = Uuid::new_v5(
+        &Uuid::NAMESPACE_OID,
+        format!("OfflinePlayer:{username}").as_bytes(),
+    );
+
+    Ok(AuthAccount {
+        kind: "offline".to_string(),
+        username: username.to_string(),
+        uuid: uuid.to_string(),
+        access_token: "0".to_string(),
+        refresh_token: None,
+        server_url: None,
+        note: Some("离线账户，不会进行正版验证。".to_string()),
+    })
+}
+
+pub fn login_yggdrasil(
+    server_url: &str,
+    username: &str,
+    password: &str,
+) -> Result<AuthAccount, AuthError> {
+    let server_url = normalize_server_url(server_url)?;
+    let username = username.trim();
+
+    if username.is_empty() {
+        return Err(simple_error("第三方账户用户名不能为空。"));
+    }
+
+    if password.is_empty() {
+        return Err(simple_error("第三方账户密码不能为空。"));
+    }
+
+    let client_token = Uuid::new_v4().to_string();
+    let auth_url = format!("{}/authserver/authenticate", server_url.trim_end_matches('/'));
+
+    let body = json!({
+        "agent": {
+            "name": "Minecraft",
+            "version": 1
+        },
+        "username": username,
+        "password": password,
+        "clientToken": client_token,
+        "requestUser": true
+    });
+
+    let client = http_client()?;
+    let response = client.post(&auth_url).json(&body).send()?;
+    let status = response.status();
+    let text = response.text()?;
+
+    let parsed: YggdrasilAuthResponse = serde_json::from_str(&text).map_err(|err| {
+        simple_error(format!(
+            "第三方服务器响应不是有效 Yggdrasil JSON。\n\nHTTP: {status}\nURL: {auth_url}\n\n{err}\n\n{text}"
+        ))
+    })?;
+
+    if !status.is_success() {
+        let message = parsed
+            .error_message
+            .or(parsed.error)
+            .unwrap_or_else(|| text.clone());
+
+        return Err(simple_error(format!(
+            "第三方服务器登录失败。\n\nHTTP: {status}\nURL: {auth_url}\n\n{message}"
+        )));
+    }
+
+    if let Some(error) = parsed.error {
+        let message = parsed.error_message.unwrap_or_default();
+        return Err(simple_error(format!("第三方服务器登录失败：{error}\n{message}")));
+    }
+
+    let profile = parsed
+        .selected_profile
+        .or_else(|| parsed.available_profiles.and_then(|mut profiles| profiles.pop()))
+        .ok_or_else(|| simple_error("第三方服务器没有返回角色档案。"))?;
+
+    let access_token = parsed
+        .access_token
+        .ok_or_else(|| simple_error("第三方服务器没有返回 accessToken。"))?;
+
+    Ok(AuthAccount {
+        kind: "yggdrasil".to_string(),
+        username: profile.name,
+        uuid: profile.id,
+        access_token,
+        refresh_token: None,
+        server_url: Some(server_url),
+        note: Some(format!("第三方登录：{username}")),
+    })
+}
+
+pub fn request_microsoft_device_code(client_id: &str) -> Result<MicrosoftDeviceCode, AuthError> {
+    let client_id = normalize_client_id(client_id)?;
+
+    let response: DeviceCodeResponse = http_client()?
+        .post("https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode")
+        .form(&[
+            ("client_id", client_id.as_str()),
+            ("scope", "XboxLive.signin offline_access"),
+        ])
+        .send()?
+        .json()?;
+
+    if let Some(error) = response.error {
+        return Err(simple_error(format!(
+            "微软设备码请求失败：{}\n{}",
+            error,
+            response.error_description.unwrap_or_default()
+        )));
+    }
+
+    Ok(MicrosoftDeviceCode {
+        device_code: response.device_code,
+        user_code: response.user_code,
+        verification_uri: response.verification_uri,
+        expires_in: response.expires_in,
+        interval: response.interval.unwrap_or(5),
+        message: response.message,
+    })
+}
+
+pub fn complete_microsoft_device_login(
+    client_id: &str,
+    device_code: &str,
+) -> Result<AuthAccount, AuthError> {
+    let client_id = normalize_client_id(client_id)?;
+
+    if device_code.trim().is_empty() {
+        return Err(simple_error("缺少微软 device_code，请先点击“获取验证码”。"));
+    }
+
+    let token: TokenPollResponse = http_client()?
+        .post("https://login.microsoftonline.com/consumers/oauth2/v2.0/token")
+        .form(&[
+            ("grant_type", "urn:ietf:params:oauth:grant-type:device_code"),
+            ("client_id", client_id.as_str()),
+            ("device_code", device_code.trim()),
+        ])
+        .send()?
+        .json()?;
+
+    if let Some(error) = token.error {
+        let message = token.error_description.unwrap_or_default();
+
+        if error == "authorization_pending" {
+            return Err(simple_error("微软授权尚未完成。请先在浏览器完成授权，然后再点“检查授权并登录”。"));
+        }
+
+        if error == "expired_token" {
+            return Err(simple_error("微软验证码已过期，请重新获取验证码。"));
+        }
+
+        if error == "slow_down" {
+            return Err(simple_error("微软要求降低轮询频率。等几秒后再点“检查授权并登录”。"));
+        }
+
+        return Err(simple_error(format!("微软 OAuth 登录失败：{error}\n{message}")));
+    }
+
+    let live_access_token = token
+        .access_token
+        .ok_or_else(|| simple_error("微软 OAuth 没有返回 access_token。"))?;
+
+    let live_refresh_token = token.refresh_token;
+
+    authenticate_minecraft_with_live_token(live_access_token, live_refresh_token)
+}
+
+pub fn save_account(account: &AuthAccount) -> Result<PathBuf, AuthError> {
+    let path = accounts_path()?;
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    let mut accounts: Vec<AuthAccount> = fs::read_to_string(&path)
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default();
+
+    accounts.retain(|existing| {
+        !(existing.kind == account.kind
+            && existing.uuid == account.uuid
+            && existing.server_url == account.server_url)
+    });
+
+    accounts.push(account.clone());
+
+    fs::write(&path, serde_json::to_string_pretty(&accounts)?)?;
+
+    Ok(path)
+}
+
+fn authenticate_minecraft_with_live_token(
+    live_access_token: String,
+    live_refresh_token: Option<String>,
+) -> Result<AuthAccount, AuthError> {
+    let client = http_client()?;
+
+    let xbox: XboxAuthResponse = client
+        .post("https://user.auth.xboxlive.com/user/authenticate")
+        .json(&json!({
+            "Properties": {
+                "AuthMethod": "RPS",
+                "SiteName": "user.auth.xboxlive.com",
+                "RpsTicket": format!("d={live_access_token}")
+            },
+            "RelyingParty": "http://auth.xboxlive.com",
+            "TokenType": "JWT"
+        }))
+        .send()?
+        .json()?;
+
+    let xbox_token = xbox.token.ok_or_else(|| {
+        simple_error(format!(
+            "Xbox Live 登录失败。XErr={:?}, Message={:?}",
+            xbox.xerr, xbox.message
+        ))
+    })?;
+
+    let uhs = extract_uhs(&xbox)?;
+
+    let xsts: XboxAuthResponse = client
+        .post("https://xsts.auth.xboxlive.com/xsts/authorize")
+        .json(&json!({
+            "Properties": {
+                "SandboxId": "RETAIL",
+                "UserTokens": [xbox_token]
+            },
+            "RelyingParty": "rp://api.minecraftservices.com/",
+            "TokenType": "JWT"
+        }))
+        .send()?
+        .json()?;
+
+    let xsts_token = xsts.token.ok_or_else(|| {
+        simple_error(format!(
+            "XSTS 授权失败。XErr={:?}, Message={:?}",
+            xsts.xerr, xsts.message
+        ))
+    })?;
+
+    let xsts_uhs = extract_uhs(&xsts)?;
+
+    if xsts_uhs != uhs {
+        return Err(simple_error("Xbox UHS 不一致，微软登录响应异常。"));
+    }
+
+    let minecraft: MinecraftLoginResponse = client
+        .post("https://api.minecraftservices.com/authentication/login_with_xbox")
+        .json(&json!({
+            "identityToken": format!("XBL3.0 x={uhs};{xsts_token}")
+        }))
+        .send()?
+        .json()?;
+
+    let profile: MinecraftProfileResponse = client
+        .get("https://api.minecraftservices.com/minecraft/profile")
+        .bearer_auth(&minecraft.access_token)
+        .send()?
+        .error_for_status()?
+        .json()?;
+
+    Ok(AuthAccount {
+        kind: "microsoft".to_string(),
+        username: profile.name,
+        uuid: profile.id,
+        access_token: minecraft.access_token,
+        refresh_token: live_refresh_token,
+        server_url: None,
+        note: Some(format!(
+            "Microsoft / Minecraft Services，token_type={}, expires_in={}s, user={}",
+            minecraft.token_type,
+            minecraft.expires_in,
+            minecraft.username.unwrap_or_else(|| "unknown".to_string())
+        )),
+    })
+}
+
+fn extract_uhs(response: &XboxAuthResponse) -> Result<String, AuthError> {
+    response
+        .display_claims
+        .as_ref()
+        .and_then(|claims| claims.xui.first())
+        .and_then(|xui| xui.get("uhs"))
+        .cloned()
+        .ok_or_else(|| simple_error("Xbox 登录响应缺少 uhs。"))
+}
+
+fn normalize_client_id(client_id: &str) -> Result<String, AuthError> {
+    let client_id = client_id.trim();
+
+    if client_id.is_empty() {
+        return Err(simple_error("Microsoft Client ID 不能为空。"));
+    }
+
+    Ok(client_id.to_string())
+}
+
+fn normalize_server_url(server_url: &str) -> Result<String, AuthError> {
+    let server_url = server_url.trim().trim_end_matches('/');
+
+    if server_url.is_empty() {
+        return Err(simple_error("第三方服务器地址不能为空。"));
+    }
+
+    if !server_url.starts_with("http://") && !server_url.starts_with("https://") {
+        return Err(simple_error("第三方服务器地址必须以 http:// 或 https:// 开头。"));
+    }
+
+    Ok(server_url.to_string())
+}
+
+fn is_valid_minecraft_name(value: &str) -> bool {
+    let len = value.chars().count();
+
+    if !(3..=16).contains(&len) {
+        return false;
+    }
+
+    value
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+}
+
+fn accounts_path() -> Result<PathBuf, AuthError> {
+    let config_home = if let Some(value) = std::env::var_os("XDG_CONFIG_HOME") {
+        if !value.is_empty() {
+            PathBuf::from(value)
+        } else {
+            home_dir()?.join(".config")
+        }
+    } else {
+        home_dir()?.join(".config")
+    };
+
+    Ok(config_home.join("mc-launcher").join("accounts.json"))
+}
+
+fn home_dir() -> Result<PathBuf, AuthError> {
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .ok_or_else(|| simple_error("无法确定 HOME 目录。"))
+}
+
+fn http_client() -> Result<Client, AuthError> {
+    Ok(Client::builder()
+        .user_agent("mc-launcher/0.1 auth")
+        .build()?)
+}
+
+fn simple_error(message: impl Into<String>) -> AuthError {
+    Box::new(io::Error::new(io::ErrorKind::Other, message.into()))
+}
