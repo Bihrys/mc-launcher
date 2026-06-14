@@ -1,5 +1,4 @@
 pub mod auth;
-pub mod game_download;
 pub mod java;
 pub mod java_download;
 
@@ -9,11 +8,6 @@ pub use auth::{
     login_offline,
     login_yggdrasil,
     save_account,
-};
-pub use game_download::{
-    InstallResult,
-    fetch_download_catalog_json,
-    install_game_version,
 };
 pub use java::{JavaRuntime, detect_java_runtimes};
 pub use java_download::{JavaDownloadResult, download_java_runtime};

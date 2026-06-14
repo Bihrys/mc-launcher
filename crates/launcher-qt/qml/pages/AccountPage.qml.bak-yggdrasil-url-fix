@@ -12,7 +12,7 @@ Item {
 
     property string offlineName: "Steve"
     property string microsoftClientId: ""
-    property string yggdrasilServer: ""
+    property string yggdrasilServer: "https://example.com/api/yggdrasil"
     property string yggdrasilUsername: ""
     property string yggdrasilPassword: ""
 
@@ -209,26 +209,9 @@ Item {
                                 style: root.style
                                 label: "服务器 API 根地址"
                                 textValue: root.yggdrasilServer
-                                placeholderText: "https://littleskin.cn/api/yggdrasil"
+                                placeholderText: "https://example.com/api/yggdrasil"
                                 onEdited: function(value) {
                                     root.yggdrasilServer = value
-                                }
-                            }
-
-                            Row {
-                                visible: root.loginMode === "yggdrasil"
-                                spacing: 8
-
-                                SmallButton {
-                                    style: root.style
-                                    text: "LittleSkin"
-                                    onClicked: root.yggdrasilServer = "https://littleskin.cn/api/yggdrasil"
-                                }
-
-                                SmallButton {
-                                    style: root.style
-                                    text: "清空"
-                                    onClicked: root.yggdrasilServer = ""
                                 }
                             }
 
@@ -413,39 +396,6 @@ Item {
                     onTextChanged: field.edited(text)
                 }
             }
-        }
-    }
-
-    component SmallButton: Rectangle {
-        id: button
-
-        required property var style
-        property string text: ""
-
-        signal clicked()
-
-        width: Math.max(74, label.implicitWidth + 22)
-        height: 30
-        radius: 15
-
-        color: mouse.containsMouse ? style.cButtonHover : style.cButtonSurface
-        border.width: 1
-        border.color: style.cBorder
-
-        Text {
-            id: label
-            anchors.centerIn: parent
-            text: button.text
-            color: button.style.cTextOnSurface
-            font.pixelSize: 12
-        }
-
-        MouseArea {
-            id: mouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: button.clicked()
         }
     }
 

@@ -352,7 +352,7 @@ fn avatar_url_for_account(account: &AuthAccount) -> String {
         .collect::<String>();
 
     if compact_uuid.len() == 32 {
-        format!("https://mc-heads.net/avatar/{compact_uuid}/96")
+        format!("https://crafatar.com/avatars/{compact_uuid}?overlay&size=96")
     } else {
         String::new()
     }

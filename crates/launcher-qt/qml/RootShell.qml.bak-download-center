@@ -75,7 +75,6 @@ Item {
                 Layout.preferredWidth: style.sidebarWidthValue
                 Layout.fillHeight: true
                 style: style
-                backend: root.backend
                 currentPage: root.currentPage
                 onNavigate: function(page) {
                     root.currentPage = page
@@ -96,13 +95,6 @@ Item {
                 AccountPage {
                     anchors.fill: parent
                     visible: root.currentPage === "account"
-                    style: style
-                    backend: root.backend
-                }
-
-                DownloadPage {
-                    anchors.fill: parent
-                    visible: root.currentPage === "download"
                     style: style
                     backend: root.backend
                 }
@@ -128,7 +120,6 @@ Item {
                     anchors.fill: parent
                     visible: root.currentPage !== "main"
                              && root.currentPage !== "account"
-                             && root.currentPage !== "download"
                              && root.currentPage !== "settings"
                              && root.currentPage !== "java"
                     style: style

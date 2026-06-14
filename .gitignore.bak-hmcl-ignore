@@ -6,6 +6,3 @@
 !.vscode/settings.json
 !.vscode/launch.json
 !.vscode/tasks.json
-
-# Local HMCL source reference, do not upload
-HMCL-main/

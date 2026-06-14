@@ -491,46 +491,17 @@ fn normalize_client_id(client_id: &str) -> Result<String, AuthError> {
 }
 
 fn normalize_server_url(server_url: &str) -> Result<String, AuthError> {
-    let mut server_url = server_url.trim().trim_end_matches('/').to_string();
+    let server_url = server_url.trim().trim_end_matches('/');
 
     if server_url.is_empty() {
-        return Err(simple_error("第三方服务器地址不能为空。可以直接填 littleskin.cn，或点击 LittleSkin 快捷按钮。"));
-    }
-
-    if server_url.contains("example.com") {
-        return Err(simple_error("第三方服务器地址仍然包含 example.com。请清空后重新填写，例如：https://littleskin.cn/api/yggdrasil"));
-    }
-
-    if !server_url.starts_with("http://") && !server_url.starts_with("https://") {
-        server_url = format!("https://{server_url}");
-    }
-
-    server_url = server_url.replace("https//", "https://");
-    server_url = server_url.replace("http//", "http://");
-
-    if server_url.ends_with("/authserver/authenticate") {
-        server_url = server_url
-            .trim_end_matches("/authserver/authenticate")
-            .trim_end_matches('/')
-            .to_string();
-    } else if server_url.ends_with("/authserver") {
-        server_url = server_url
-            .trim_end_matches("/authserver")
-            .trim_end_matches('/')
-            .to_string();
-    }
-
-    if !server_url.ends_with("/api/yggdrasil") {
-        if server_url.contains("littleskin.cn") {
-            server_url = format!("{}/api/yggdrasil", server_url.trim_end_matches('/'));
-        }
+        return Err(simple_error("第三方服务器地址不能为空。"));
     }
 
     if !server_url.starts_with("http://") && !server_url.starts_with("https://") {
         return Err(simple_error("第三方服务器地址必须以 http:// 或 https:// 开头。"));
     }
 
-    Ok(server_url)
+    Ok(server_url.to_string())
 }
 
 fn is_valid_minecraft_name(value: &str) -> bool {

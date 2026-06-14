@@ -10,10 +10,10 @@ pub mod qobject {
         #[qobject]
         #[qml_element]
         #[qproperty(QString, output)]
-        #[qproperty(QString, current_account_name, cxx_name = "currentAccountName")]
-        #[qproperty(QString, current_account_kind, cxx_name = "currentAccountKind")]
-        #[qproperty(QString, current_account_avatar_url, cxx_name = "currentAccountAvatarUrl")]
-        #[qproperty(QString, download_catalog_json, cxx_name = "downloadCatalogJson")]
+        #[qproperty(QString, currentAccountName)]
+        #[qproperty(QString, currentAccountKind)]
+        #[qproperty(QString, currentAccountAvatarUrl)]
+        #[qproperty(QString, downloadCatalogJson)]
         #[namespace = "launcher_backend"]
         type LauncherBackend = super::LauncherBackendRust;
 
@@ -352,7 +352,7 @@ fn avatar_url_for_account(account: &AuthAccount) -> String {
         .collect::<String>();
 
     if compact_uuid.len() == 32 {
-        format!("https://mc-heads.net/avatar/{compact_uuid}/96")
+        format!("https://crafatar.com/avatars/{compact_uuid}?overlay&size=96")
     } else {
         String::new()
     }
