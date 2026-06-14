@@ -8,7 +8,7 @@ Item {
     required property var style
     required property var backend
 
-    property string downloadSource: "bmcl"
+    property string downloadSource: "official"
     property string selectedGameVersion: ""
     property string selectedLoaderKind: "vanilla"
     property string versionGroup: "release"
@@ -20,15 +20,6 @@ Item {
         "title": "空闲",
         "message": "还没有下载任务。"
     })
-    property var catalogTaskStatus: ({
-        "active": false,
-        "percent": 0,
-        "title": "空闲",
-        "message": "还没有版本列表刷新任务。",
-        "catalogReady": false,
-        "catalogJson": ""
-    })
-    property string loadedCatalogJson: ""
 
     ListModel { id: releaseVersionModel }
     ListModel { id: snapshotVersionModel }
@@ -47,14 +38,6 @@ Item {
         repeat: true
         running: true
         onTriggered: root.pollDownloadTask()
-    }
-
-    Timer {
-        id: catalogTaskPoller
-        interval: 300
-        repeat: true
-        running: true
-        onTriggered: root.pollDownloadCatalogTask()
     }
 
     ColumnLayout {
@@ -101,27 +84,10 @@ Item {
 
             ActionButton {
                 style: root.style
-                text: root.catalogTaskStatus.active ? "加载中" : "刷新列表"
+                text: "刷新列表"
                 primary: true
-                onClicked: root.startRefreshCatalog()
+                onClicked: root.refreshCatalog()
             }
-
-            BusyIndicator {
-                id: catalogBusyIndicator
-                Layout.preferredWidth: 34
-                Layout.preferredHeight: 34
-                running: root.catalogTaskStatus.active
-                visible: root.catalogTaskStatus.active
-            }
-        }
-
-        CatalogTaskPanel {
-            Layout.fillWidth: true
-            Layout.maximumWidth: 1060
-            Layout.preferredHeight: root.catalogTaskStatus.active ? 92 : 0
-            visible: root.catalogTaskStatus.active
-            style: root.style
-            status: root.catalogTaskStatus
         }
 
         Rectangle {
@@ -524,58 +490,9 @@ Item {
         }
     }
 
-    function startRefreshCatalog() {
-        releaseVersionModel.clear()
-        snapshotVersionModel.clear()
-        aprilFoolsVersionModel.clear()
-        oldBetaVersionModel.clear()
-        oldAlphaVersionModel.clear()
-        forgeInstallerModel.clear()
-        neoforgeInstallerModel.clear()
-        fabricLoaderModel.clear()
-        quiltLoaderModel.clear()
-
-        root.selectedGameVersion = ""
-        root.loadedCatalogJson = ""
-
-        root.catalogTaskStatus = {
-            "active": true,
-            "percent": 5,
-            "title": "正在获取版本列表",
-            "message": "正在连接版本源，界面不会卡死。",
-            "catalogReady": false,
-            "catalogJson": ""
-        }
-
-        root.backend.startRefreshDownloadCatalog(root.downloadSource)
-        root.pollDownloadCatalogTask()
-    }
-
-    function pollDownloadCatalogTask() {
-        var raw = root.backend.pollDownloadCatalogTask()
-
-        if (!raw || raw.length === 0) {
-            return
-        }
-
-        try {
-            var status = JSON.parse(raw)
-            root.catalogTaskStatus = status
-
-            if (status.catalogReady
-                    && status.catalogJson
-                    && status.catalogJson.length > 0
-                    && root.loadedCatalogJson !== status.catalogJson) {
-                root.loadedCatalogJson = status.catalogJson
-                root.applyCatalog(JSON.parse(status.catalogJson))
-            }
-        } catch (e) {
-            console.log("Failed to parse catalog task status", e)
-        }
-    }
-
-    function applyCatalog(catalog) {
-        root.catalog = catalog
+    function refreshCatalog() {
+        var raw = root.backend.refreshDownloadCatalog(root.downloadSource)
+        root.catalog = JSON.parse(raw)
 
         releaseVersionModel.clear()
         snapshotVersionModel.clear()
@@ -943,76 +860,6 @@ Item {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: button.clicked()
-        }
-    }
-
-    component CatalogTaskPanel: Rectangle {
-        id: panel
-
-        required property var style
-        property var status: ({
-            "active": false,
-            "percent": 0,
-            "title": "空闲",
-            "message": "还没有版本列表刷新任务。"
-        })
-
-        radius: style.radiusValue
-        color: style.cSurfaceContainer
-        border.color: style.cBorder
-        border.width: 1
-
-        RowLayout {
-            anchors.fill: parent
-            anchors.margins: 12
-            spacing: 12
-
-            BusyIndicator {
-                Layout.preferredWidth: 42
-                Layout.preferredHeight: 42
-                running: panel.status.active
-            }
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 6
-
-                RowLayout {
-                    Layout.fillWidth: true
-
-                    Text {
-                        Layout.fillWidth: true
-                        text: panel.status.title || "正在加载"
-                        color: panel.style.cTextOnSurface
-                        font.pixelSize: 14
-                        font.bold: true
-                        elide: Text.ElideRight
-                    }
-
-                    Text {
-                        text: String(Math.round(panel.status.percent || 0)) + "%"
-                        color: panel.style.cTextOnSurfaceVariant
-                        font.pixelSize: 12
-                        font.bold: true
-                    }
-                }
-
-                ProgressBar {
-                    Layout.fillWidth: true
-                    from: 0
-                    to: 100
-                    value: Math.max(0, Math.min(100, panel.status.percent || 0))
-                    indeterminate: panel.status.active && (panel.status.percent || 0) < 10
-                }
-
-                Text {
-                    Layout.fillWidth: true
-                    text: panel.status.message || "正在等待网络响应。"
-                    color: panel.style.cTextOnSurfaceVariant
-                    font.pixelSize: 11
-                    elide: Text.ElideRight
-                }
-            }
         }
     }
 
