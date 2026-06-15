@@ -5,10 +5,6 @@ use std::path::PathBuf;
 #[serde(rename_all = "camelCase")]
 pub struct DownloadFile {
     pub url: String,
-
-    #[serde(default)]
-    pub urls: Vec<String>,
-
     pub path: PathBuf,
     pub name: String,
     pub size: Option<u64>,
@@ -17,9 +13,7 @@ pub struct DownloadFile {
 
 impl DownloadFile {
     pub fn new(url: impl Into<String>, path: impl Into<PathBuf>) -> Self {
-        let url = url.into();
         let path = path.into();
-
         let name = path
             .file_name()
             .and_then(|value| value.to_str())
@@ -27,8 +21,7 @@ impl DownloadFile {
             .to_string();
 
         Self {
-            urls: vec![url.clone()],
-            url,
+            url: url.into(),
             path,
             name,
             size: None,
@@ -46,26 +39,6 @@ impl DownloadFile {
         file.size = size;
         file.sha1 = sha1;
         file
-    }
-
-    pub fn with_candidates(
-        urls: Vec<String>,
-        path: impl Into<PathBuf>,
-        size: Option<u64>,
-        sha1: Option<String>,
-    ) -> Self {
-        let first = urls.first().cloned().unwrap_or_default();
-        let mut file = Self::with_metadata(first, path, size, sha1);
-        file.urls = urls;
-        file
-    }
-
-    pub fn candidates(&self) -> Vec<String> {
-        if self.urls.is_empty() {
-            vec![self.url.clone()]
-        } else {
-            self.urls.clone()
-        }
     }
 
     pub fn display_name(&self) -> String {

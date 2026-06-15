@@ -2,7 +2,6 @@ pub mod auth;
 pub mod download;
 pub mod game_download;
 pub mod java;
-pub mod task;
 pub mod java_download;
 
 pub use auth::{

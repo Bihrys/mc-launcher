@@ -703,7 +703,7 @@ impl qobject::LauncherBackend {
             value["active"] = serde_json::Value::Bool(true);
             value["status"] = serde_json::Value::String("cancelling".to_string());
             value["title"] = serde_json::Value::String("正在取消下载".to_string());
-            value["message"] = serde_json::Value::String("正在停止下载线程并清理本次任务写入的文件。旧任务真正退出前不会允许启动新下载。".to_string());
+            value["message"] = serde_json::Value::String("正在停止下载线程并清理本次任务写入的文件。请不要立刻开始新下载。".to_string());
             value["speed"] = serde_json::Value::Number(0.into());
 
             let _ = fs::write(&path, value.to_string());

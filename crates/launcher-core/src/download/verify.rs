@@ -37,7 +37,7 @@ pub fn is_valid_file(
 fn sha1_file(path: &Path) -> Result<String, DownloadError> {
     let mut file = File::open(path)?;
     let mut hasher = Sha1::new();
-    let mut buffer = [0_u8; 64 * 1024];
+    let mut buffer = [0_u8; 128 * 1024];
 
     loop {
         let read = file.read(&mut buffer)?;
