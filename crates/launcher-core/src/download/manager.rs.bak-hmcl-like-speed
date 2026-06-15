@@ -8,7 +8,7 @@ use std::collections::VecDeque;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -19,15 +19,8 @@ pub struct DownloadManager {
     task: Arc<Mutex<DownloadTask>>,
     status_path: PathBuf,
     cancel_flag: Arc<AtomicBool>,
-
+    started_at: Arc<Instant>,
     workers: usize,
-
-    downloaded_bytes: Arc<AtomicU64>,
-    speed_window_bytes: Arc<AtomicU64>,
-
-    last_flush_at: Arc<Mutex<Instant>>,
-    last_speed_at: Arc<Mutex<Instant>>,
-
     part_files: Arc<Mutex<Vec<PathBuf>>>,
     created_files: Arc<Mutex<Vec<PathBuf>>>,
 }
@@ -38,14 +31,11 @@ impl DownloadManager {
         status_path: impl Into<PathBuf>,
         cancel_flag: Arc<AtomicBool>,
     ) -> Result<Self, DownloadError> {
-        let workers = configured_worker_count();
-
         let manager = Self {
             client: Client::builder()
                 .user_agent("mc-launcher/0.1 download-manager")
                 .connect_timeout(Duration::from_secs(10))
-                .pool_max_idle_per_host(workers)
-                .tcp_nodelay(true)
+                .timeout(Duration::from_secs(30))
                 .build()?,
             task: Arc::new(Mutex::new(DownloadTask::new(
                 uuid::Uuid::new_v4().to_string(),
@@ -53,19 +43,13 @@ impl DownloadManager {
             ))),
             status_path: status_path.into(),
             cancel_flag,
-            workers,
-
-            downloaded_bytes: Arc::new(AtomicU64::new(0)),
-            speed_window_bytes: Arc::new(AtomicU64::new(0)),
-
-            last_flush_at: Arc::new(Mutex::new(Instant::now())),
-            last_speed_at: Arc::new(Mutex::new(Instant::now())),
-
+            started_at: Arc::new(Instant::now()),
+            workers: 8,
             part_files: Arc::new(Mutex::new(Vec::new())),
             created_files: Arc::new(Mutex::new(Vec::new())),
         };
 
-        manager.flush_now()?;
+        manager.flush()?;
 
         Ok(manager)
     }
@@ -101,7 +85,7 @@ impl DownloadManager {
             task.message = message.into();
         }
 
-        self.flush_now()
+        self.flush()
     }
 
     pub fn mark_cancelling(&self) -> Result<(), DownloadError> {
@@ -121,7 +105,7 @@ impl DownloadManager {
             task.speed = 0;
         }
 
-        self.flush_now()
+        self.flush()
     }
 
     pub fn finish(&self, message: impl Into<String>) -> Result<(), DownloadError> {
@@ -137,10 +121,9 @@ impl DownloadManager {
             task.current_file.clear();
             task.message = message.into();
             task.speed = 0;
-            task.downloaded_bytes = self.downloaded_bytes.load(Ordering::Relaxed);
         }
 
-        self.write_current_task()
+        self.flush()
     }
 
     pub fn fail(&self, message: impl Into<String>) -> Result<(), DownloadError> {
@@ -160,10 +143,9 @@ impl DownloadManager {
                 task.current_file.clear();
                 task.message = "下载已取消，本次任务写入的 .part 和已下载文件已清理。".to_string();
                 task.speed = 0;
-                task.downloaded_bytes = self.downloaded_bytes.load(Ordering::Relaxed);
             }
 
-            return self.write_current_task();
+            return self.flush();
         }
 
         {
@@ -177,10 +159,9 @@ impl DownloadManager {
             task.current_file.clear();
             task.message = message.into();
             task.speed = 0;
-            task.downloaded_bytes = self.downloaded_bytes.load(Ordering::Relaxed);
         }
 
-        self.write_current_task()
+        self.flush()
     }
 
     pub fn check_cancelled(&self) -> Result<(), DownloadError> {
@@ -197,10 +178,9 @@ impl DownloadManager {
                 task.title = "正在取消下载".to_string();
                 task.message = "正在停止下载线程并清理本次任务写入的文件。".to_string();
                 task.speed = 0;
-                task.downloaded_bytes = self.downloaded_bytes.load(Ordering::Relaxed);
             }
 
-            self.flush_now()?;
+            self.flush()?;
 
             return Err(simple_error("下载已取消。"));
         }
@@ -225,15 +205,11 @@ impl DownloadManager {
 
             task.total_files += files.len();
             task.total_bytes = task.total_bytes.saturating_add(total_bytes);
-            task.message = format!(
-                "准备下载 {} 个文件。并发数：{}",
-                files.len(),
-                self.workers
-            );
+            task.message = format!("准备下载 {} 个文件。", files.len());
             task.recompute_percent();
         }
 
-        self.flush_now()?;
+        self.flush()?;
 
         let queue = Arc::new(Mutex::new(VecDeque::from(files)));
         let downloaded_count = Arc::new(Mutex::new(0_usize));
@@ -317,8 +293,6 @@ impl DownloadManager {
             .lock()
             .map_err(|_| simple_error("下载计数锁已损坏。"))?;
 
-        self.flush_now()?;
-
         Ok(count)
     }
 
@@ -338,7 +312,7 @@ impl DownloadManager {
                         err
                     ))?;
 
-                    thread::sleep(Duration::from_millis(200));
+                    thread::sleep(Duration::from_millis(600));
                 }
                 Err(err) => return Err(err),
             }
@@ -384,15 +358,8 @@ impl DownloadManager {
         part_path: &Path,
     ) -> Result<bool, DownloadError> {
         let mut response = self.client.get(&file.url).send()?.error_for_status()?;
-
-        if file.size.is_none() {
-            if let Some(content_length) = response.content_length() {
-                self.add_total_bytes(content_length)?;
-            }
-        }
-
         let mut output = File::create(part_path)?;
-        let mut buffer = [0_u8; 128 * 1024];
+        let mut buffer = [0_u8; 64 * 1024];
 
         loop {
             self.check_cancelled()?;
@@ -446,45 +413,30 @@ impl DownloadManager {
                 task.finished_files,
                 task.total_files
             );
-            task.downloaded_bytes = self.downloaded_bytes.load(Ordering::Relaxed);
             task.recompute_percent();
         }
 
-        self.flush_throttled()
+        self.flush()
     }
 
-    fn add_total_bytes(&self, bytes: u64) -> Result<(), DownloadError> {
-        if bytes == 0 {
-            return Ok(());
-        }
-
+    fn add_bytes(&self, bytes: u64) -> Result<(), DownloadError> {
         {
             let mut task = self
                 .task
                 .lock()
                 .map_err(|_| simple_error("下载任务锁已损坏。"))?;
 
-            task.total_bytes = task.total_bytes.saturating_add(bytes);
+            task.downloaded_bytes = task.downloaded_bytes.saturating_add(bytes);
+
+            let elapsed = self.started_at.elapsed().as_secs().max(1);
+            task.speed = task.downloaded_bytes / elapsed;
             task.recompute_percent();
         }
 
-        self.flush_throttled()
-    }
-
-    fn add_bytes(&self, bytes: u64) -> Result<(), DownloadError> {
-        self.downloaded_bytes.fetch_add(bytes, Ordering::Relaxed);
-        self.speed_window_bytes.fetch_add(bytes, Ordering::Relaxed);
-
-        self.flush_throttled()
+        self.flush()
     }
 
     fn mark_done(&self, file: &DownloadFile, downloaded: bool) -> Result<(), DownloadError> {
-        if !downloaded {
-            let size = file.size.unwrap_or(0);
-            self.downloaded_bytes.fetch_add(size, Ordering::Relaxed);
-            self.speed_window_bytes.fetch_add(size, Ordering::Relaxed);
-        }
-
         {
             let mut task = self
                 .task
@@ -492,7 +444,13 @@ impl DownloadManager {
                 .map_err(|_| simple_error("下载任务锁已损坏。"))?;
 
             task.finished_files += 1;
-            task.downloaded_bytes = self.downloaded_bytes.load(Ordering::Relaxed);
+
+            if !downloaded {
+                task.downloaded_bytes = task
+                    .downloaded_bytes
+                    .saturating_add(file.size.unwrap_or(0));
+            }
+
             task.message = format!(
                 "已完成 {}/{} 个文件\n当前：{}",
                 task.finished_files,
@@ -502,7 +460,7 @@ impl DownloadManager {
             task.recompute_percent();
         }
 
-        self.flush_now()
+        self.flush()
     }
 
     fn mark_failed(&self, file: &DownloadFile, error: &str) -> Result<(), DownloadError> {
@@ -519,10 +477,9 @@ impl DownloadManager {
             task.failed_files.push(file.display_name());
             task.message = format!("文件下载失败：{}\n{}", file.display_name(), error);
             task.status = "failed".to_string();
-            task.downloaded_bytes = self.downloaded_bytes.load(Ordering::Relaxed);
         }
 
-        self.flush_now()
+        self.flush()
     }
 
     fn track_part_file(&self, path: PathBuf) -> Result<(), DownloadError> {
@@ -562,81 +519,7 @@ impl DownloadManager {
         }
     }
 
-    fn flush_throttled(&self) -> Result<(), DownloadError> {
-        let now = Instant::now();
-
-        let should_flush = {
-            let mut last_flush_at = self
-                .last_flush_at
-                .lock()
-                .map_err(|_| simple_error("下载状态刷新锁已损坏。"))?;
-
-            if now.duration_since(*last_flush_at) >= Duration::from_millis(250) {
-                *last_flush_at = now;
-                true
-            } else {
-                false
-            }
-        };
-
-        if should_flush {
-            self.sync_progress_and_write(now)?;
-        }
-
-        Ok(())
-    }
-
-    fn flush_now(&self) -> Result<(), DownloadError> {
-        {
-            let mut last_flush_at = self
-                .last_flush_at
-                .lock()
-                .map_err(|_| simple_error("下载状态刷新锁已损坏。"))?;
-
-            *last_flush_at = Instant::now();
-        }
-
-        self.sync_progress_and_write(Instant::now())
-    }
-
-    fn sync_progress_and_write(&self, now: Instant) -> Result<(), DownloadError> {
-        let maybe_speed = {
-            let mut last_speed_at = self
-                .last_speed_at
-                .lock()
-                .map_err(|_| simple_error("下载速度统计锁已损坏。"))?;
-
-            let elapsed = now.duration_since(*last_speed_at);
-
-            if elapsed >= Duration::from_secs(1) {
-                *last_speed_at = now;
-
-                let bytes = self.speed_window_bytes.swap(0, Ordering::Relaxed);
-                Some(bytes / elapsed.as_secs().max(1))
-            } else {
-                None
-            }
-        };
-
-        {
-            let mut task = self
-                .task
-                .lock()
-                .map_err(|_| simple_error("下载任务锁已损坏。"))?;
-
-            task.downloaded_bytes = self.downloaded_bytes.load(Ordering::Relaxed);
-
-            if let Some(speed) = maybe_speed {
-                task.speed = speed;
-            }
-
-            task.recompute_percent();
-        }
-
-        self.write_current_task()
-    }
-
-    fn write_current_task(&self) -> Result<(), DownloadError> {
+    fn flush(&self) -> Result<(), DownloadError> {
         let task = self
             .task
             .lock()
@@ -645,19 +528,6 @@ impl DownloadManager {
 
         write_task(&self.status_path, &task)
     }
-}
-
-fn configured_worker_count() -> usize {
-    if let Ok(value) = std::env::var("MC_LAUNCHER_DOWNLOAD_WORKERS") {
-        if let Ok(workers) = value.trim().parse::<usize>() {
-            return workers.clamp(1, 64);
-        }
-    }
-
-    std::thread::available_parallelism()
-        .map(|value| value.get().saturating_mul(4))
-        .unwrap_or(16)
-        .clamp(8, 64)
 }
 
 fn ensure_parent(path: &Path) -> Result<(), DownloadError> {
