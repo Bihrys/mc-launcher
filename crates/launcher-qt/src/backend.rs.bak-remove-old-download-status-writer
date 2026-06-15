@@ -832,6 +832,27 @@ fn download_task_is_active(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+fn write_download_task_status(
+    path: &Path,
+    active: bool,
+    percent: u32,
+    title: &str,
+    message: &str,
+) {
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+
+    let payload = serde_json::json!({
+        "active": active,
+        "percent": percent.min(100),
+        "title": title,
+        "message": message
+    });
+
+    let _ = fs::write(path, payload.to_string());
+}
+
 fn refresh_accounts_property(mut qobject: Pin<&mut qobject::LauncherBackend>) {
     if let Ok(accounts) = launcher_core::load_accounts() {
         qobject

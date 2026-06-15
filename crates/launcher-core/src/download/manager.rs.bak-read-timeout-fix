@@ -35,6 +35,7 @@ impl DownloadManager {
             client: Client::builder()
                 .user_agent("mc-launcher/0.1 download-manager")
                 .connect_timeout(Duration::from_secs(10))
+                .read_timeout(Duration::from_secs(1))
                 .timeout(Duration::from_secs(30))
                 .build()?,
             task: Arc::new(Mutex::new(DownloadTask::new(
