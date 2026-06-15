@@ -641,10 +641,8 @@ impl qobject::LauncherBackend {
 
                     match result {
                         Ok(result) => {
-                            let _ = launcher_core::select_version(&result.version_id);
-
                             let _ = manager.finish(format!(
-                                "Minecraft: {}\n加载器: {} {}\n版本 ID: {}\n下载/写入文件数: {}\n安装位置:\n{}\n\n{}\n\n已自动设为当前启动版本。",
+                                "Minecraft: {}\n加载器: {} {}\n版本 ID: {}\n下载/写入文件数: {}\n安装位置:\n{}\n\n{}",
                                 result.game_version,
                                 result.loader_kind,
                                 result.loader_version,
@@ -743,6 +741,15 @@ impl qobject::LauncherBackend {
         ));
     }
 
+}
+
+
+static DOWNLOAD_CANCEL_FLAG: OnceLock<Arc<AtomicBool>> = OnceLock::new();
+
+fn download_cancel_flag() -> Arc<AtomicBool> {
+    DOWNLOAD_CANCEL_FLAG
+        .get_or_init(|| Arc::new(AtomicBool::new(false)))
+        .clone()
     pub fn refresh_installed_versions(mut self: Pin<&mut Self>) -> QString {
         match launcher_core::installed_versions_json() {
             Ok(json) => {
@@ -888,17 +895,8 @@ impl qobject::LauncherBackend {
         }
     }
 
+
 }
-
-
-static DOWNLOAD_CANCEL_FLAG: OnceLock<Arc<AtomicBool>> = OnceLock::new();
-
-fn download_cancel_flag() -> Arc<AtomicBool> {
-    DOWNLOAD_CANCEL_FLAG
-        .get_or_init(|| Arc::new(AtomicBool::new(false)))
-        .clone()
-}
-
 
 fn download_catalog_task_status_path() -> PathBuf {
     if let Some(value) = std::env::var_os("XDG_CACHE_HOME") {
