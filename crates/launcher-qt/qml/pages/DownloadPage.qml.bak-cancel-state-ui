@@ -490,13 +490,9 @@ Item {
 
                             ActionButton {
                                 style: root.style
-                                text: root.downloadTaskStatus.active ? "下载任务运行中" : "安装所选版本"
+                                text: "安装所选版本"
                                 primary: true
-                                onClicked: {
-                                    if (!root.downloadTaskStatus.active) {
-                                        root.installSelected()
-                                    }
-                                }
+                                onClicked: root.installSelected()
                             }
                         }
                     }
@@ -1083,13 +1079,9 @@ Item {
                 ActionButton {
                     visible: panel.status.active
                     style: panel.style
-                    text: panel.status.status === "cancelling" ? "取消中" : "取消"
+                    text: "取消"
                     primary: false
-                    onClicked: {
-                        if (panel.status.status !== "cancelling") {
-                            root.backend.cancelDownloadTask()
-                        }
-                    }
+                    onClicked: root.backend.cancelDownloadTask()
                 }
 
                 Text {

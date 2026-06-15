@@ -670,21 +670,9 @@ impl qobject::LauncherBackend {
             {
                 self.as_mut()
                     .set_output(QString::from(&format!("{title}\n\n{message}")));
-            } else {
-                let status = value
-                    .get("status")
-                    .and_then(|value| value.as_str())
-                    .unwrap_or_default();
-
-                if title == "安装完成"
-                    || title == "安装失败"
-                    || status == "cancelled"
-                    || status == "cancelling"
-                    || title == "下载已取消"
-                {
-                    self.as_mut()
-                        .set_output(QString::from(&format!("{title}\n\n{message}")));
-                }
+            } else if title == "安装完成" || title == "安装失败" {
+                self.as_mut()
+                    .set_output(QString::from(&format!("{title}\n\n{message}")));
             }
         }
 
@@ -700,11 +688,10 @@ impl qobject::LauncherBackend {
 
         if let Ok(mut value) = serde_json::from_str::<serde_json::Value>(&text) {
             value["cancelled"] = serde_json::Value::Bool(true);
-            value["active"] = serde_json::Value::Bool(true);
-            value["status"] = serde_json::Value::String("cancelling".to_string());
+            value["active"] = serde_json::Value::Bool(false);
+            value["status"] = serde_json::Value::String("cancelled".to_string());
             value["title"] = serde_json::Value::String("正在取消下载".to_string());
-            value["message"] = serde_json::Value::String("正在停止下载线程并清理本次任务写入的文件。请不要立刻开始新下载。".to_string());
-            value["speed"] = serde_json::Value::Number(0.into());
+            value["message"] = serde_json::Value::String("已发送取消请求，当前文件下载循环会尽快停止。".to_string());
 
             let _ = fs::write(&path, value.to_string());
 
@@ -713,7 +700,7 @@ impl qobject::LauncherBackend {
         }
 
         self.as_mut().set_output(QString::from(
-            "正在取消下载。旧下载线程真正退出前，不会允许启动新的下载任务。",
+            "已请求取消下载。正在等待下载线程停止。",
         ));
     }
 

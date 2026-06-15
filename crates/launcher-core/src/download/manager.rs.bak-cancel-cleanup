@@ -21,8 +21,6 @@ pub struct DownloadManager {
     cancel_flag: Arc<AtomicBool>,
     started_at: Arc<Instant>,
     workers: usize,
-    part_files: Arc<Mutex<Vec<PathBuf>>>,
-    created_files: Arc<Mutex<Vec<PathBuf>>>,
 }
 
 impl DownloadManager {
@@ -35,8 +33,7 @@ impl DownloadManager {
             client: Client::builder()
                 .user_agent("mc-launcher/0.1 download-manager")
                 .connect_timeout(Duration::from_secs(10))
-                .read_timeout(Duration::from_secs(1))
-                .timeout(Duration::from_secs(30))
+                .timeout(Duration::from_secs(60))
                 .build()?,
             task: Arc::new(Mutex::new(DownloadTask::new(
                 uuid::Uuid::new_v4().to_string(),
@@ -46,8 +43,6 @@ impl DownloadManager {
             cancel_flag,
             started_at: Arc::new(Instant::now()),
             workers: 8,
-            part_files: Arc::new(Mutex::new(Vec::new())),
-            created_files: Arc::new(Mutex::new(Vec::new())),
         };
 
         manager.flush()?;
@@ -63,19 +58,6 @@ impl DownloadManager {
         )
     }
 
-    pub fn track_created_file(&self, path: impl Into<PathBuf>) -> Result<(), DownloadError> {
-        let path = path.into();
-
-        let mut files = self
-            .created_files
-            .lock()
-            .map_err(|_| simple_error("已创建文件列表锁已损坏。"))?;
-
-        files.push(path);
-
-        Ok(())
-    }
-
     pub fn set_message(&self, message: impl Into<String>) -> Result<(), DownloadError> {
         {
             let mut task = self
@@ -84,26 +66,6 @@ impl DownloadManager {
                 .map_err(|_| simple_error("下载任务锁已损坏。"))?;
 
             task.message = message.into();
-        }
-
-        self.flush()
-    }
-
-    pub fn mark_cancelling(&self) -> Result<(), DownloadError> {
-        self.cancel_flag.store(true, Ordering::Relaxed);
-
-        {
-            let mut task = self
-                .task
-                .lock()
-                .map_err(|_| simple_error("下载任务锁已损坏。"))?;
-
-            task.active = true;
-            task.cancelled = true;
-            task.status = "cancelling".to_string();
-            task.title = "正在取消下载".to_string();
-            task.message = "正在停止下载线程并清理本次任务写入的文件。".to_string();
-            task.speed = 0;
         }
 
         self.flush()
@@ -128,27 +90,6 @@ impl DownloadManager {
     }
 
     pub fn fail(&self, message: impl Into<String>) -> Result<(), DownloadError> {
-        if self.cancel_flag.load(Ordering::Relaxed) {
-            self.cleanup_partial_and_downloaded();
-
-            {
-                let mut task = self
-                    .task
-                    .lock()
-                    .map_err(|_| simple_error("下载任务锁已损坏。"))?;
-
-                task.active = false;
-                task.cancelled = true;
-                task.status = "cancelled".to_string();
-                task.title = "下载已取消".to_string();
-                task.current_file.clear();
-                task.message = "下载已取消，本次任务写入的 .part 和已下载文件已清理。".to_string();
-                task.speed = 0;
-            }
-
-            return self.flush();
-        }
-
         {
             let mut task = self
                 .task
@@ -156,7 +97,12 @@ impl DownloadManager {
                 .map_err(|_| simple_error("下载任务锁已损坏。"))?;
 
             task.active = false;
-            task.status = "failed".to_string();
+            task.status = if task.cancelled {
+                "cancelled"
+            } else {
+                "failed"
+            }
+            .to_string();
             task.current_file.clear();
             task.message = message.into();
             task.speed = 0;
@@ -173,12 +119,10 @@ impl DownloadManager {
                     .lock()
                     .map_err(|_| simple_error("下载任务锁已损坏。"))?;
 
-                task.active = true;
+                task.active = false;
                 task.cancelled = true;
-                task.status = "cancelling".to_string();
-                task.title = "正在取消下载".to_string();
-                task.message = "正在停止下载线程并清理本次任务写入的文件。".to_string();
-                task.speed = 0;
+                task.status = "cancelled".to_string();
+                task.message = "下载已取消。".to_string();
             }
 
             self.flush()?;
@@ -263,31 +207,11 @@ impl DownloadManager {
             }));
         }
 
-        let mut first_error: Option<DownloadError> = None;
-
         for handle in handles {
             match handle.join() {
-                Ok(Ok(())) => {}
-                Ok(Err(err)) => {
-                    if first_error.is_none() {
-                        first_error = Some(err);
-                    }
-                }
-                Err(_) => {
-                    if first_error.is_none() {
-                        first_error = Some(simple_error("下载线程异常退出。"));
-                    }
-                }
+                Ok(result) => result?,
+                Err(_) => return Err(simple_error("下载线程异常退出。")),
             }
-        }
-
-        if self.cancel_flag.load(Ordering::Relaxed) {
-            self.cleanup_partial_and_downloaded();
-            return Err(simple_error("下载已取消。"));
-        }
-
-        if let Some(err) = first_error {
-            return Err(err);
         }
 
         let count = *downloaded_count
@@ -303,9 +227,6 @@ impl DownloadManager {
 
             match self.download_one(file) {
                 Ok(value) => return Ok(value),
-                Err(err) if self.cancel_flag.load(Ordering::Relaxed) => {
-                    return Err(err);
-                }
                 Err(err) if attempt < 3 => {
                     self.set_message(format!(
                         "下载失败，准备重试 {attempt}/3：{}\n{}",
@@ -341,55 +262,27 @@ impl DownloadManager {
                 .unwrap_or("download")
         ));
 
-        self.track_part_file(part_path.clone())?;
-
-        let result = self.download_one_inner(file, &part_path);
-
-        if result.is_err() {
-            let _ = fs::remove_file(&part_path);
-            self.untrack_part_file(&part_path);
-        }
-
-        result
-    }
-
-    fn download_one_inner(
-        &self,
-        file: &DownloadFile,
-        part_path: &Path,
-    ) -> Result<bool, DownloadError> {
         let mut response = self.client.get(&file.url).send()?.error_for_status()?;
-        let mut output = File::create(part_path)?;
+        let mut output = File::create(&part_path)?;
         let mut buffer = [0_u8; 64 * 1024];
 
         loop {
             self.check_cancelled()?;
 
-            let read = match response.read(&mut buffer) {
-                Ok(read) => read,
-                Err(err) if self.cancel_flag.load(Ordering::Relaxed) => {
-                    return Err(simple_error(format!("下载已取消：{err}")));
-                }
-                Err(err) => return Err(Box::new(err)),
-            };
+            let read = response.read(&mut buffer)?;
 
             if read == 0 {
                 break;
             }
 
-            self.check_cancelled()?;
             output.write_all(&buffer[..read])?;
             self.add_bytes(read as u64)?;
         }
 
-        self.check_cancelled()?;
-
         output.flush()?;
         drop(output);
 
-        fs::rename(part_path, &file.path)?;
-        self.untrack_part_file(part_path);
-        self.track_created_file(file.path.clone())?;
+        fs::rename(&part_path, &file.path)?;
 
         if !is_valid_file(&file.path, file.size, file.sha1.as_deref())? {
             return Err(simple_error(format!("文件校验失败：{}", file.display_name())));
@@ -465,10 +358,6 @@ impl DownloadManager {
     }
 
     fn mark_failed(&self, file: &DownloadFile, error: &str) -> Result<(), DownloadError> {
-        if self.cancel_flag.load(Ordering::Relaxed) {
-            return Ok(());
-        }
-
         {
             let mut task = self
                 .task
@@ -481,43 +370,6 @@ impl DownloadManager {
         }
 
         self.flush()
-    }
-
-    fn track_part_file(&self, path: PathBuf) -> Result<(), DownloadError> {
-        let mut part_files = self
-            .part_files
-            .lock()
-            .map_err(|_| simple_error("临时文件列表锁已损坏。"))?;
-
-        if !part_files.iter().any(|item| item == &path) {
-            part_files.push(path);
-        }
-
-        Ok(())
-    }
-
-    fn untrack_part_file(&self, path: &Path) {
-        if let Ok(mut part_files) = self.part_files.lock() {
-            part_files.retain(|item| item != path);
-        }
-    }
-
-    fn cleanup_partial_and_downloaded(&self) {
-        let part_files = self
-            .part_files
-            .lock()
-            .map(|value| value.clone())
-            .unwrap_or_default();
-
-        let created_files = self
-            .created_files
-            .lock()
-            .map(|value| value.clone())
-            .unwrap_or_default();
-
-        for path in part_files.iter().chain(created_files.iter()) {
-            let _ = fs::remove_file(path);
-        }
     }
 
     fn flush(&self) -> Result<(), DownloadError> {
