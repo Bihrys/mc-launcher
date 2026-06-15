@@ -1,5 +1,4 @@
 pub mod auth;
-pub mod download;
 pub mod game_download;
 pub mod java;
 pub mod java_download;
@@ -17,7 +16,6 @@ pub use game_download::{
     InstallResult,
     fetch_download_catalog_json,
     install_game_version,
-    install_game_version_with_manager,
 };
 pub use java::{JavaRuntime, detect_java_runtimes};
 pub use java_download::{JavaDownloadResult, download_java_runtime};

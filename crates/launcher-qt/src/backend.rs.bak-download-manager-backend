@@ -86,10 +86,6 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "pollDownloadTask"]
         fn poll_download_task(self: Pin<&mut LauncherBackend>) -> QString;
-
-        #[qinvokable]
-        #[cxx_name = "cancelDownloadTask"]
-        fn cancel_download_task(self: Pin<&mut LauncherBackend>);
     }
 }
 
@@ -99,8 +95,9 @@ use launcher_core::AuthAccount;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 use std::thread;
+use std::time::Duration;
 
 #[derive(Default)]
 pub struct LauncherBackendRust {
@@ -578,71 +575,90 @@ impl qobject::LauncherBackend {
 
         if download_task_is_active(&status_path) {
             self.as_mut().set_output(QString::from(
-                "已经有下载任务在运行。可以先取消当前任务，再开始新的安装。",
+                "已经有下载任务在运行。请等当前任务完成后再开始新的安装。",
             ));
             return;
         }
 
-        let cancel_flag = download_cancel_flag();
-        cancel_flag.store(false, Ordering::Relaxed);
-
         let title = format!("安装 Minecraft {game_version}");
+        let message = format!("加载器：{} {}", loader_kind, loader_version);
 
-        match launcher_core::download::DownloadManager::new(
-            title.clone(),
-            status_path.clone(),
-            cancel_flag.clone(),
-        ) {
-            Ok(manager) => {
-                let _ = manager.set_message(format!(
-                    "准备安装。\n下载源: {source}\nMinecraft: {game_version}\n加载器: {loader_kind} {loader_version}"
-                ));
+        write_download_task_status(&status_path, true, 1, &title, &message);
 
-                self.as_mut().set_download_task_json(QString::from(
-                    &read_download_task_status_text(&status_path),
-                ));
+        self.as_mut()
+            .set_download_task_json(QString::from(&read_download_task_status_text(&status_path)));
 
-                self.as_mut().set_output(QString::from(&format!(
-                    "下载任务已在后台开始。\n\n这次使用 DownloadManager 真实统计文件数、字节数、当前文件和速度，不再使用假进度 ticker。\n\n下载源: {source}\nMinecraft: {game_version}\n加载器: {loader_kind}\n加载器版本: {loader_version}"
-                )));
+        self.as_mut().set_output(QString::from(&format!(
+            "下载任务已在后台开始，界面不会再卡死。\n\n下载源: {source}\nMinecraft: {game_version}\n加载器: {loader_kind}\n加载器版本: {loader_version}"
+        )));
 
-                thread::spawn(move || {
-                    let result = launcher_core::install_game_version_with_manager(
-                        &manager,
-                        &source,
-                        &game_version,
-                        &loader_kind,
-                        &loader_version,
+        thread::spawn(move || {
+            let done = Arc::new(AtomicBool::new(false));
+            let ticker_done = done.clone();
+            let ticker_path = status_path.clone();
+            let ticker_title = title.clone();
+            let ticker_message = message.clone();
+
+            let ticker = thread::spawn(move || {
+                let mut percent = 2_u32;
+
+                while !ticker_done.load(Ordering::Relaxed) {
+                    write_download_task_status(
+                        &ticker_path,
+                        true,
+                        percent,
+                        &ticker_title,
+                        &format!("{}\n正在下载文件、解析版本 JSON、处理 libraries / assets...", ticker_message),
                     );
 
-                    match result {
-                        Ok(result) => {
-                            let _ = manager.finish(format!(
-                                "Minecraft: {}\n加载器: {} {}\n版本 ID: {}\n下载/写入文件数: {}\n安装位置:\n{}\n\n{}",
-                                result.game_version,
-                                result.loader_kind,
-                                result.loader_version,
-                                result.version_id,
-                                result.downloaded_files,
-                                result.install_dir.display(),
-                                result.message,
-                            ));
-                        }
-                        Err(err) => {
-                            if cancel_flag.load(Ordering::Relaxed) {
-                                let _ = manager.fail("下载已取消。");
-                            } else {
-                                let _ = manager.fail(format!("安装失败。\n\n{err}"));
-                            }
-                        }
+                    if percent < 92 {
+                        percent += 1;
                     }
-                });
+
+                    thread::sleep(Duration::from_millis(450));
+                }
+            });
+
+            let result = launcher_core::install_game_version(
+                &source,
+                &game_version,
+                &loader_kind,
+                &loader_version,
+            );
+
+            done.store(true, Ordering::Relaxed);
+            let _ = ticker.join();
+
+            match result {
+                Ok(result) => {
+                    write_download_task_status(
+                        &status_path,
+                        false,
+                        100,
+                        "安装完成",
+                        &format!(
+                            "Minecraft: {}\n加载器: {} {}\n版本 ID: {}\n下载/写入文件数: {}\n安装位置:\n{}\n\n{}",
+                            result.game_version,
+                            result.loader_kind,
+                            result.loader_version,
+                            result.version_id,
+                            result.downloaded_files,
+                            result.install_dir.display(),
+                            result.message,
+                        ),
+                    );
+                }
+                Err(err) => {
+                    write_download_task_status(
+                        &status_path,
+                        false,
+                        0,
+                        "安装失败",
+                        &err.to_string(),
+                    );
+                }
             }
-            Err(err) => {
-                self.as_mut()
-                    .set_output(QString::from(&format!("创建下载任务失败。\n\n{err}")));
-            }
-        }
+        });
     }
 
     pub fn poll_download_task(mut self: Pin<&mut Self>) -> QString {
@@ -679,41 +695,8 @@ impl qobject::LauncherBackend {
         QString::from(&text)
     }
 
-
-    pub fn cancel_download_task(mut self: Pin<&mut Self>) {
-        download_cancel_flag().store(true, Ordering::Relaxed);
-
-        let path = download_task_status_path();
-        let text = read_download_task_status_text(&path);
-
-        if let Ok(mut value) = serde_json::from_str::<serde_json::Value>(&text) {
-            value["cancelled"] = serde_json::Value::Bool(true);
-            value["active"] = serde_json::Value::Bool(false);
-            value["status"] = serde_json::Value::String("cancelled".to_string());
-            value["title"] = serde_json::Value::String("正在取消下载".to_string());
-            value["message"] = serde_json::Value::String("已发送取消请求，当前文件下载循环会尽快停止。".to_string());
-
-            let _ = fs::write(&path, value.to_string());
-
-            self.as_mut()
-                .set_download_task_json(QString::from(&value.to_string()));
-        }
-
-        self.as_mut().set_output(QString::from(
-            "已请求取消下载。正在等待下载线程停止。",
-        ));
-    }
-
 }
 
-
-static DOWNLOAD_CANCEL_FLAG: OnceLock<Arc<AtomicBool>> = OnceLock::new();
-
-fn download_cancel_flag() -> Arc<AtomicBool> {
-    DOWNLOAD_CANCEL_FLAG
-        .get_or_init(|| Arc::new(AtomicBool::new(false)))
-        .clone()
-}
 
 fn download_catalog_task_status_path() -> PathBuf {
     if let Some(value) = std::env::var_os("XDG_CACHE_HOME") {

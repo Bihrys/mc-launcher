@@ -16,17 +16,9 @@ Item {
     property var activeVersionModel: releaseVersionModel
     property var downloadTaskStatus: ({
         "active": false,
-        "cancelled": false,
         "percent": 0,
         "title": "空闲",
-        "message": "还没有下载任务。",
-        "totalFiles": 0,
-        "finishedFiles": 0,
-        "totalBytes": 0,
-        "downloadedBytes": 0,
-        "currentFile": "",
-        "speed": 0,
-        "status": "idle"
+        "message": "还没有下载任务。"
     })
     property var catalogTaskStatus: ({
         "active": false,
@@ -790,24 +782,6 @@ Item {
             + " " + loaderVersion + "。"
     }
 
-    function formatBytes(value) {
-        value = Number(value || 0)
-
-        if (value >= 1024 * 1024 * 1024) {
-            return (value / 1024 / 1024 / 1024).toFixed(2) + " GB"
-        }
-
-        if (value >= 1024 * 1024) {
-            return (value / 1024 / 1024).toFixed(2) + " MB"
-        }
-
-        if (value >= 1024) {
-            return (value / 1024).toFixed(1) + " KB"
-        }
-
-        return String(Math.round(value)) + " B"
-    }
-
     function installSelected() {
         root.backend.installGameVersion(
             root.downloadSource,
@@ -1076,14 +1050,6 @@ Item {
                     elide: Text.ElideRight
                 }
 
-                ActionButton {
-                    visible: panel.status.active
-                    style: panel.style
-                    text: "取消"
-                    primary: false
-                    onClicked: root.backend.cancelDownloadTask()
-                }
-
                 Text {
                     text: String(Math.round(panel.status.percent || 0)) + "%"
                     color: panel.style.cTextOnSurfaceVariant
@@ -1106,26 +1072,6 @@ Item {
                 color: panel.style.cTextOnSurfaceVariant
                 font.pixelSize: 11
                 elide: Text.ElideRight
-            }
-
-            Text {
-                Layout.fillWidth: true
-                text: "文件 " + (panel.status.finishedFiles || 0) + "/" + (panel.status.totalFiles || 0)
-                      + " · " + root.formatBytes(panel.status.downloadedBytes || 0)
-                      + "/" + root.formatBytes(panel.status.totalBytes || 0)
-                      + " · " + root.formatBytes(panel.status.speed || 0) + "/s"
-                color: panel.style.cTextOnSurfaceVariant
-                font.pixelSize: 11
-                elide: Text.ElideRight
-            }
-
-            Text {
-                Layout.fillWidth: true
-                visible: (panel.status.currentFile || "").length > 0
-                text: "当前：" + panel.status.currentFile
-                color: panel.style.cTextOnSurfaceVariant
-                font.pixelSize: 11
-                elide: Text.ElideLeft
             }
         }
     }
