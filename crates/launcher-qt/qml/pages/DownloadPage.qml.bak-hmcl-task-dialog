@@ -14,8 +14,6 @@ Item {
     property string versionGroup: "release"
     property var catalog: null
     property var activeVersionModel: releaseVersionModel
-    property bool downloadDialogOpen: false
-
     property var downloadTaskStatus: ({
         "active": false,
         "cancelled": false,
@@ -30,7 +28,6 @@ Item {
         "speed": 0,
         "status": "idle"
     })
-
     property var catalogTaskStatus: ({
         "active": false,
         "percent": 0,
@@ -39,7 +36,6 @@ Item {
         "catalogReady": false,
         "catalogJson": ""
     })
-
     property string loadedCatalogJson: ""
 
     ListModel { id: releaseVersionModel }
@@ -55,7 +51,7 @@ Item {
 
     Timer {
         id: downloadTaskPoller
-        interval: 250
+        interval: 300
         repeat: true
         running: true
         onTriggered: root.pollDownloadTask()
@@ -91,7 +87,7 @@ Item {
                 }
 
                 Text {
-                    text: "选择版本和加载器；下载任务会以 HMCL 风格弹窗显示。"
+                    text: "按版本类型分组选择，不把所有版本混在一个列表里。"
                     color: root.style.cTextOnSurfaceVariant
                     font.pixelSize: 12
                 }
@@ -119,6 +115,7 @@ Item {
             }
 
             BusyIndicator {
+                id: catalogBusyIndicator
                 Layout.preferredWidth: 34
                 Layout.preferredHeight: 34
                 running: root.catalogTaskStatus.active
@@ -137,9 +134,8 @@ Item {
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.fillHeight: true
             Layout.maximumWidth: 1060
-            Layout.minimumHeight: 520
+            Layout.preferredHeight: 460
             radius: root.style.radiusValue
             color: root.style.cSurfaceContainerHigh
             border.color: root.style.cBorder
@@ -228,7 +224,7 @@ Item {
                 }
 
                 Rectangle {
-                    Layout.preferredWidth: 300
+                    Layout.preferredWidth: 285
                     Layout.fillHeight: true
                     radius: root.style.radiusValue
                     color: root.style.cSurfaceContainer
@@ -264,10 +260,6 @@ Item {
                             clip: true
                             model: root.activeVersionModel
                             spacing: 6
-                            boundsBehavior: Flickable.StopAtBounds
-                            ScrollBar.vertical: ScrollBar {
-                                policy: ScrollBar.AsNeeded
-                            }
 
                             delegate: Rectangle {
                                 width: gameList.width
@@ -392,7 +384,7 @@ Item {
 
                         Rectangle {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 126
+                            Layout.preferredHeight: 118
                             radius: root.style.radiusValue
                             color: root.style.cSurfaceContainerHigh
                             border.color: root.style.cBorder
@@ -464,7 +456,7 @@ Item {
 
                         Rectangle {
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 92
+                            Layout.preferredHeight: 78
                             radius: root.style.radiusValue
                             color: root.style.cSurfaceContainerHigh
                             border.color: root.style.cBorder
@@ -490,9 +482,7 @@ Item {
 
                             Text {
                                 Layout.fillWidth: true
-                                text: root.downloadTaskStatus.active
-                                      ? "下载任务正在运行，点击右侧按钮查看。"
-                                      : "安装目录：~/.local/share/mc-launcher/minecraft/"
+                                text: "安装目录：~/.local/share/mc-launcher/minecraft/"
                                 color: root.style.cTextOnSurfaceVariant
                                 font.pixelSize: 11
                                 elide: Text.ElideLeft
@@ -500,12 +490,10 @@ Item {
 
                             ActionButton {
                                 style: root.style
-                                text: root.downloadTaskStatus.active ? "查看下载任务" : "安装所选版本"
+                                text: root.downloadTaskStatus.active ? "下载任务运行中" : "安装所选版本"
                                 primary: true
                                 onClicked: {
-                                    if (root.downloadTaskStatus.active) {
-                                        root.downloadDialogOpen = true
-                                    } else {
+                                    if (!root.downloadTaskStatus.active) {
                                         root.installSelected()
                                     }
                                 }
@@ -515,33 +503,22 @@ Item {
                 }
             }
         }
-    }
 
-    Rectangle {
-        id: downloadDialogOverlay
-
-        anchors.fill: parent
-        z: 1000
-        visible: root.downloadDialogOpen
-        color: "#80000000"
-
-        MouseArea {
-            anchors.fill: parent
-            onClicked: {
-                if (!root.downloadTaskStatus.active) {
-                    root.downloadDialogOpen = false
-                }
-            }
-        }
-
-        DownloadDialogCard {
-            anchors.centerIn: parent
-            width: Math.min(root.width - 64, 560)
-            height: Math.min(root.height - 64, 340)
+        DownloadTaskPanel {
+            Layout.fillWidth: true
+            Layout.maximumWidth: 1060
+            Layout.preferredHeight: 104
             style: root.style
             status: root.downloadTaskStatus
-            onCancelRequested: root.backend.cancelDownloadTask()
-            onCloseRequested: root.downloadDialogOpen = false
+        }
+
+        OutputPanel {
+            Layout.fillWidth: true
+            Layout.maximumWidth: 1060
+            Layout.fillHeight: true
+            Layout.minimumHeight: 150
+            style: root.style
+            text: root.backend.output
         }
     }
 
@@ -554,10 +531,6 @@ Item {
 
         try {
             root.downloadTaskStatus = JSON.parse(raw)
-
-            if (root.downloadTaskStatus.active) {
-                root.downloadDialogOpen = true
-            }
         } catch (e) {
             console.log("Failed to parse download task status", e)
         }
@@ -840,8 +813,6 @@ Item {
     }
 
     function installSelected() {
-        root.downloadDialogOpen = true
-
         root.backend.installGameVersion(
             root.downloadSource,
             root.selectedGameVersion,
@@ -1005,296 +976,6 @@ Item {
         }
     }
 
-    component MaterialProgressBar: Rectangle {
-        id: bar
-
-        required property var style
-        property real value: 0
-
-        height: 6
-        radius: 2
-        color: style.cSurfaceContainerHigh
-        clip: true
-
-        Rectangle {
-            height: parent.height
-            radius: 2
-            color: bar.style.cButtonSelected
-            width: Math.max(0, Math.min(parent.width, parent.width * bar.value / 100.0))
-
-            Behavior on width {
-                NumberAnimation {
-                    duration: 160
-                    easing.type: Easing.OutCubic
-                }
-            }
-        }
-    }
-
-    component TaskRow: Rectangle {
-        id: row
-
-        required property var style
-        property string title: ""
-        property string rightText: ""
-        property real progress: 0
-        property bool running: false
-        property bool failed: false
-        property bool success: false
-
-        height: 48
-        color: "transparent"
-
-        Column {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 5
-
-            RowLayout {
-                width: parent.width
-                spacing: 8
-
-                Text {
-                    Layout.fillWidth: true
-                    text: row.title
-                    color: row.style.cTextOnSurface
-                    font.pixelSize: 12
-                    font.bold: true
-                    elide: Text.ElideRight
-                }
-
-                Text {
-                    text: row.rightText
-                    color: row.style.cTextOnSurfaceVariant
-                    font.pixelSize: 11
-                    elide: Text.ElideRight
-                }
-            }
-
-            MaterialProgressBar {
-                width: parent.width
-                style: row.style
-                value: row.progress
-            }
-        }
-    }
-
-    component StatBlock: Rectangle {
-        id: block
-
-        required property var style
-        property string label: ""
-        property string value: ""
-
-        implicitHeight: 46
-        radius: 8
-        color: style.cSurfaceContainerHigh
-        border.color: style.cBorder
-        border.width: 1
-
-        Column {
-            anchors.fill: parent
-            anchors.margins: 8
-            spacing: 2
-
-            Text {
-                width: parent.width
-                text: block.label
-                color: block.style.cTextOnSurfaceVariant
-                font.pixelSize: 10
-                font.bold: true
-                elide: Text.ElideRight
-            }
-
-            Text {
-                width: parent.width
-                text: block.value
-                color: block.style.cTextOnSurface
-                font.pixelSize: 12
-                font.bold: true
-                elide: Text.ElideRight
-            }
-        }
-    }
-
-    component DownloadDialogCard: Rectangle {
-        id: panel
-
-        required property var style
-        property var status: ({
-            "active": false,
-            "cancelled": false,
-            "percent": 0,
-            "title": "下载任务",
-            "message": "",
-            "totalFiles": 0,
-            "finishedFiles": 0,
-            "totalBytes": 0,
-            "downloadedBytes": 0,
-            "currentFile": "",
-            "speed": 0,
-            "status": "idle"
-        })
-
-        signal cancelRequested()
-        signal closeRequested()
-
-        radius: 8
-        color: style.cSurfaceContainer
-        border.color: style.cBorder
-        border.width: 1
-
-        MouseArea {
-            anchors.fill: parent
-            acceptedButtons: Qt.NoButton
-        }
-
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 16
-            spacing: 10
-
-            Text {
-                Layout.fillWidth: true
-                text: panel.status.title || "下载任务"
-                color: panel.style.cTextOnSurface
-                font.pixelSize: 16
-                font.bold: true
-                elide: Text.ElideRight
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                radius: 6
-                color: panel.style.cSurfaceContainerHigh
-                border.color: panel.style.cBorder
-                border.width: 1
-                clip: true
-
-                ColumnLayout {
-                    anchors.fill: parent
-                    anchors.margins: 12
-                    spacing: 8
-
-                    TaskRow {
-                        Layout.fillWidth: true
-                        style: panel.style
-                        title: panel.status.currentFile && panel.status.currentFile.length > 0
-                               ? panel.status.currentFile
-                               : "等待下载任务开始"
-                        rightText: String(Math.round(panel.status.percent || 0)) + "%"
-                        progress: panel.status.percent || 0
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 8
-
-                        StatBlock {
-                            Layout.fillWidth: true
-                            style: panel.style
-                            label: "文件"
-                            value: (panel.status.finishedFiles || 0) + " / " + (panel.status.totalFiles || 0)
-                        }
-
-                        StatBlock {
-                            Layout.fillWidth: true
-                            style: panel.style
-                            label: "大小"
-                            value: root.formatBytes(panel.status.downloadedBytes || 0)
-                                   + " / "
-                                   + root.formatBytes(panel.status.totalBytes || 0)
-                        }
-
-                        StatBlock {
-                            Layout.fillWidth: true
-                            style: panel.style
-                            label: "速度"
-                            value: root.formatBytes(panel.status.speed || 0) + "/s"
-                        }
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        radius: 6
-                        color: panel.style.cSurfaceContainer
-                        border.color: panel.style.cBorder
-                        border.width: 1
-
-                        Text {
-                            anchors.fill: parent
-                            anchors.margins: 10
-                            text: panel.status.message || "等待下载任务开始。"
-                            color: panel.style.cTextOnSurfaceVariant
-                            font.pixelSize: 12
-                            wrapMode: Text.WordWrap
-                            maximumLineCount: 4
-                            elide: Text.ElideRight
-                            verticalAlignment: Text.AlignVCenter
-                        }
-                    }
-                }
-            }
-
-            BorderPaneLikeFooter {
-                Layout.fillWidth: true
-                style: panel.style
-                status: panel.status
-                onCancelRequested: panel.cancelRequested()
-                onCloseRequested: panel.closeRequested()
-            }
-        }
-    }
-
-    component BorderPaneLikeFooter: Item {
-        id: footer
-
-        required property var style
-        property var status
-
-        signal cancelRequested()
-        signal closeRequested()
-
-        height: 38
-
-        Text {
-            anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-            width: parent.width - 150
-            text: footer.status.active
-                  ? root.formatBytes(footer.status.speed || 0) + "/s"
-                  : footer.status.status === "finished" ? "下载完成"
-                  : footer.status.status === "cancelled" ? "下载已取消"
-                  : footer.status.status === "failed" ? "下载失败"
-                  : "空闲"
-            color: footer.style.cTextOnSurfaceVariant
-            font.pixelSize: 12
-            elide: Text.ElideRight
-        }
-
-        ActionButton {
-            anchors.right: parent.right
-            anchors.verticalCenter: parent.verticalCenter
-            style: footer.style
-            text: footer.status.active
-                  ? footer.status.status === "cancelling" ? "取消中" : "取消"
-                  : "关闭"
-            primary: !footer.status.active
-            onClicked: {
-                if (footer.status.active) {
-                    if (footer.status.status !== "cancelling") {
-                        footer.cancelRequested()
-                    }
-                } else {
-                    footer.closeRequested()
-                }
-            }
-        }
-    }
-
     component CatalogTaskPanel: Rectangle {
         id: panel
 
@@ -1346,10 +1027,12 @@ Item {
                     }
                 }
 
-                MaterialProgressBar {
+                ProgressBar {
                     Layout.fillWidth: true
-                    style: panel.style
-                    value: panel.status.percent || 0
+                    from: 0
+                    to: 100
+                    value: Math.max(0, Math.min(100, panel.status.percent || 0))
+                    indeterminate: panel.status.active && (panel.status.percent || 0) < 10
                 }
 
                 Text {
@@ -1358,6 +1041,143 @@ Item {
                     color: panel.style.cTextOnSurfaceVariant
                     font.pixelSize: 11
                     elide: Text.ElideRight
+                }
+            }
+        }
+    }
+
+    component DownloadTaskPanel: Rectangle {
+        id: panel
+
+        required property var style
+        property var status: ({
+            "active": false,
+            "percent": 0,
+            "title": "空闲",
+            "message": "还没有下载任务。"
+        })
+
+        radius: style.radiusValue
+        color: style.cSurfaceContainer
+        border.color: style.cBorder
+        border.width: 1
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 12
+            spacing: 8
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+
+                Text {
+                    Layout.fillWidth: true
+                    text: panel.status.title || "下载任务"
+                    color: panel.style.cTextOnSurface
+                    font.pixelSize: 14
+                    font.bold: true
+                    elide: Text.ElideRight
+                }
+
+                ActionButton {
+                    visible: panel.status.active
+                    style: panel.style
+                    text: panel.status.status === "cancelling" ? "取消中" : "取消"
+                    primary: false
+                    onClicked: {
+                        if (panel.status.status !== "cancelling") {
+                            root.backend.cancelDownloadTask()
+                        }
+                    }
+                }
+
+                Text {
+                    text: String(Math.round(panel.status.percent || 0)) + "%"
+                    color: panel.style.cTextOnSurfaceVariant
+                    font.pixelSize: 12
+                    font.bold: true
+                }
+            }
+
+            ProgressBar {
+                Layout.fillWidth: true
+                from: 0
+                to: 100
+                value: Math.max(0, Math.min(100, panel.status.percent || 0))
+                indeterminate: panel.status.active && (panel.status.percent || 0) <= 1
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: panel.status.message || "还没有下载任务。"
+                color: panel.style.cTextOnSurfaceVariant
+                font.pixelSize: 11
+                elide: Text.ElideRight
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: "文件 " + (panel.status.finishedFiles || 0) + "/" + (panel.status.totalFiles || 0)
+                      + " · " + root.formatBytes(panel.status.downloadedBytes || 0)
+                      + "/" + root.formatBytes(panel.status.totalBytes || 0)
+                      + " · " + root.formatBytes(panel.status.speed || 0) + "/s"
+                color: panel.style.cTextOnSurfaceVariant
+                font.pixelSize: 11
+                elide: Text.ElideRight
+            }
+
+            Text {
+                Layout.fillWidth: true
+                visible: (panel.status.currentFile || "").length > 0
+                text: "当前：" + panel.status.currentFile
+                color: panel.style.cTextOnSurfaceVariant
+                font.pixelSize: 11
+                elide: Text.ElideLeft
+            }
+        }
+    }
+
+    component OutputPanel: Rectangle {
+        id: panel
+
+        required property var style
+        property string text: ""
+
+        radius: style.radiusValue
+        color: style.cSurfaceContainer
+        border.color: style.cBorder
+        border.width: 1
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 12
+            spacing: 8
+
+            Text {
+                text: "输出"
+                color: panel.style.cTextOnSurface
+                font.pixelSize: 14
+                font.bold: true
+            }
+
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+
+                TextArea {
+                    width: parent.width
+                    readOnly: true
+                    wrapMode: TextEdit.Wrap
+                    selectByMouse: true
+                    text: panel.text
+                    placeholderText: "刷新版本列表或安装版本后，输出会显示在这里。"
+                    color: panel.style.cTextOnSurface
+                    placeholderTextColor: panel.style.cTextOnSurfaceVariant
+                    background: Item {}
                 }
             }
         }
