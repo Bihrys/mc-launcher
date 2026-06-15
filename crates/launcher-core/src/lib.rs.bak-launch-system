@@ -2,10 +2,8 @@ pub mod auth;
 pub mod download;
 pub mod game_download;
 pub mod java;
-pub mod launch;
 pub mod task;
 pub mod java_download;
-pub mod version_manager;
 
 pub use auth::{
     AuthAccount,
@@ -38,20 +36,3 @@ pub fn launcher_info() -> LauncherInfo {
         platform: std::env::consts::OS,
     }
 }
-
-
-pub use launch::{
-    LaunchOptions,
-    LaunchResult,
-    generate_launch_command_json,
-    launch_game,
-};
-
-pub use version_manager::{
-    InstalledVersion,
-    delete_version,
-    installed_versions,
-    installed_versions_json,
-    select_version,
-    selected_version,
-};

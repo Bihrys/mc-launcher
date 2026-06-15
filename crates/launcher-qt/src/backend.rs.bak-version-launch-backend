@@ -16,8 +16,6 @@ pub mod qobject {
         #[qproperty(QString, accounts_json, cxx_name = "accountsJson")]
         #[qproperty(QString, download_catalog_json, cxx_name = "downloadCatalogJson")]
         #[qproperty(QString, download_task_json, cxx_name = "downloadTaskJson")]
-        #[qproperty(QString, installed_versions_json, cxx_name = "installedVersionsJson")]
-        #[qproperty(QString, selected_game_version, cxx_name = "selectedGameVersion")]
         #[namespace = "launcher_backend"]
         type LauncherBackend = super::LauncherBackendRust;
 
@@ -92,26 +90,6 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "cancelDownloadTask"]
         fn cancel_download_task(self: Pin<&mut LauncherBackend>);
-
-        #[qinvokable]
-        #[cxx_name = "refreshInstalledVersions"]
-        fn refresh_installed_versions(self: Pin<&mut LauncherBackend>) -> QString;
-
-        #[qinvokable]
-        #[cxx_name = "selectGameVersion"]
-        fn select_game_version(self: Pin<&mut LauncherBackend>, version_id: QString);
-
-        #[qinvokable]
-        #[cxx_name = "deleteGameVersion"]
-        fn delete_game_version(self: Pin<&mut LauncherBackend>, version_id: QString);
-
-        #[qinvokable]
-        #[cxx_name = "launchSelectedVersion"]
-        fn launch_selected_version(self: Pin<&mut LauncherBackend>);
-
-        #[qinvokable]
-        #[cxx_name = "generateLaunchCommand"]
-        fn generate_launch_command(self: Pin<&mut LauncherBackend>, version_id: QString) -> QString;
     }
 }
 
@@ -133,8 +111,6 @@ pub struct LauncherBackendRust {
     accounts_json: QString,
     download_catalog_json: QString,
     download_task_json: QString,
-    installed_versions_json: QString,
-    selected_game_version: QString,
 }
 
 impl qobject::LauncherBackend {
@@ -750,152 +726,6 @@ fn download_cancel_flag() -> Arc<AtomicBool> {
     DOWNLOAD_CANCEL_FLAG
         .get_or_init(|| Arc::new(AtomicBool::new(false)))
         .clone()
-    pub fn refresh_installed_versions(mut self: Pin<&mut Self>) -> QString {
-        match launcher_core::installed_versions_json() {
-            Ok(json) => {
-                self.as_mut()
-                    .set_installed_versions_json(QString::from(&json));
-
-                if let Ok(value) = serde_json::from_str::<serde_json::Value>(&json) {
-                    let selected = value
-                        .get("selectedVersion")
-                        .and_then(|value| value.as_str())
-                        .unwrap_or_default();
-
-                    self.as_mut()
-                        .set_selected_game_version(QString::from(selected));
-                }
-
-                QString::from(&json)
-            }
-            Err(err) => {
-                let json = serde_json::json!({
-                    "selectedVersion": "",
-                    "versions": [],
-                    "error": err.to_string()
-                })
-                .to_string();
-
-                self.as_mut()
-                    .set_installed_versions_json(QString::from(&json));
-
-                self.as_mut()
-                    .set_output(QString::from(&format!("刷新已安装版本失败。\n\n{err}")));
-
-                QString::from(&json)
-            }
-        }
-    }
-
-    pub fn select_game_version(mut self: Pin<&mut Self>, version_id: QString) {
-        match launcher_core::select_version(&version_id.to_string()) {
-            Ok(version_id) => {
-                self.as_mut()
-                    .set_selected_game_version(QString::from(&version_id));
-
-                let _ = self.as_mut().refresh_installed_versions();
-
-                self.as_mut()
-                    .set_output(QString::from(&format!("已选择版本：{version_id}")));
-            }
-            Err(err) => {
-                self.as_mut()
-                    .set_output(QString::from(&format!("选择版本失败。\n\n{err}")));
-            }
-        }
-    }
-
-    pub fn delete_game_version(mut self: Pin<&mut Self>, version_id: QString) {
-        let version_id = version_id.to_string();
-
-        match launcher_core::delete_version(&version_id) {
-            Ok(()) => {
-                let _ = self.as_mut().refresh_installed_versions();
-
-                self.as_mut()
-                    .set_output(QString::from(&format!("已删除版本：{version_id}")));
-            }
-            Err(err) => {
-                self.as_mut()
-                    .set_output(QString::from(&format!("删除版本失败。\n\n{err}")));
-            }
-        }
-    }
-
-    pub fn launch_selected_version(mut self: Pin<&mut Self>) {
-        let version_id = match launcher_core::selected_version() {
-            Ok(version_id) => version_id,
-            Err(err) => {
-                self.as_mut()
-                    .set_output(QString::from(&format!("启动失败。\n\n{err}")));
-                return;
-            }
-        };
-
-        self.as_mut()
-            .set_selected_game_version(QString::from(&version_id));
-
-        self.as_mut()
-            .set_output(QString::from(&format!("正在生成启动命令并启动游戏：{version_id}")));
-
-        let mut options = launcher_core::LaunchOptions::default();
-        options.version_id = version_id.clone();
-
-        match launcher_core::launch_game(options) {
-            Ok(result) => {
-                let command_preview = result
-                    .command
-                    .iter()
-                    .take(12)
-                    .cloned()
-                    .collect::<Vec<_>>()
-                    .join(" ");
-
-                self.as_mut().set_output(QString::from(&format!(
-                    "游戏已启动。\n\n版本: {}\nPID: {}\nMinecraft 根目录:\n{}\n运行目录:\n{}\nNatives:\n{}\nClasspath 条目: {}\n启动脚本:\n{}\n\n命令预览:\n{}{}",
-                    result.version_id,
-                    result.pid.map(|pid| pid.to_string()).unwrap_or_else(|| "unknown".to_string()),
-                    result.minecraft_root.display(),
-                    result.game_dir.display(),
-                    result.natives_dir.display(),
-                    result.classpath_entries,
-                    result.script_path.display(),
-                    command_preview,
-                    if result.command.len() > 12 { " ..." } else { "" },
-                )));
-            }
-            Err(err) => {
-                self.as_mut()
-                    .set_output(QString::from(&format!("启动失败。\n\n{err}")));
-            }
-        }
-    }
-
-    pub fn generate_launch_command(mut self: Pin<&mut Self>, version_id: QString) -> QString {
-        let version_id = version_id.to_string();
-
-        match launcher_core::generate_launch_command_json(&version_id) {
-            Ok(json) => {
-                self.as_mut()
-                    .set_output(QString::from(&format!("启动命令已生成。\n\n{json}")));
-
-                QString::from(&json)
-            }
-            Err(err) => {
-                let json = serde_json::json!({
-                    "error": err.to_string()
-                })
-                .to_string();
-
-                self.as_mut()
-                    .set_output(QString::from(&format!("生成启动命令失败。\n\n{err}")));
-
-                QString::from(&json)
-            }
-        }
-    }
-
-
 }
 
 fn download_catalog_task_status_path() -> PathBuf {

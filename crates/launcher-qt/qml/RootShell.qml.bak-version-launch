@@ -107,13 +107,6 @@ Item {
                     backend: root.backend
                 }
 
-                VersionPage {
-                    anchors.fill: parent
-                    visible: root.currentPage === "versions"
-                    style: style
-                    backend: root.backend
-                }
-
                 SettingsPage {
                     anchors.fill: parent
                     visible: root.currentPage === "settings"
@@ -136,7 +129,6 @@ Item {
                     visible: root.currentPage !== "main"
                              && root.currentPage !== "account"
                              && root.currentPage !== "download"
-                             && root.currentPage !== "versions"
                              && root.currentPage !== "settings"
                              && root.currentPage !== "java"
                     style: style
@@ -150,12 +142,10 @@ Item {
 
                     style: style
                     title: "启动游戏"
-                    subtitle: root.backend.selectedGameVersion.length > 0
-                              ? root.backend.selectedGameVersion
-                              : "未选择版本"
+                    subtitle: "未选择版本"
 
                     onLaunchClicked: {
-                        root.backend.launchSelectedVersion()
+                        console.log("launch")
                     }
 
                     onMenuClicked: {

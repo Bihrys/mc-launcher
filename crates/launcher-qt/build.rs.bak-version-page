@@ -17,7 +17,6 @@ fn main() {
             "qml/pages/JavaPage.qml",
             "qml/pages/AccountPage.qml",
             "qml/pages/DownloadPage.qml",
-            "qml/pages/VersionPage.qml",
         ]),
     )
     .qt_module("Network")
