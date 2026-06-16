@@ -80,8 +80,6 @@ struct YggdrasilAuthResponse {
     #[serde(rename = "availableProfiles")]
     available_profiles: Option<Vec<YggdrasilProfile>>,
 
-    user: Option<serde_json::Value>,
-
     error: Option<String>,
 
     #[serde(rename = "errorMessage")]
@@ -231,8 +229,6 @@ pub fn login_yggdrasil_start(
         )));
     }
 
-    let user_properties_json = yggdrasil_user_properties_json(parsed.user.as_ref());
-
     if let Some(profile) = parsed.selected_profile {
         return Ok(YggdrasilLoginResult::Account(yggdrasil_account_from_profile(
             &server_url,
@@ -240,7 +236,7 @@ pub fn login_yggdrasil_start(
             access_token,
             Some(client_token),
             profile,
-            user_properties_json,
+            None,
         )));
     }
 
@@ -318,8 +314,6 @@ pub fn complete_yggdrasil_login(
         return Err(simple_error(format!("第三方服务器选择角色失败：{error}\n{message}")));
     }
 
-    let user_properties_json = yggdrasil_user_properties_json(parsed.user.as_ref());
-
     let selected = parsed
         .selected_profile
         .ok_or_else(|| simple_error("第三方服务器 refresh 没有返回 selectedProfile。"))?;
@@ -341,50 +335,8 @@ pub fn complete_yggdrasil_login(
         access_token,
         Some(pending.client_token.clone()),
         selected,
-        user_properties_json,
+        None,
     ))
-}
-
-
-fn yggdrasil_user_properties_json(user: Option<&serde_json::Value>) -> Option<String> {
-    let user = user?;
-    let properties = user.get("properties")?;
-
-    let mut out = serde_json::Map::new();
-
-    if let Some(array) = properties.as_array() {
-        for property in array {
-            let Some(name) = property.get("name").and_then(|value| value.as_str()) else {
-                continue;
-            };
-
-            let Some(value) = property.get("value").and_then(|value| value.as_str()) else {
-                continue;
-            };
-
-            out.insert(
-                name.to_string(),
-                serde_json::Value::Array(vec![serde_json::Value::String(value.to_string())]),
-            );
-        }
-    } else if let Some(object) = properties.as_object() {
-        for (name, value) in object {
-            if let Some(value) = value.as_str() {
-                out.insert(
-                    name.clone(),
-                    serde_json::Value::Array(vec![serde_json::Value::String(value.to_string())]),
-                );
-            } else {
-                out.insert(name.clone(), value.clone());
-            }
-        }
-    }
-
-    if out.is_empty() {
-        None
-    } else {
-        Some(serde_json::Value::Object(out).to_string())
-    }
 }
 
 fn yggdrasil_account_from_profile(
