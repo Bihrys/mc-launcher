@@ -15,16 +15,9 @@ Item {
     property string yggdrasilServer: ""
     property string yggdrasilUsername: ""
     property string yggdrasilPassword: ""
-    property bool yggdrasilProfileDialogOpen: false
-    property string yggdrasilProfileServer: ""
-    property string yggdrasilProfileUsername: ""
 
     ListModel {
         id: accountsModel
-    }
-
-    ListModel {
-        id: yggdrasilProfileModel
     }
 
     Component.onCompleted: {
@@ -126,8 +119,8 @@ Item {
                                 width: accountsList.width
                                 height: 74
                                 radius: 8
-                                color: selected ? root.style.cNavSelected : mouse.containsMouse ? root.style.cNavHover : "transparent"
-                                border.width: selected ? 1 : 0
+                                color: mouse.containsMouse ? root.style.cNavHover : "transparent"
+                                border.width: root.backend.currentAccountName === username ? 1 : 0
                                 border.color: root.style.cButtonSelected
 
                                 MouseArea {
@@ -179,7 +172,7 @@ Item {
                                             text: username
                                             color: root.style.cTextOnSurface
                                             font.pixelSize: 14
-                                            font.bold: selected
+                                            font.bold: root.backend.currentAccountName === username
                                             elide: Text.ElideRight
                                         }
 
@@ -415,7 +408,6 @@ Item {
                                             root.yggdrasilPassword
                                         )
                                         root.reloadAccounts()
-                                        root.loadPendingYggdrasilProfiles()
                                     }
                                 }
                             }
@@ -432,167 +424,6 @@ Item {
             Layout.minimumHeight: 150
             style: root.style
             text: root.backend.output
-        }
-    }
-
-
-    Rectangle {
-        id: yggdrasilProfileOverlay
-
-        anchors.fill: parent
-        z: 1000
-        visible: root.yggdrasilProfileDialogOpen
-        color: "#80000000"
-
-        MouseArea {
-            anchors.fill: parent
-        }
-
-        Rectangle {
-            anchors.centerIn: parent
-            width: Math.min(root.width - 64, 520)
-            height: Math.min(root.height - 64, 420)
-            radius: 8
-            color: root.style.cSurfaceContainer
-            border.color: root.style.cBorder
-            border.width: 1
-
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 16
-                spacing: 12
-
-                Text {
-                    Layout.fillWidth: true
-                    text: "选择角色"
-                    color: root.style.cTextOnSurface
-                    font.pixelSize: 18
-                    font.bold: true
-                    elide: Text.ElideRight
-                }
-
-                Text {
-                    Layout.fillWidth: true
-                    text: "第三方账户 " + root.yggdrasilProfileUsername + " 有多个角色。请选择一个角色继续登录。\n服务器：" + root.yggdrasilProfileServer
-                    color: root.style.cTextOnSurfaceVariant
-                    font.pixelSize: 12
-                    wrapMode: Text.WordWrap
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    radius: 6
-                    color: root.style.cSurfaceContainerHigh
-                    border.color: root.style.cBorder
-                    border.width: 1
-                    clip: true
-
-                    ListView {
-                        id: profileList
-                        anchors.fill: parent
-                        anchors.margins: 8
-                        clip: true
-                        spacing: 8
-                        model: yggdrasilProfileModel
-                        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-
-                        delegate: Rectangle {
-                            width: profileList.width
-                            height: 62
-                            radius: 8
-                            color: profileMouse.containsMouse ? root.style.cNavHover : "transparent"
-                            border.color: root.style.cBorder
-                            border.width: 1
-
-                            MouseArea {
-                                id: profileMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    root.backend.selectYggdrasilProfile(String(index))
-                                    root.yggdrasilProfileDialogOpen = false
-                                    root.reloadAccounts()
-                                }
-                            }
-
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.margins: 8
-                                spacing: 10
-
-                                Rectangle {
-                                    Layout.preferredWidth: 44
-                                    Layout.preferredHeight: 44
-                                    radius: 8
-                                    color: root.style.cButtonSurface
-                                    border.color: root.style.cBorder
-                                    border.width: 1
-                                    clip: true
-
-                                    Image {
-                                        anchors.fill: parent
-                                        anchors.margins: 2
-                                        source: avatarUrl
-                                        fillMode: Image.PreserveAspectFit
-                                        visible: avatarUrl.length > 0
-                                    }
-
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: name.length > 0 ? name.substring(0, 1).toUpperCase() : "?"
-                                        color: root.style.cTextOnSurfaceVariant
-                                        font.pixelSize: 20
-                                        font.bold: true
-                                        visible: avatarUrl.length === 0
-                                    }
-                                }
-
-                                Column {
-                                    Layout.fillWidth: true
-                                    spacing: 4
-
-                                    Text {
-                                        width: parent.width
-                                        text: name
-                                        color: root.style.cTextOnSurface
-                                        font.pixelSize: 14
-                                        font.bold: true
-                                        elide: Text.ElideRight
-                                    }
-
-                                    Text {
-                                        width: parent.width
-                                        text: uuid
-                                        color: root.style.cTextOnSurfaceVariant
-                                        font.pixelSize: 10
-                                        elide: Text.ElideMiddle
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-
-                    Text {
-                        Layout.fillWidth: true
-                        text: "选择后会调用 refresh 绑定 selectedProfile。"
-                        color: root.style.cTextOnSurfaceVariant
-                        font.pixelSize: 11
-                        elide: Text.ElideRight
-                    }
-
-                    SmallButton {
-                        style: root.style
-                        text: "取消"
-                        onClicked: root.yggdrasilProfileDialogOpen = false
-                    }
-                }
-            }
         }
     }
 
@@ -615,47 +446,8 @@ Item {
                 "displayKind": account.displayKind || "",
                 "serverUrl": account.serverUrl || "",
                 "avatarUrl": account.avatarUrl || "",
-                "note": account.note || "",
-                "selected": !!account.selected
+                "note": account.note || ""
             })
-        }
-    }
-
-
-    function loadPendingYggdrasilProfiles() {
-        var raw = root.backend.pendingYggdrasilProfilesJson
-
-        yggdrasilProfileModel.clear()
-
-        if (!raw || raw.length === 0) {
-            root.yggdrasilProfileDialogOpen = false
-            return
-        }
-
-        try {
-            var payload = JSON.parse(raw)
-            root.yggdrasilProfileServer = payload.serverUrl || ""
-            root.yggdrasilProfileUsername = payload.username || ""
-
-            if (!payload.profiles || payload.profiles.length <= 1) {
-                root.yggdrasilProfileDialogOpen = false
-                return
-            }
-
-            for (var i = 0; i < payload.profiles.length; i++) {
-                var profile = payload.profiles[i]
-                var compact = String(profile.id || "").replace(/-/g, "")
-                yggdrasilProfileModel.append({
-                    "name": profile.name || "",
-                    "uuid": profile.id || "",
-                    "avatarUrl": compact.length === 32 ? "https://minotar.net/avatar/" + compact + "/44" : ""
-                })
-            }
-
-            root.yggdrasilProfileDialogOpen = yggdrasilProfileModel.count > 1
-        } catch (e) {
-            console.log("Failed to parse pending yggdrasil profiles", e)
-            root.yggdrasilProfileDialogOpen = false
         }
     }
 

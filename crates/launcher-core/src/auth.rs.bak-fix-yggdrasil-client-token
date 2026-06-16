@@ -71,9 +71,6 @@ struct YggdrasilAuthResponse {
     #[serde(rename = "accessToken")]
     access_token: Option<String>,
 
-    #[serde(rename = "clientToken")]
-    client_token: Option<String>,
-
     #[serde(rename = "selectedProfile")]
     selected_profile: Option<YggdrasilProfile>,
 

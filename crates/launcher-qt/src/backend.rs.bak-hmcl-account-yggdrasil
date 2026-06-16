@@ -14,7 +14,6 @@ pub mod qobject {
         #[qproperty(QString, current_account_kind, cxx_name = "currentAccountKind")]
         #[qproperty(QString, current_account_avatar_url, cxx_name = "currentAccountAvatarUrl")]
         #[qproperty(QString, accounts_json, cxx_name = "accountsJson")]
-        #[qproperty(QString, pending_yggdrasil_profiles_json, cxx_name = "pendingYggdrasilProfilesJson")]
         #[qproperty(QString, download_catalog_json, cxx_name = "downloadCatalogJson")]
         #[qproperty(QString, download_task_json, cxx_name = "downloadTaskJson")]
         #[qproperty(QString, installed_versions_json, cxx_name = "installedVersionsJson")]
@@ -52,10 +51,6 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "loginMicrosoftBrowser"]
         fn login_microsoft_browser(self: Pin<&mut LauncherBackend>, client_id: QString);
-
-        #[qinvokable]
-        #[cxx_name = "selectYggdrasilProfile"]
-        fn select_yggdrasil_profile(self: Pin<&mut LauncherBackend>, index: QString);
 
         #[qinvokable]
         #[cxx_name = "refreshAccounts"]
@@ -146,7 +141,6 @@ pub struct LauncherBackendRust {
     current_account_kind: QString,
     current_account_avatar_url: QString,
     accounts_json: QString,
-    pending_yggdrasil_profiles_json: QString,
     download_catalog_json: QString,
     download_task_json: QString,
     installed_versions_json: QString,
@@ -275,124 +269,16 @@ impl qobject::LauncherBackend {
             "正在登录第三方服务器...\n\n服务器: {server_url}\n用户名: {username}"
         )));
 
-        match launcher_core::login_yggdrasil_start(&server_url, &username, &password) {
-            Ok(launcher_core::YggdrasilLoginResult::Account(account)) => {
-                match launcher_core::save_account(&account) {
-                    Ok(path) => {
-                        clear_pending_yggdrasil_login();
-                        self.as_mut()
-                            .set_pending_yggdrasil_profiles_json(QString::from(""));
-                        set_current_account(self.as_mut(), &account);
-                        refresh_accounts_property(self.as_mut());
-
-                        self.as_mut().set_output(QString::from(&format!(
-                            "第三方服务器登录完成，并已切换到该账户。\n\n服务器: {}\n角色名: {}\nUUID: {}\n账户文件:\n{}",
-                            account.server_url.as_deref().unwrap_or("unknown"),
-                            account.username,
-                            account.uuid,
-                            path.display()
-                        )));
-                    }
-                    Err(err) => {
-                        self.as_mut()
-                            .set_output(QString::from(&format!("保存第三方账户失败。\n\n{err}")));
-                    }
-                }
-            }
-            Ok(launcher_core::YggdrasilLoginResult::Pending(pending)) => {
-                if pending.profiles.len() == 1 {
-                    match launcher_core::complete_yggdrasil_login(&pending, 0)
-                        .and_then(|account| {
-                            let path = launcher_core::save_account(&account)?;
-                            Ok((account, path))
-                        }) {
-                        Ok((account, path)) => {
-                            clear_pending_yggdrasil_login();
-                            self.as_mut()
-                                .set_pending_yggdrasil_profiles_json(QString::from(""));
-                            set_current_account(self.as_mut(), &account);
-                            refresh_accounts_property(self.as_mut());
-                            self.as_mut().set_output(QString::from(&format!(
-                                "第三方服务器登录完成，并已切换到唯一角色。\n\n角色名: {}\nUUID: {}\n账户文件:\n{}",
-                                account.username,
-                                account.uuid,
-                                path.display()
-                            )));
-                        }
-                        Err(err) => {
-                            self.as_mut().set_output(QString::from(&format!(
-                                "第三方服务器选择角色失败。\n\n{err}"
-                            )));
-                        }
-                    }
-                } else {
-                    let json = serde_json::json!({
-                        "serverUrl": pending.server_url,
-                        "username": pending.username,
-                        "profiles": pending.profiles,
-                    })
-                    .to_string();
-
-                    if let Err(err) = write_pending_yggdrasil_login(&pending) {
-                        self.as_mut().set_output(QString::from(&format!(
-                            "保存第三方角色选择状态失败。\n\n{err}"
-                        )));
-                        return;
-                    }
-
-                    self.as_mut()
-                        .set_pending_yggdrasil_profiles_json(QString::from(&json));
-
-                    self.as_mut().set_output(QString::from(&format!(
-                        "该第三方账户有多个角色，请在弹出的角色选择框中选择一个。\n\n服务器: {}\n登录用户: {}\n角色数量: {}",
-                        pending.server_url,
-                        pending.username,
-                        pending.profiles.len()
-                    )));
-                }
-            }
-            Err(err) => {
-                self.as_mut()
-                    .set_output(QString::from(&format!("第三方服务器登录失败。\n\n{err}")));
-            }
-        }
-    }
-
-
-    pub fn select_yggdrasil_profile(mut self: Pin<&mut Self>, index: QString) {
-        let index = match index.to_string().parse::<usize>() {
-            Ok(value) => value,
-            Err(err) => {
-                self.as_mut().set_output(QString::from(&format!(
-                    "选择第三方角色失败：无效索引。\n\n{err}"
-                )));
-                return;
-            }
-        };
-
-        let pending = match read_pending_yggdrasil_login() {
-            Ok(pending) => pending,
-            Err(err) => {
-                self.as_mut().set_output(QString::from(&format!(
-                    "读取第三方角色选择状态失败。\n\n{err}"
-                )));
-                return;
-            }
-        };
-
-        match launcher_core::complete_yggdrasil_login(&pending, index).and_then(|account| {
+        match launcher_core::login_yggdrasil(&server_url, &username, &password).and_then(|account| {
             let path = launcher_core::save_account(&account)?;
             Ok((account, path))
         }) {
             Ok((account, path)) => {
-                clear_pending_yggdrasil_login();
-                self.as_mut()
-                    .set_pending_yggdrasil_profiles_json(QString::from(""));
                 set_current_account(self.as_mut(), &account);
                 refresh_accounts_property(self.as_mut());
 
                 self.as_mut().set_output(QString::from(&format!(
-                    "第三方角色选择完成，并已切换到该账户。\n\n服务器: {}\n角色名: {}\nUUID: {}\n账户文件:\n{}",
+                    "第三方服务器登录完成，并已切换到该账户。\n\n服务器: {}\n角色名: {}\nUUID: {}\n账户文件:\n{}",
                     account.server_url.as_deref().unwrap_or("unknown"),
                     account.username,
                     account.uuid,
@@ -400,9 +286,8 @@ impl qobject::LauncherBackend {
                 )));
             }
             Err(err) => {
-                self.as_mut().set_output(QString::from(&format!(
-                    "第三方角色选择失败。\n\n{err}"
-                )));
+                self.as_mut()
+                    .set_output(QString::from(&format!("第三方服务器登录失败。\n\n{err}")));
             }
         }
     }
@@ -443,8 +328,6 @@ impl qobject::LauncherBackend {
 
                 if accounts.is_empty() {
                     clear_current_account(self.as_mut());
-                } else if let Ok(Some(account)) = launcher_core::selected_account() {
-                    set_current_account(self.as_mut(), &account);
                 }
 
                 QString::from(&json)
@@ -1215,52 +1098,6 @@ fn download_cancel_flag() -> Arc<AtomicBool> {
 
 
 
-
-fn pending_yggdrasil_login_path() -> PathBuf {
-    if let Some(value) = std::env::var_os("XDG_CACHE_HOME") {
-        if !value.is_empty() {
-            return PathBuf::from(value)
-                .join("mc-launcher")
-                .join("pending-yggdrasil-login.json");
-        }
-    }
-
-    if let Some(home) = std::env::var_os("HOME") {
-        return PathBuf::from(home)
-            .join(".cache")
-            .join("mc-launcher")
-            .join("pending-yggdrasil-login.json");
-    }
-
-    std::env::temp_dir()
-        .join("mc-launcher")
-        .join("pending-yggdrasil-login.json")
-}
-
-fn write_pending_yggdrasil_login(
-    pending: &launcher_core::YggdrasilPendingLogin,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
-    let path = pending_yggdrasil_login_path();
-
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
-    fs::write(path, serde_json::to_string_pretty(pending)?)?;
-    Ok(())
-}
-
-fn read_pending_yggdrasil_login(
-) -> Result<launcher_core::YggdrasilPendingLogin, Box<dyn std::error::Error + Send + Sync + 'static>> {
-    let path = pending_yggdrasil_login_path();
-    let text = fs::read_to_string(path)?;
-    Ok(serde_json::from_str(&text)?)
-}
-
-fn clear_pending_yggdrasil_login() {
-    let _ = fs::remove_file(pending_yggdrasil_login_path());
-}
-
 fn launch_task_status_path() -> PathBuf {
     if let Some(value) = std::env::var_os("XDG_CACHE_HOME") {
         if !value.is_empty() {
@@ -1497,18 +1334,10 @@ fn refresh_accounts_property(mut qobject: Pin<&mut qobject::LauncherBackend>) {
         qobject
             .as_mut()
             .set_accounts_json(QString::from(&accounts_public_json(&accounts)));
-
-        if accounts.is_empty() {
-            clear_current_account(qobject.as_mut());
-        } else if let Ok(Some(account)) = launcher_core::selected_account() {
-            set_current_account(qobject.as_mut(), &account);
-        }
     }
 }
 
 fn set_current_account(mut qobject: Pin<&mut qobject::LauncherBackend>, account: &AuthAccount) {
-    let _ = launcher_core::select_account(account);
-
     qobject
         .as_mut()
         .set_current_account_name(QString::from(&account.username));
@@ -1548,12 +1377,6 @@ fn accounts_public_json(accounts: &[AuthAccount]) -> String {
                 "serverUrl": account.server_url,
                 "avatarUrl": avatar_url_for_account(account),
                 "note": account.note,
-                "identifier": launcher_core::account_identifier(account),
-                "selected": launcher_core::selected_account()
-                    .ok()
-                    .flatten()
-                    .map(|selected| launcher_core::account_identifier(&selected) == launcher_core::account_identifier(account))
-                    .unwrap_or(false),
             })
         })
         .collect::<Vec<_>>();
@@ -1581,7 +1404,7 @@ fn avatar_url_for_account(account: &AuthAccount) -> String {
         .collect::<String>();
 
     if compact_uuid.len() == 32 {
-        format!("https://minotar.net/avatar/{compact_uuid}/96")
+        format!("https://mc-heads.net/avatar/{compact_uuid}/96")
     } else {
         String::new()
     }

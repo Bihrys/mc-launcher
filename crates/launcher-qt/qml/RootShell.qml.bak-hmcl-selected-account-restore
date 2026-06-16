@@ -34,12 +34,6 @@ Item {
     property string launchWindowActionHandledId: ""
     property string launchReopenHandledId: ""
 
-    Component.onCompleted: {
-        root.backend.refreshAccounts()
-        root.backend.refreshInstalledVersions()
-        root.pollLaunchTask()
-    }
-
     Settings {
         id: appSettings
 
