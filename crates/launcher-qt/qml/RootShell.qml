@@ -12,16 +12,41 @@ Item {
 
     property string currentPage: "main"
     property string launcherTheme: appSettings.launcherTheme
+    property string launcherVisibility: appSettings.launcherVisibility
+
+    property var launchTaskStatus: ({
+        "id": "",
+        "active": false,
+        "percent": 0,
+        "title": "空闲",
+        "message": "还没有启动任务。",
+        "status": "idle",
+        "visibility": "hide",
+        "gameStarted": false,
+        "shouldHide": false,
+        "shouldClose": false,
+        "shouldReopen": false,
+        "pid": 0
+    })
+
+    property bool launchDialogOpen: false
+    property string launchWindowActionHandledId: ""
+    property string launchReopenHandledId: ""
 
     Settings {
         id: appSettings
 
         category: "appearance"
         property string launcherTheme: "light"
+        property string launcherVisibility: "hide"
     }
 
     onLauncherThemeChanged: {
         appSettings.launcherTheme = root.launcherTheme
+    }
+
+    onLauncherVisibilityChanged: {
+        appSettings.launcherVisibility = root.launcherVisibility
     }
 
     SystemPalette {
@@ -33,6 +58,14 @@ Item {
         id: style
         themeMode: root.launcherTheme
         systemDark: root.isSystemDark(systemPalette.window)
+    }
+
+    Timer {
+        id: launchTaskPoller
+        interval: 250
+        repeat: true
+        running: true
+        onTriggered: root.pollLaunchTask()
     }
 
     Rectangle {
@@ -119,8 +152,12 @@ Item {
                     visible: root.currentPage === "settings"
                     style: style
                     themeMode: root.launcherTheme
+                    launcherVisibility: root.launcherVisibility
                     onThemeSelected: function(mode) {
                         root.launcherTheme = mode
+                    }
+                    onLauncherVisibilitySelected: function(mode) {
+                        root.launcherVisibility = mode
                     }
                 }
 
@@ -155,7 +192,7 @@ Item {
                               : "未选择版本"
 
                     onLaunchClicked: {
-                        root.backend.launchSelectedVersion()
+                        root.startLaunch()
                     }
 
                     onMenuClicked: {
@@ -163,6 +200,107 @@ Item {
                     }
                 }
             }
+        }
+    }
+
+    Rectangle {
+        id: launchDialogOverlay
+
+        anchors.fill: parent
+        z: 1100
+        visible: root.launchDialogOpen
+        color: "#80000000"
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: {
+                if (!root.launchTaskStatus.active) {
+                    root.launchDialogOpen = false
+                }
+            }
+        }
+
+        LaunchDialogCard {
+            anchors.centerIn: parent
+            width: Math.min(root.width - 64, 560)
+            height: Math.min(root.height - 64, 300)
+            style: style
+            status: root.launchTaskStatus
+            onCloseRequested: root.launchDialogOpen = false
+        }
+    }
+
+    function startLaunch() {
+        root.launchDialogOpen = true
+        root.launchWindowActionHandledId = ""
+        root.launchReopenHandledId = ""
+        root.backend.startLaunchSelectedVersion(root.launcherVisibility)
+        root.pollLaunchTask()
+    }
+
+    function pollLaunchTask() {
+        var raw = root.backend.pollLaunchTask()
+
+        if (!raw || raw.length === 0) {
+            return
+        }
+
+        try {
+            root.launchTaskStatus = JSON.parse(raw)
+
+            if (root.launchTaskStatus.active || root.launchTaskStatus.status === "failed") {
+                root.launchDialogOpen = true
+            }
+
+            root.applyLaunchWindowAction()
+        } catch (e) {
+            console.log("Failed to parse launch task status", e)
+        }
+    }
+
+    function applyLaunchWindowAction() {
+        var status = root.launchTaskStatus
+        var id = status.id || ""
+
+        if (id.length === 0) {
+            return
+        }
+
+        if (status.gameStarted && root.launchWindowActionHandledId !== id) {
+            root.launchWindowActionHandledId = id
+
+            if (status.shouldClose) {
+                root.appWindow.close()
+                return
+            }
+
+            if (status.shouldHide) {
+                root.appWindow.hide()
+                return
+            }
+        }
+
+        if (status.shouldReopen && root.launchReopenHandledId !== id) {
+            root.launchReopenHandledId = id
+            root.launchDialogOpen = false
+            root.appWindow.show()
+            root.appWindow.raise()
+            root.appWindow.requestActivate()
+        }
+    }
+
+    function launchVisibilityLabel(mode) {
+        switch (mode) {
+        case "close":
+            return "游戏启动后关闭启动器"
+        case "hide":
+            return "游戏启动后隐藏启动器"
+        case "keep":
+            return "保持启动器可见"
+        case "hide_and_reopen":
+            return "隐藏启动器，并在游戏退出后重新打开"
+        default:
+            return "游戏启动后隐藏启动器"
         }
     }
 
@@ -187,6 +325,138 @@ Item {
             return "反馈"
         default:
             return "页面"
+        }
+    }
+
+    component LaunchDialogCard: Rectangle {
+        id: card
+
+        required property var style
+        property var status: ({})
+        signal closeRequested()
+
+        radius: 8
+        color: style.cSurfaceContainer
+        border.color: style.cBorder
+        border.width: 1
+
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.NoButton
+        }
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 16
+            spacing: 12
+
+            Text {
+                Layout.fillWidth: true
+                text: card.status.title || "启动游戏"
+                color: card.style.cTextOnSurface
+                font.pixelSize: 16
+                font.bold: true
+                elide: Text.ElideRight
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                radius: 6
+                color: card.style.cSurfaceContainerHigh
+                border.color: card.style.cBorder
+                border.width: 1
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 12
+                    spacing: 10
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: card.status.message || "正在准备启动。"
+                            color: card.style.cTextOnSurface
+                            font.pixelSize: 12
+                            wrapMode: Text.WordWrap
+                            maximumLineCount: 4
+                            elide: Text.ElideRight
+                        }
+
+                        Text {
+                            text: String(Math.round(card.status.percent || 0)) + "%"
+                            color: card.style.cTextOnSurface
+                            font.pixelSize: 20
+                            font.bold: true
+                        }
+                    }
+
+                    ProgressBar {
+                        Layout.fillWidth: true
+                        from: 0
+                        to: 100
+                        value: Math.max(0, Math.min(100, card.status.percent || 0))
+                        indeterminate: card.status.active && (card.status.percent || 0) < 8
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: "启动器可见性：" + root.launchVisibilityLabel(card.status.visibility || root.launcherVisibility)
+                        color: card.style.cTextOnSurfaceVariant
+                        font.pixelSize: 11
+                        elide: Text.ElideRight
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+
+                Text {
+                    Layout.fillWidth: true
+                    text: card.status.status === "gameRunning"
+                          ? "游戏运行中，等待游戏退出。"
+                          : card.status.status === "gameExited"
+                          ? "游戏已退出。"
+                          : card.status.status === "failed"
+                          ? "启动失败。"
+                          : card.status.active
+                          ? "正在启动..."
+                          : "启动任务结束。"
+                    color: card.style.cTextOnSurfaceVariant
+                    font.pixelSize: 12
+                    elide: Text.ElideRight
+                }
+
+                Rectangle {
+                    width: Math.max(78, closeLabel.implicitWidth + 28)
+                    height: 34
+                    radius: 17
+                    visible: !card.status.active || card.status.status === "failed"
+                    color: closeMouse.containsMouse ? card.style.cButtonHover : card.style.cButtonSurface
+                    border.color: card.style.cBorder
+                    border.width: 1
+
+                    Text {
+                        id: closeLabel
+                        anchors.centerIn: parent
+                        text: "关闭"
+                        color: card.style.cTextOnSurface
+                        font.pixelSize: 13
+                    }
+
+                    MouseArea {
+                        id: closeMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: card.closeRequested()
+                    }
+                }
+            }
         }
     }
 }

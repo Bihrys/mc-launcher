@@ -7,8 +7,10 @@ Item {
 
     required property var style
     property string themeMode: "light"
+    property string launcherVisibility: "hide"
 
     signal themeSelected(string mode)
+    signal launcherVisibilitySelected(string mode)
 
     Column {
         anchors.left: parent.left
@@ -24,81 +26,152 @@ Item {
             font.bold: true
         }
 
-        Rectangle {
-            width: Math.min(parent.width, 720)
+        SettingCard {
+            width: Math.min(parent.width, 860)
             height: 86
-            radius: root.style.radiusValue
-            color: root.style.cSurfaceContainerHigh
-            border.color: root.style.cBorder
-            border.width: 1
+            style: root.style
+            title: "启动器主题"
+            subtitle: "选择浅色、深色，或跟随系统外观。"
 
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 18
-                anchors.rightMargin: 18
-                spacing: 18
+            Row {
+                spacing: 8
 
-                Column {
-                    Layout.fillWidth: true
-                    spacing: 5
-
-                    Text {
-                        text: "启动器主题"
-                        color: root.style.cTextOnSurface
-                        font.pixelSize: 16
-                        font.bold: true
-                    }
-
-                    Text {
-                        text: "选择浅色、深色，或跟随系统外观。"
-                        color: root.style.cTextOnSurfaceVariant
-                        font.pixelSize: 12
-                    }
+                SelectOption {
+                    style: root.style
+                    text: "浅色"
+                    mode: "light"
+                    selected: root.themeMode === "light"
+                    onClicked: root.themeSelected(mode)
                 }
 
-                Row {
-                    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                    spacing: 8
+                SelectOption {
+                    style: root.style
+                    text: "深色"
+                    mode: "dark"
+                    selected: root.themeMode === "dark"
+                    onClicked: root.themeSelected(mode)
+                }
 
-                    ThemeOption {
-                        style: root.style
-                        text: "浅色"
-                        mode: "light"
-                        selected: root.themeMode === "light"
-                        onClicked: root.themeSelected(mode)
-                    }
+                SelectOption {
+                    style: root.style
+                    text: "跟随系统"
+                    mode: "system"
+                    selected: root.themeMode === "system"
+                    widthOverride: 92
+                    onClicked: root.themeSelected(mode)
+                }
+            }
+        }
 
-                    ThemeOption {
-                        style: root.style
-                        text: "深色"
-                        mode: "dark"
-                        selected: root.themeMode === "dark"
-                        onClicked: root.themeSelected(mode)
-                    }
+        SettingCard {
+            width: Math.min(parent.width, 860)
+            height: 118
+            style: root.style
+            title: "启动器可见性"
+            subtitle: "对应 HMCL 的启动器可见性：关闭、隐藏、保持可见、隐藏并在游戏退出后重开。"
 
-                    ThemeOption {
-                        style: root.style
-                        text: "跟随系统"
-                        mode: "system"
-                        selected: root.themeMode === "system"
-                        onClicked: root.themeSelected(mode)
-                    }
+            Flow {
+                width: 430
+                spacing: 8
+
+                SelectOption {
+                    style: root.style
+                    text: "启动后关闭"
+                    mode: "close"
+                    selected: root.launcherVisibility === "close"
+                    widthOverride: 102
+                    onClicked: root.launcherVisibilitySelected(mode)
+                }
+
+                SelectOption {
+                    style: root.style
+                    text: "启动后隐藏"
+                    mode: "hide"
+                    selected: root.launcherVisibility === "hide"
+                    widthOverride: 102
+                    onClicked: root.launcherVisibilitySelected(mode)
+                }
+
+                SelectOption {
+                    style: root.style
+                    text: "保持可见"
+                    mode: "keep"
+                    selected: root.launcherVisibility === "keep"
+                    widthOverride: 88
+                    onClicked: root.launcherVisibilitySelected(mode)
+                }
+
+                SelectOption {
+                    style: root.style
+                    text: "隐藏并重开"
+                    mode: "hide_and_reopen"
+                    selected: root.launcherVisibility === "hide_and_reopen"
+                    widthOverride: 104
+                    onClicked: root.launcherVisibilitySelected(mode)
                 }
             }
         }
     }
 
-    component ThemeOption: Rectangle {
+    component SettingCard: Rectangle {
+        id: card
+
+        required property var style
+        property string title: ""
+        property string subtitle: ""
+        default property alias content: contentSlot.data
+
+        radius: style.radiusValue
+        color: style.cSurfaceContainerHigh
+        border.color: style.cBorder
+        border.width: 1
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 18
+            anchors.rightMargin: 18
+            spacing: 18
+
+            Column {
+                Layout.fillWidth: true
+                spacing: 5
+
+                Text {
+                    text: card.title
+                    color: card.style.cTextOnSurface
+                    font.pixelSize: 16
+                    font.bold: true
+                }
+
+                Text {
+                    width: parent.width
+                    text: card.subtitle
+                    color: card.style.cTextOnSurfaceVariant
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                }
+            }
+
+            Item {
+                id: contentSlot
+                Layout.preferredWidth: 440
+                Layout.fillHeight: true
+            }
+        }
+    }
+
+    component SelectOption: Rectangle {
         id: option
 
         required property var style
         property string text: ""
         property string mode: ""
         property bool selected: false
+        property int widthOverride: 0
 
         signal clicked(string mode)
 
-        width: text === "跟随系统" ? 92 : 62
+        width: widthOverride > 0 ? widthOverride : 62
         height: 34
         radius: 17
 

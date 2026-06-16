@@ -18,7 +18,6 @@ pub mod qobject {
         #[qproperty(QString, download_task_json, cxx_name = "downloadTaskJson")]
         #[qproperty(QString, installed_versions_json, cxx_name = "installedVersionsJson")]
         #[qproperty(QString, selected_game_version, cxx_name = "selectedGameVersion")]
-        #[qproperty(QString, launch_task_json, cxx_name = "launchTaskJson")]
         #[namespace = "launcher_backend"]
         type LauncherBackend = super::LauncherBackendRust;
 
@@ -111,14 +110,6 @@ pub mod qobject {
         fn launch_selected_version(self: Pin<&mut LauncherBackend>);
 
         #[qinvokable]
-        #[cxx_name = "startLaunchSelectedVersion"]
-        fn start_launch_selected_version(self: Pin<&mut LauncherBackend>, visibility: QString);
-
-        #[qinvokable]
-        #[cxx_name = "pollLaunchTask"]
-        fn poll_launch_task(self: Pin<&mut LauncherBackend>) -> QString;
-
-        #[qinvokable]
         #[cxx_name = "generateLaunchCommand"]
         fn generate_launch_command(self: Pin<&mut LauncherBackend>, version_id: QString) -> QString;
     }
@@ -132,7 +123,6 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[derive(Default)]
 pub struct LauncherBackendRust {
@@ -145,7 +135,6 @@ pub struct LauncherBackendRust {
     download_task_json: QString,
     installed_versions_json: QString,
     selected_game_version: QString,
-    launch_task_json: QString,
 }
 
 impl qobject::LauncherBackend {
@@ -827,28 +816,11 @@ impl qobject::LauncherBackend {
     }
 
     pub fn launch_selected_version(mut self: Pin<&mut Self>) {
-        self.as_mut()
-            .start_launch_selected_version(QString::from("keep"));
-    }
-
-    pub fn start_launch_selected_version(mut self: Pin<&mut Self>, visibility: QString) {
-        let visibility = normalize_launcher_visibility(&visibility.to_string());
-        let status_path = launch_task_status_path();
-
-        if launch_task_is_active(&status_path) {
-            self.as_mut().set_output(QString::from(
-                "已经有启动任务在运行。请等待当前启动流程结束。",
-            ));
-            return;
-        }
-
         let version_id = match launcher_core::selected_version() {
             Ok(version_id) => version_id,
             Err(err) => {
                 self.as_mut()
-                    .set_output(QString::from(&format!("启动失败。
-
-{err}")));
+                    .set_output(QString::from(&format!("启动失败。\n\n{err}")));
                 return;
             }
         };
@@ -856,209 +828,40 @@ impl qobject::LauncherBackend {
         self.as_mut()
             .set_selected_game_version(QString::from(&version_id));
 
-        let launch_id = new_launch_task_id();
-
-        write_launch_task_status(
-            &status_path,
-            &launch_id,
-            true,
-            3,
-            "准备启动游戏",
-            &format!("版本：{version_id}
-正在创建启动任务。"),
-            "running",
-            &visibility,
-            false,
-            false,
-            false,
-            false,
-            0,
-        );
-
         self.as_mut()
-            .set_launch_task_json(QString::from(&read_launch_task_status_text(&status_path)));
+            .set_output(QString::from(&format!("正在生成启动命令并启动游戏：{version_id}")));
 
-        self.as_mut().set_output(QString::from(&format!(
-            "正在启动游戏。
+        let mut options = launcher_core::LaunchOptions::default();
+        options.version_id = version_id.clone();
 
-版本: {version_id}
-启动器可见性: {}",
-            launcher_visibility_text(&visibility),
-        )));
+        match launcher_core::launch_game(options) {
+            Ok(result) => {
+                let command_preview = result
+                    .command
+                    .iter()
+                    .take(12)
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(" ");
 
-        thread::spawn(move || {
-            write_launch_task_status(
-                &status_path,
-                &launch_id,
-                true,
-                12,
-                "解析版本",
-                "正在读取 version.json、处理 inheritsFrom 并合并启动参数。",
-                "running",
-                &visibility,
-                false,
-                false,
-                false,
-                false,
-                0,
-            );
-
-            thread::sleep(Duration::from_millis(120));
-
-            write_launch_task_status(
-                &status_path,
-                &launch_id,
-                true,
-                34,
-                "准备运行环境",
-                "正在选择 Java、准备运行目录并解压 natives。",
-                "running",
-                &visibility,
-                false,
-                false,
-                false,
-                false,
-                0,
-            );
-
-            thread::sleep(Duration::from_millis(120));
-
-            write_launch_task_status(
-                &status_path,
-                &launch_id,
-                true,
-                62,
-                "生成启动命令",
-                "正在生成 classpath、游戏参数和启动脚本。",
-                "running",
-                &visibility,
-                false,
-                false,
-                false,
-                false,
-                0,
-            );
-
-            let mut options = launcher_core::LaunchOptions::default();
-            options.version_id = version_id.clone();
-
-            match launcher_core::launch_game(options) {
-                Ok(result) => {
-                    let pid = result.pid.unwrap_or(0);
-                    let message = format!(
-                        "游戏进程已创建。
-
-版本: {}
-PID: {}
-运行目录:
-{}
-启动脚本:
-{}",
-                        result.version_id,
-                        if pid == 0 {
-                            "unknown".to_string()
-                        } else {
-                            pid.to_string()
-                        },
-                        result.game_dir.display(),
-                        result.script_path.display(),
-                    );
-
-                    let should_close = visibility == "close";
-                    let should_hide = visibility == "hide" || visibility == "hide_and_reopen";
-                    let wait_game = visibility == "hide_and_reopen" && pid != 0;
-
-                    write_launch_task_status(
-                        &status_path,
-                        &launch_id,
-                        wait_game,
-                        100,
-                        "游戏已启动",
-                        &message,
-                        if wait_game { "gameRunning" } else { "finished" },
-                        &visibility,
-                        true,
-                        should_hide,
-                        should_close,
-                        false,
-                        pid,
-                    );
-
-                    if wait_game {
-                        while process_is_alive(pid) {
-                            thread::sleep(Duration::from_secs(1));
-                        }
-
-                        write_launch_task_status(
-                            &status_path,
-                            &launch_id,
-                            false,
-                            100,
-                            "游戏已退出",
-                            "游戏进程已结束，正在恢复启动器窗口。",
-                            "gameExited",
-                            &visibility,
-                            true,
-                            false,
-                            false,
-                            true,
-                            pid,
-                        );
-                    }
-                }
-                Err(err) => {
-                    write_launch_task_status(
-                        &status_path,
-                        &launch_id,
-                        false,
-                        0,
-                        "启动失败",
-                        &err.to_string(),
-                        "failed",
-                        &visibility,
-                        false,
-                        false,
-                        false,
-                        false,
-                        0,
-                    );
-                }
+                self.as_mut().set_output(QString::from(&format!(
+                    "游戏已启动。\n\n版本: {}\nPID: {}\nMinecraft 根目录:\n{}\n运行目录:\n{}\nNatives:\n{}\nClasspath 条目: {}\n启动脚本:\n{}\n\n命令预览:\n{}{}",
+                    result.version_id,
+                    result.pid.map(|pid| pid.to_string()).unwrap_or_else(|| "unknown".to_string()),
+                    result.minecraft_root.display(),
+                    result.game_dir.display(),
+                    result.natives_dir.display(),
+                    result.classpath_entries,
+                    result.script_path.display(),
+                    command_preview,
+                    if result.command.len() > 12 { " ..." } else { "" },
+                )));
             }
-        });
-    }
-
-    pub fn poll_launch_task(mut self: Pin<&mut Self>) -> QString {
-        let path = launch_task_status_path();
-        let text = read_launch_task_status_text(&path);
-
-        self.as_mut()
-            .set_launch_task_json(QString::from(&text));
-
-        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) {
-            let title = value
-                .get("title")
-                .and_then(|value| value.as_str())
-                .unwrap_or("启动任务");
-
-            let message = value
-                .get("message")
-                .and_then(|value| value.as_str())
-                .unwrap_or_default();
-
-            let status = value
-                .get("status")
-                .and_then(|value| value.as_str())
-                .unwrap_or_default();
-
-            if status != "idle" {
+            Err(err) => {
                 self.as_mut()
-                    .set_output(QString::from(&format!("{title}
-
-{message}")));
+                    .set_output(QString::from(&format!("启动失败。\n\n{err}")));
             }
         }
-
-        QString::from(&text)
     }
 
     pub fn generate_launch_command(mut self: Pin<&mut Self>, version_id: QString) -> QString {
@@ -1096,134 +899,6 @@ fn download_cancel_flag() -> Arc<AtomicBool> {
         .clone()
 }
 
-
-
-fn launch_task_status_path() -> PathBuf {
-    if let Some(value) = std::env::var_os("XDG_CACHE_HOME") {
-        if !value.is_empty() {
-            return PathBuf::from(value)
-                .join("mc-launcher")
-                .join("launch-task.json");
-        }
-    }
-
-    if let Some(home) = std::env::var_os("HOME") {
-        return PathBuf::from(home)
-            .join(".cache")
-            .join("mc-launcher")
-            .join("launch-task.json");
-    }
-
-    std::env::temp_dir()
-        .join("mc-launcher")
-        .join("launch-task.json")
-}
-
-fn read_launch_task_status_text(path: &Path) -> String {
-    fs::read_to_string(path).unwrap_or_else(|_| {
-        serde_json::json!({
-            "id": "",
-            "active": false,
-            "percent": 0,
-            "title": "空闲",
-            "message": "还没有启动任务。",
-            "status": "idle",
-            "visibility": "hide",
-            "gameStarted": false,
-            "shouldHide": false,
-            "shouldClose": false,
-            "shouldReopen": false,
-            "pid": 0
-        })
-        .to_string()
-    })
-}
-
-fn launch_task_is_active(path: &Path) -> bool {
-    let Ok(text) = fs::read_to_string(path) else {
-        return false;
-    };
-
-    serde_json::from_str::<serde_json::Value>(&text)
-        .ok()
-        .and_then(|value| value.get("active").and_then(|value| value.as_bool()).map(bool::from))
-        .unwrap_or(false)
-}
-
-#[allow(clippy::too_many_arguments)]
-fn write_launch_task_status(
-    path: &Path,
-    id: &str,
-    active: bool,
-    percent: u32,
-    title: &str,
-    message: &str,
-    status: &str,
-    visibility: &str,
-    game_started: bool,
-    should_hide: bool,
-    should_close: bool,
-    should_reopen: bool,
-    pid: u32,
-) {
-    if let Some(parent) = path.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
-
-    let payload = serde_json::json!({
-        "id": id,
-        "active": active,
-        "percent": percent.min(100),
-        "title": title,
-        "message": message,
-        "status": status,
-        "visibility": visibility,
-        "gameStarted": game_started,
-        "shouldHide": should_hide,
-        "shouldClose": should_close,
-        "shouldReopen": should_reopen,
-        "pid": pid
-    });
-
-    let _ = fs::write(path, payload.to_string());
-}
-
-fn new_launch_task_id() -> String {
-    let millis = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|duration| duration.as_millis())
-        .unwrap_or(0);
-
-    format!("launch-{millis}")
-}
-
-fn normalize_launcher_visibility(value: &str) -> String {
-    match value.trim() {
-        "close" => "close".to_string(),
-        "hide" => "hide".to_string(),
-        "keep" => "keep".to_string(),
-        "hide_and_reopen" => "hide_and_reopen".to_string(),
-        _ => "hide".to_string(),
-    }
-}
-
-fn launcher_visibility_text(value: &str) -> &'static str {
-    match value {
-        "close" => "游戏启动后关闭启动器",
-        "hide" => "游戏启动后隐藏启动器",
-        "keep" => "保持启动器可见",
-        "hide_and_reopen" => "隐藏启动器，并在游戏退出后重新打开",
-        _ => "游戏启动后隐藏启动器",
-    }
-}
-
-fn process_is_alive(pid: u32) -> bool {
-    if pid == 0 {
-        return false;
-    }
-
-    PathBuf::from("/proc").join(pid.to_string()).exists()
-}
 
 fn download_catalog_task_status_path() -> PathBuf {
     if let Some(value) = std::env::var_os("XDG_CACHE_HOME") {
