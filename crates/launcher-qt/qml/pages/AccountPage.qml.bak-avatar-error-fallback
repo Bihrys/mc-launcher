@@ -153,13 +153,11 @@ Item {
                                         clip: true
 
                                         Image {
-                                            id: accountAvatarImage
                                             anchors.fill: parent
                                             anchors.margins: 2
                                             source: avatarUrl
                                             fillMode: Image.PreserveAspectFit
-                                            visible: avatarUrl.length > 0 && status !== Image.Error
-                                            cache: true
+                                            visible: avatarUrl.length > 0
                                         }
 
                                         Text {
@@ -168,7 +166,7 @@ Item {
                                             color: root.style.cTextOnSurfaceVariant
                                             font.pixelSize: 22
                                             font.bold: true
-                                            visible: !accountAvatarImage.visible
+                                            visible: avatarUrl.length === 0
                                         }
                                     }
 
@@ -646,10 +644,11 @@ Item {
 
             for (var i = 0; i < payload.profiles.length; i++) {
                 var profile = payload.profiles[i]
+                var compact = String(profile.id || "").replace(/-/g, "")
                 yggdrasilProfileModel.append({
                     "name": profile.name || "",
                     "uuid": profile.id || "",
-                    "avatarUrl": profile.avatarUrl || ""
+                    "avatarUrl": compact.length === 32 ? "https://minotar.net/avatar/" + compact + "/44" : ""
                 })
             }
 

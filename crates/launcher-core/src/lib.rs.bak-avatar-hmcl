@@ -1,5 +1,4 @@
 pub mod auth;
-pub mod avatar;
 pub mod download;
 pub mod game_download;
 pub mod java;
@@ -63,10 +62,4 @@ pub use version_manager::{
     installed_versions_json,
     select_version,
     selected_version,
-};
-
-
-pub use avatar::{
-    account_avatar_url,
-    yggdrasil_profile_avatar_url,
 };

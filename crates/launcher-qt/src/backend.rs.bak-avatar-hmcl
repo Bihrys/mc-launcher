@@ -326,31 +326,10 @@ impl qobject::LauncherBackend {
                         }
                     }
                 } else {
-                    let profiles = pending
-                        .profiles
-                        .iter()
-                        .map(|profile| {
-                            let avatar_url = launcher_core::yggdrasil_profile_avatar_url(
-                                &pending.server_url,
-                                &profile.id,
-                                96,
-                            )
-                            .ok()
-                            .flatten()
-                            .unwrap_or_default();
-
-                            serde_json::json!({
-                                "id": profile.id,
-                                "name": profile.name,
-                                "avatarUrl": avatar_url,
-                            })
-                        })
-                        .collect::<Vec<_>>();
-
                     let json = serde_json::json!({
                         "serverUrl": pending.server_url,
                         "username": pending.username,
-                        "profiles": profiles,
+                        "profiles": pending.profiles,
                     })
                     .to_string();
 
@@ -1595,8 +1574,15 @@ fn display_account_kind(kind: &str) -> String {
 }
 
 fn avatar_url_for_account(account: &AuthAccount) -> String {
-    launcher_core::account_avatar_url(account, 96)
-        .ok()
-        .flatten()
-        .unwrap_or_default()
+    let compact_uuid = account
+        .uuid
+        .chars()
+        .filter(|ch| *ch != '-')
+        .collect::<String>();
+
+    if compact_uuid.len() == 32 {
+        format!("https://minotar.net/avatar/{compact_uuid}/96")
+    } else {
+        String::new()
+    }
 }
