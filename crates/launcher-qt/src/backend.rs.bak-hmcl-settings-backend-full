@@ -20,7 +20,6 @@ pub mod qobject {
         #[qproperty(QString, installed_versions_json, cxx_name = "installedVersionsJson")]
         #[qproperty(QString, selected_game_version, cxx_name = "selectedGameVersion")]
         #[qproperty(QString, launch_task_json, cxx_name = "launchTaskJson")]
-        #[qproperty(QString, launcher_settings_json, cxx_name = "launcherSettingsJson")]
         #[namespace = "launcher_backend"]
         type LauncherBackend = super::LauncherBackendRust;
 
@@ -129,14 +128,6 @@ pub mod qobject {
         fn poll_launch_task(self: Pin<&mut LauncherBackend>) -> QString;
 
         #[qinvokable]
-        #[cxx_name = "refreshLauncherSettings"]
-        fn refresh_launcher_settings(self: Pin<&mut LauncherBackend>) -> QString;
-
-        #[qinvokable]
-        #[cxx_name = "updateLauncherSetting"]
-        fn update_launcher_setting(self: Pin<&mut LauncherBackend>, key: QString, value: QString);
-
-        #[qinvokable]
         #[cxx_name = "generateLaunchCommand"]
         fn generate_launch_command(self: Pin<&mut LauncherBackend>, version_id: QString) -> QString;
     }
@@ -165,7 +156,6 @@ pub struct LauncherBackendRust {
     installed_versions_json: QString,
     selected_game_version: QString,
     launch_task_json: QString,
-    launcher_settings_json: QString,
 }
 
 impl qobject::LauncherBackend {
@@ -841,11 +831,44 @@ impl qobject::LauncherBackend {
         self.as_mut()
             .set_download_task_json(QString::from(&text));
 
-        // 不再在轮询中写 output。
-        // 下载页用 downloadTaskJson 显示任务状态，output 只显示用户主动触发的操作结果。
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) {
+            let title = value
+                .get("title")
+                .and_then(|value| value.as_str())
+                .unwrap_or("下载任务");
+
+            let message = value
+                .get("message")
+                .and_then(|value| value.as_str())
+                .unwrap_or_default();
+
+            if value
+                .get("active")
+                .and_then(|value| value.as_bool())
+                .unwrap_or(false)
+            {
+                self.as_mut()
+                    .set_output(QString::from(&format!("{title}\n\n{message}")));
+            } else {
+                let status = value
+                    .get("status")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or_default();
+
+                if title == "安装完成"
+                    || title == "安装失败"
+                    || status == "cancelled"
+                    || status == "cancelling"
+                    || title == "下载已取消"
+                {
+                    self.as_mut()
+                        .set_output(QString::from(&format!("{title}\n\n{message}")));
+                }
+            }
+        }
+
         QString::from(&text)
     }
-
 
 
     pub fn cancel_download_task(mut self: Pin<&mut Self>) {
@@ -1266,21 +1289,8 @@ impl qobject::LauncherBackend {
                 false,
             );
 
-            let settings = load_launcher_settings_value();
-
             let mut options = launcher_core::LaunchOptions::default();
             options.version_id = version_id.clone();
-            options.min_memory_mb = launcher_setting_u32(&settings, "minMemoryMb");
-            options.max_memory_mb = launcher_setting_u32(&settings, "maxMemoryMb").or(options.max_memory_mb);
-            options.width = launcher_setting_u32(&settings, "gameWidth").or(options.width);
-            options.height = launcher_setting_u32(&settings, "gameHeight").or(options.height);
-            options.fullscreen = launcher_setting_bool(&settings, "fullscreen").unwrap_or(false);
-
-            if let Some(java_path) = launcher_setting_string(&settings, "javaPath") {
-                if !java_path.trim().is_empty() {
-                    options.java_path = Some(PathBuf::from(java_path));
-                }
-            }
 
             match launcher_core::launch_game(options) {
                 Ok(result) => {
@@ -1407,48 +1417,31 @@ impl qobject::LauncherBackend {
         self.as_mut()
             .set_launch_task_json(QString::from(&text));
 
-        // 不再在轮询中写 output。
-        // 否则用户点击“检测 Java”后，下一次启动轮询会把输出区改回启动信息。
-        QString::from(&text)
-    }
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) {
+            let title = value
+                .get("title")
+                .and_then(|value| value.as_str())
+                .unwrap_or("启动任务");
 
+            let message = value
+                .get("message")
+                .and_then(|value| value.as_str())
+                .unwrap_or_default();
 
-    pub fn refresh_launcher_settings(mut self: Pin<&mut Self>) -> QString {
-        let value = load_launcher_settings_value();
-        let text = value.to_string();
+            let status = value
+                .get("status")
+                .and_then(|value| value.as_str())
+                .unwrap_or_default();
 
-        self.as_mut()
-            .set_launcher_settings_json(QString::from(&text));
-
-        QString::from(&text)
-    }
-
-    pub fn update_launcher_setting(mut self: Pin<&mut Self>, key: QString, value: QString) {
-        let key = key.to_string();
-        let raw_value = value.to_string();
-
-        let mut settings = load_launcher_settings_value();
-        let Some(object) = settings.as_object_mut() else {
-            self.as_mut()
-                .set_output(QString::from("保存设置失败：设置文件结构不是对象。"));
-            return;
-        };
-
-        object.insert(key.clone(), parse_launcher_setting_value(&key, &raw_value));
-
-        match save_launcher_settings_value(&settings) {
-            Ok(()) => {
-                let text = settings.to_string();
+            if status != "idle" {
                 self.as_mut()
-                    .set_launcher_settings_json(QString::from(&text));
-                self.as_mut()
-                    .set_output(QString::from(&format!("设置已保存：{key} = {raw_value}")));
-            }
-            Err(err) => {
-                self.as_mut()
-                    .set_output(QString::from(&format!("保存设置失败。\n\n{err}")));
+                    .set_output(QString::from(&format!("{title}
+
+{message}")));
             }
         }
+
+        QString::from(&text)
     }
 
     pub fn generate_launch_command(mut self: Pin<&mut Self>, version_id: QString) -> QString {
@@ -1489,167 +1482,6 @@ fn download_cancel_flag() -> Arc<AtomicBool> {
 
 
 
-
-
-fn launcher_settings_path() -> PathBuf {
-    if let Some(value) = std::env::var_os("XDG_CONFIG_HOME") {
-        if !value.is_empty() {
-            return PathBuf::from(value).join("mc-launcher").join("settings.json");
-        }
-    }
-
-    if let Some(home) = std::env::var_os("HOME") {
-        return PathBuf::from(home)
-            .join(".config")
-            .join("mc-launcher")
-            .join("settings.json");
-    }
-
-    std::env::temp_dir()
-        .join("mc-launcher")
-        .join("settings.json")
-}
-
-fn default_launcher_settings_value() -> serde_json::Value {
-    serde_json::json!({
-        "themeMode": "light",
-        "launcherVisibility": "hide",
-
-        "minMemoryMb": 256,
-        "maxMemoryMb": 2048,
-        "gameWidth": 854,
-        "gameHeight": 480,
-        "fullscreen": false,
-        "javaPath": "",
-        "javaAuto": true,
-        "jvmArgs": "",
-        "gameDir": "",
-
-        "language": "zh_CN",
-        "themeColor": "default",
-        "titleTransparent": false,
-        "turnOffAnimations": false,
-        "disableAutoGameOptions": false,
-        "enableGameList": true,
-        "allowAutoAgent": true,
-        "logFont": "monospace",
-
-        "autoChooseDownloadSource": true,
-        "versionListSource": "auto",
-        "downloadSource": "auto",
-        "defaultAddonSource": "modrinth",
-        "commonDirType": "default",
-        "commonDirectory": "",
-        "autoDownloadThreads": true,
-        "downloadThreads": 64,
-
-        "proxyType": "default",
-        "proxyHost": "",
-        "proxyPort": 0,
-        "proxyUsername": "",
-        "proxyPassword": "",
-
-        "uiScale": 1.0,
-        "fontAntiAliasing": "auto"
-    })
-}
-
-fn load_launcher_settings_value() -> serde_json::Value {
-    let path = launcher_settings_path();
-    let mut settings = default_launcher_settings_value();
-
-    if let Ok(text) = fs::read_to_string(&path) {
-        if let Ok(user_settings) = serde_json::from_str::<serde_json::Value>(&text) {
-            merge_json_object(&mut settings, user_settings);
-        }
-    }
-
-    let _ = save_launcher_settings_value(&settings);
-    settings
-}
-
-fn save_launcher_settings_value(value: &serde_json::Value) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
-    let path = launcher_settings_path();
-
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
-    fs::write(path, serde_json::to_string_pretty(value)?)?;
-    Ok(())
-}
-
-fn merge_json_object(base: &mut serde_json::Value, overlay: serde_json::Value) {
-    let Some(base_object) = base.as_object_mut() else {
-        return;
-    };
-
-    let Some(overlay_object) = overlay.as_object() else {
-        return;
-    };
-
-    for (key, value) in overlay_object {
-        base_object.insert(key.clone(), value.clone());
-    }
-}
-
-fn parse_launcher_setting_value(key: &str, raw: &str) -> serde_json::Value {
-    match key {
-        "minMemoryMb"
-        | "maxMemoryMb"
-        | "gameWidth"
-        | "gameHeight"
-        | "downloadThreads"
-        | "proxyPort" => {
-            let value = raw.trim().parse::<u64>().unwrap_or(0);
-            serde_json::Value::Number(value.into())
-        }
-        "fullscreen"
-        | "javaAuto"
-        | "titleTransparent"
-        | "turnOffAnimations"
-        | "disableAutoGameOptions"
-        | "enableGameList"
-        | "allowAutoAgent"
-        | "autoChooseDownloadSource"
-        | "autoDownloadThreads" => serde_json::Value::Bool(raw.trim() == "true"),
-        "uiScale" => {
-            let value = raw.trim().parse::<f64>().unwrap_or(1.0);
-            serde_json::Number::from_f64(value)
-                .map(serde_json::Value::Number)
-                .unwrap_or_else(|| serde_json::Value::Number(serde_json::Number::from(1)))
-        }
-        _ => serde_json::Value::String(raw.to_string()),
-    }
-}
-
-fn launcher_setting_u32(settings: &serde_json::Value, key: &str) -> Option<u32> {
-    settings
-        .get(key)
-        .and_then(|value| {
-            value
-                .as_u64()
-                .and_then(|value| u32::try_from(value).ok())
-                .or_else(|| value.as_str().and_then(|value| value.parse::<u32>().ok()))
-        })
-}
-
-fn launcher_setting_bool(settings: &serde_json::Value, key: &str) -> Option<bool> {
-    settings
-        .get(key)
-        .and_then(|value| {
-            value
-                .as_bool()
-                .or_else(|| value.as_str().map(|value| value == "true"))
-        })
-}
-
-fn launcher_setting_string(settings: &serde_json::Value, key: &str) -> Option<String> {
-    settings
-        .get(key)
-        .and_then(|value| value.as_str())
-        .map(ToString::to_string)
-}
 
 fn pending_yggdrasil_login_path() -> PathBuf {
     if let Some(value) = std::env::var_os("XDG_CACHE_HOME") {

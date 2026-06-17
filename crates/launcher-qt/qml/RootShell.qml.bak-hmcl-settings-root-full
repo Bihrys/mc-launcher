@@ -164,7 +164,6 @@ Item {
                     anchors.fill: parent
                     visible: root.currentPage === "settings"
                     style: style
-                    backend: root.backend
                     themeMode: root.launcherTheme
                     launcherVisibility: root.launcherVisibility
                     onThemeSelected: function(mode) {
