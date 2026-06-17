@@ -1695,7 +1695,6 @@ fn launch_task_is_active(path: &Path) -> bool {
 }
 
 #[allow(clippy::too_many_arguments)]
-#[allow(dead_code)]
 fn write_launch_task_status(
     path: &Path,
     id: &str,
