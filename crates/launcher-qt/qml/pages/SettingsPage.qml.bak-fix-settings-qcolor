@@ -799,7 +799,7 @@ Item {
         Rectangle {
             anchors.fill: parent
             color: nav.section === nav.currentSection
-                   ? nav.style.cNavSelected
+                   ? Qt.rgba(nav.style.secondaryContainerR, nav.style.secondaryContainerG, nav.style.secondaryContainerB, 0.50)
                    : "transparent"
         }
 
@@ -947,8 +947,6 @@ Item {
     }
 
     component SettingsTitle: Item {
-        id: settingsTitle
-
         required property var style
         property string label: ""
 
@@ -958,8 +956,8 @@ Item {
         Text {
             anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            text: settingsTitle.label
-            color: settingsTitle.style.cTextOnSurface
+            text: label
+            color: style.cTextOnSurface
             font.pixelSize: 12
         }
     }
@@ -989,7 +987,7 @@ Item {
 
         width: parent ? parent.width : 600
         height: rowHeight
-        color: row.style.cSurface
+        color: style.cSurface
         radius: 0
         border.width: 0
 
@@ -1053,8 +1051,6 @@ Item {
     }
 
     component InfoRow: BaseRow {
-        id: infoRow
-
         property string valueText: ""
 
         Text {
@@ -1063,16 +1059,14 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             width: 220
             horizontalAlignment: Text.AlignRight
-            text: infoRow.valueText
-            color: infoRow.style.cTextOnSurfaceVariant
+            text: valueText
+            color: style.cTextOnSurfaceVariant
             font.pixelSize: 12
             elide: Text.ElideRight
         }
     }
 
     component ParagraphRow: BaseRow {
-        id: paragraphRow
-
         rowHeight: Math.max(78, paragraph.implicitHeight + 36)
 
         Text {
@@ -1082,8 +1076,8 @@ Item {
             anchors.left: parent.left
             anchors.leftMargin: 220
             anchors.verticalCenter: parent.verticalCenter
-            text: paragraphRow.description
-            color: paragraphRow.style.cTextOnSurfaceVariant
+            text: description
+            color: style.cTextOnSurfaceVariant
             font.pixelSize: 12
             wrapMode: Text.WordWrap
         }

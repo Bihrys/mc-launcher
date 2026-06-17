@@ -16,7 +16,6 @@ QtObject {
     readonly property color cBgEnd: darkMode ? "#1B1B24" : "#DDE2FF"
 
     readonly property color cSurfaceTransparent: darkMode ? "#EE1B1B21" : "#EEFBF8FF"
-    readonly property color cSurface: darkMode ? "#1B1B21" : "#FFFBFE"
     readonly property color cSurfaceContainer: darkMode ? "#CC252631" : "#CCF5F2FA"
     readonly property color cSurfaceContainerHigh: darkMode ? "#E82D2E3A" : "#E8F5F2FA"
 
