@@ -12,7 +12,6 @@ Item {
     required property var backend
 
     property string currentPage: "main"
-    readonly property real uiScale: Math.max(0.78, Math.min(1.18, Math.min(root.width / 1280, root.height / 720)))
     property string launcherTheme: appSettings.launcherTheme
     property string launcherVisibility: appSettings.launcherVisibility
 
@@ -166,7 +165,6 @@ Item {
                     visible: root.currentPage === "settings"
                     style: style
                     backend: root.backend
-                    uiScale: root.uiScale
                     themeMode: root.launcherTheme
                     launcherVisibility: root.launcherVisibility
                     onThemeSelected: function(mode) {
@@ -200,8 +198,6 @@ Item {
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
                     anchors.margins: 24
-                    visible: root.currentPage === "main"
-                    enabled: visible
 
                     style: style
                     title: "启动游戏"
