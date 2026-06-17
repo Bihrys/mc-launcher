@@ -20,53 +20,117 @@ Item {
 
     RowLayout {
         anchors.fill: parent
-        anchors.margins: 16
-        spacing: 12
+        spacing: 0
 
+        // HMCL AdvancedListBox: limit width 200, transparent, content padding top 12.
         Rectangle {
             Layout.preferredWidth: 200
             Layout.fillHeight: true
-            radius: 4
-            color: root.style.cSurfaceContainerHigh
-            border.width: 0
+            color: "transparent"
 
-            Column {
+            Flickable {
                 anchors.fill: parent
-                anchors.margins: 8
-                spacing: 2
+                clip: true
+                contentWidth: width
+                contentHeight: drawerColumn.height
+                boundsBehavior: Flickable.StopAtBounds
 
-                Text {
+                Column {
+                    id: drawerColumn
+
                     width: parent.width
-                    height: 38
-                    text: "设置"
-                    color: root.style.cTextOnSurface
-                    font.pixelSize: 18
-                    font.bold: true
-                    verticalAlignment: Text.AlignVCenter
-                    leftPadding: 6
+                    y: 12
+                    spacing: 0
+
+                    NavItem {
+                        style: root.style
+                        label: "全局游戏设置"
+                        iconKind: "game"
+                        section: "global"
+                        currentSection: root.currentSection
+                        onClicked: root.currentSection = section
+                    }
+
+                    NavItem {
+                        style: root.style
+                        label: "Java 管理"
+                        iconKind: "java"
+                        section: "java"
+                        currentSection: root.currentSection
+                        onClicked: root.currentSection = section
+                    }
+
+                    DrawerCategory {
+                        style: root.style
+                        label: "启动器"
+                    }
+
+                    NavItem {
+                        style: root.style
+                        label: "通用"
+                        iconKind: "tune"
+                        section: "general"
+                        currentSection: root.currentSection
+                        onClicked: root.currentSection = section
+                    }
+
+                    NavItem {
+                        style: root.style
+                        label: "外观"
+                        iconKind: "style"
+                        section: "appearance"
+                        currentSection: root.currentSection
+                        onClicked: root.currentSection = section
+                    }
+
+                    NavItem {
+                        style: root.style
+                        label: "下载"
+                        iconKind: "download"
+                        section: "download"
+                        currentSection: root.currentSection
+                        onClicked: root.currentSection = section
+                    }
+
+                    DrawerCategory {
+                        style: root.style
+                        label: "帮助"
+                    }
+
+                    NavItem {
+                        style: root.style
+                        label: "帮助"
+                        iconKind: "help"
+                        section: "help"
+                        currentSection: root.currentSection
+                        onClicked: root.currentSection = section
+                    }
+
+                    NavItem {
+                        style: root.style
+                        label: "反馈"
+                        iconKind: "feedback"
+                        section: "feedback"
+                        currentSection: root.currentSection
+                        onClicked: root.currentSection = section
+                    }
+
+                    NavItem {
+                        style: root.style
+                        label: "关于"
+                        iconKind: "info"
+                        section: "about"
+                        currentSection: root.currentSection
+                        onClicked: root.currentSection = section
+                    }
                 }
-
-                NavCategory { style: root.style; label: "GAME" }
-
-                SettingsNavButton { style: root.style; label: "全局游戏设置"; section: "global"; currentSection: root.currentSection; onClicked: root.currentSection = section }
-                SettingsNavButton { style: root.style; label: "Java 管理"; section: "java"; currentSection: root.currentSection; onClicked: root.currentSection = section }
-
-                NavCategory { style: root.style; label: "LAUNCHER" }
-
-                SettingsNavButton { style: root.style; label: "通用"; section: "general"; currentSection: root.currentSection; onClicked: root.currentSection = section }
-                SettingsNavButton { style: root.style; label: "外观"; section: "appearance"; currentSection: root.currentSection; onClicked: root.currentSection = section }
-                SettingsNavButton { style: root.style; label: "下载"; section: "download"; currentSection: root.currentSection; onClicked: root.currentSection = section }
-
-                NavCategory { style: root.style; label: "HELP" }
-
-                SettingsNavButton { style: root.style; label: "帮助"; section: "help"; currentSection: root.currentSection; onClicked: root.currentSection = section }
-                SettingsNavButton { style: root.style; label: "反馈"; section: "feedback"; currentSection: root.currentSection; onClicked: root.currentSection = section }
-                SettingsNavButton { style: root.style; label: "关于"; section: "about"; currentSection: root.currentSection; onClicked: root.currentSection = section }
             }
         }
 
+        // HMCL transitionPane center.
         ScrollView {
             id: settingsScroll
+
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
@@ -75,271 +139,575 @@ Item {
             Column {
                 width: settingsScroll.availableWidth
                 spacing: 10
+                padding: 10
 
+                // 全局游戏设置
                 Column {
-                    width: parent.width
-                    spacing: 8
+                    width: parent.width - 20
+                    spacing: 10
                     visible: root.currentSection === "global"
 
-                    PageHeader { style: root.style; titleText: "全局游戏设置"; subtitleText: "对应 HMCL 的全局游戏设置。这里的配置会进入默认启动参数。" }
-                    SectionTitle { style: root.style; label: "游戏" }
+                    SettingsTitle { style: root.style; label: "游戏" }
 
-                    TextEditRow { style: root.style; label: "最小内存"; description: "JVM -Xms，单位 MB。"; valueText: root.settingText("minMemoryMb"); suffix: "MB"; onAccepted: function(v) { root.setSetting("minMemoryMb", v) } }
-                    TextEditRow { style: root.style; label: "最大内存"; description: "JVM -Xmx，单位 MB。"; valueText: root.settingText("maxMemoryMb"); suffix: "MB"; onAccepted: function(v) { root.setSetting("maxMemoryMb", v) } }
-                    TextEditRow { style: root.style; label: "窗口宽度"; description: "Minecraft 启动窗口宽度。"; valueText: root.settingText("gameWidth"); suffix: "px"; onAccepted: function(v) { root.setSetting("gameWidth", v) } }
-                    TextEditRow { style: root.style; label: "窗口高度"; description: "Minecraft 启动窗口高度。"; valueText: root.settingText("gameHeight"); suffix: "px"; onAccepted: function(v) { root.setSetting("gameHeight", v) } }
-                    SwitchRow { style: root.style; label: "全屏启动"; description: "启动 Minecraft 时传入 --fullscreen。"; checkedValue: root.settingBool("fullscreen"); onToggledValue: function(v) { root.setSetting("fullscreen", String(v)) } }
-                    TextEditRow { style: root.style; label: "指定 Java 路径"; description: "留空时自动选择。"; valueText: root.settingText("javaPath"); suffix: ""; onAccepted: function(v) { root.setSetting("javaPath", v) } }
-
-                    ChoiceRow {
+                    OptionList {
+                        width: parent.width
                         style: root.style
-                        label: "启动器可见性"
-                        description: "对应 HMCL 的 LauncherVisibility。"
-                        choices: [
-                            {"text": "启动后关闭", "value": "close"},
-                            {"text": "启动后隐藏", "value": "hide"},
-                            {"text": "保持可见", "value": "keep"},
-                            {"text": "隐藏并重开", "value": "hide_and_reopen"}
-                        ]
-                        currentValue: root.launcherVisibility
-                        onChoice: function(v) {
-                            root.launcherVisibility = v
-                            root.setSetting("launcherVisibility", v)
-                            root.launcherVisibilitySelected(v)
+
+                        TextRow {
+                            style: root.style
+                            label: "最小内存"
+                            description: "JVM -Xms，单位 MB。"
+                            valueText: root.settingText("minMemoryMb")
+                            suffix: "MB"
+                            onAccepted: function(v) { root.setSetting("minMemoryMb", v) }
+                        }
+
+                        TextRow {
+                            style: root.style
+                            label: "最大内存"
+                            description: "JVM -Xmx，单位 MB。"
+                            valueText: root.settingText("maxMemoryMb")
+                            suffix: "MB"
+                            onAccepted: function(v) { root.setSetting("maxMemoryMb", v) }
+                        }
+
+                        TextRow {
+                            style: root.style
+                            label: "游戏窗口宽度"
+                            description: "Minecraft 启动窗口宽度。"
+                            valueText: root.settingText("gameWidth")
+                            suffix: "px"
+                            onAccepted: function(v) { root.setSetting("gameWidth", v) }
+                        }
+
+                        TextRow {
+                            style: root.style
+                            label: "游戏窗口高度"
+                            description: "Minecraft 启动窗口高度。"
+                            valueText: root.settingText("gameHeight")
+                            suffix: "px"
+                            onAccepted: function(v) { root.setSetting("gameHeight", v) }
+                        }
+
+                        SwitchRow {
+                            style: root.style
+                            label: "全屏启动"
+                            description: "启动 Minecraft 时传入 --fullscreen。"
+                            checkedValue: root.settingBool("fullscreen")
+                            onToggledValue: function(v) { root.setSetting("fullscreen", String(v)) }
+                        }
+
+                        TextRow {
+                            style: root.style
+                            label: "Java 路径"
+                            description: "留空时自动选择。"
+                            valueText: root.settingText("javaPath")
+                            suffix: ""
+                            onAccepted: function(v) { root.setSetting("javaPath", v) }
+                        }
+
+                        ChoiceRow {
+                            style: root.style
+                            label: "启动器可见性"
+                            description: "游戏启动后的启动器窗口处理方式。"
+                            currentValue: root.launcherVisibility
+                            choices: [
+                                {"text": "游戏启动后结束启动器", "value": "close"},
+                                {"text": "游戏启动后隐藏启动器", "value": "hide"},
+                                {"text": "保持启动器可见", "value": "keep"},
+                                {"text": "隐藏启动器并在游戏结束后重新打开", "value": "hide_and_reopen"}
+                            ]
+                            onChoice: function(v) {
+                                root.launcherVisibility = v
+                                root.setSetting("launcherVisibility", v)
+                                root.launcherVisibilitySelected(v)
+                            }
+                        }
+
+                        TextRow {
+                            style: root.style
+                            label: "游戏目录"
+                            description: "实例独立工作目录。"
+                            valueText: root.settingText("gameDir")
+                            suffix: "待开发"
+                            onAccepted: function(v) { root.setSetting("gameDir", v) }
                         }
                     }
-
-                    TextEditRow { style: root.style; label: "游戏目录"; description: "实例独立工作目录。当前启动流程暂未完全接入。"; valueText: root.settingText("gameDir"); suffix: "待开发"; onAccepted: function(v) { root.setSetting("gameDir", v) } }
                 }
 
+                // Java 管理
                 Column {
-                    width: parent.width
-                    spacing: 8
+                    width: parent.width - 20
+                    spacing: 10
                     visible: root.currentSection === "java"
 
-                    PageHeader { style: root.style; titleText: "Java 管理"; subtitleText: "对应 HMCL 的 Java 管理。当前项目已有 Java 检测和下载后端。" }
-                    SectionTitle { style: root.style; label: "Java" }
+                    SettingsTitle { style: root.style; label: "Java" }
 
-                    SwitchRow { style: root.style; label: "自动选择 Java"; description: "启动时根据版本要求自动选择 Java。"; checkedValue: root.settingBool("javaAuto"); onToggledValue: function(v) { root.setSetting("javaAuto", String(v)) } }
-                    TextEditRow { style: root.style; label: "Java 路径"; description: "手动指定 Java 可执行文件。"; valueText: root.settingText("javaPath"); suffix: ""; onAccepted: function(v) { root.setSetting("javaPath", v) } }
-                    TextEditRow { style: root.style; label: "JVM 参数"; description: "额外 JVM 参数。当前保存配置，启动参数接入待开发。"; valueText: root.settingText("jvmArgs"); suffix: "待开发"; onAccepted: function(v) { root.setSetting("jvmArgs", v) } }
-                    ActionRow { style: root.style; label: "检测本机 Java"; description: "调用当前项目的 Java 检测后端。"; actionText: "检测"; onAction: root.backend.detectJava() }
-                    ActionRow { style: root.style; label: "下载 Java"; description: "下载页/Java 页已有下载入口，这里保留 HMCL 设置入口。"; actionText: "打开 Java 页面"; onAction: root.backend.detectJava() }
+                    OptionList {
+                        width: parent.width
+                        style: root.style
+
+                        SwitchRow {
+                            style: root.style
+                            label: "自动选择 Java"
+                            description: "启动时根据游戏版本要求自动选择 Java。"
+                            checkedValue: root.settingBool("javaAuto")
+                            onToggledValue: function(v) { root.setSetting("javaAuto", String(v)) }
+                        }
+
+                        TextRow {
+                            style: root.style
+                            label: "Java 路径"
+                            description: "手动指定 Java 可执行文件。"
+                            valueText: root.settingText("javaPath")
+                            suffix: ""
+                            onAccepted: function(v) { root.setSetting("javaPath", v) }
+                        }
+
+                        TextRow {
+                            style: root.style
+                            label: "Java 虚拟机参数"
+                            description: "额外 JVM 参数。"
+                            valueText: root.settingText("jvmArgs")
+                            suffix: "待开发"
+                            onAccepted: function(v) { root.setSetting("jvmArgs", v) }
+                        }
+
+                        ActionRow {
+                            style: root.style
+                            label: "检测本机 Java"
+                            description: "调用当前项目 Java 检测后端。"
+                            actionText: "检测"
+                            onAction: root.backend.detectJava()
+                        }
+
+                        ActionRow {
+                            style: root.style
+                            label: "下载 Java"
+                            description: "Java 下载入口。"
+                            actionText: "待开发"
+                            actionEnabled: false
+                        }
+                    }
                 }
 
+                // 通用
                 Column {
-                    width: parent.width
-                    spacing: 8
+                    width: parent.width - 20
+                    spacing: 10
                     visible: root.currentSection === "general"
 
-                    PageHeader { style: root.style; titleText: "通用"; subtitleText: "对应 HMCL 启动器设置里的更新、语言、杂项、日志、调试等。" }
-                    SectionTitle { style: root.style; label: "语言" }
+                    SettingsTitle { style: root.style; label: "更新" }
 
-                    ChoiceRow {
+                    OptionList {
+                        width: parent.width
                         style: root.style
-                        label: "语言"
-                        description: "当前界面先固定中文，后端保存配置。"
-                        choices: [
-                            {"text": "简体中文", "value": "zh_CN"},
-                            {"text": "English", "value": "en"}
-                        ]
-                        currentValue: root.settingText("language")
-                        onChoice: function(v) { root.setSetting("language", v) }
-                    }
 
-                    SectionTitle { style: root.style; label: "杂项" }
-                    SwitchRow { style: root.style; label: "在主页内显示版本列表"; description: "对应 HMCL enable_game_list。"; checkedValue: root.settingBool("enableGameList"); onToggledValue: function(v) { root.setSetting("enableGameList", String(v)) } }
-                    SwitchRow { style: root.style; label: "允许启动器修改游戏"; description: "对应 HMCL allow_auto_agent。外置登录已通过 authlib-injector 接入。"; checkedValue: root.settingBool("allowAutoAgent"); onToggledValue: function(v) { root.setSetting("allowAutoAgent", String(v)) } }
-                    SwitchRow { style: root.style; label: "不自动切换游戏语言"; description: "对应 HMCL disable_auto_game_options。"; checkedValue: root.settingBool("disableAutoGameOptions"); onToggledValue: function(v) { root.setSetting("disableAutoGameOptions", String(v)) } }
+                        ChoiceRow {
+                            style: root.style
+                            label: "更新通道"
+                            description: "检查启动器更新。"
+                            currentValue: root.settingText("updateChannel")
+                            choices: [
+                                {"text": "稳定版", "value": "stable"},
+                                {"text": "开发版", "value": "development"}
+                            ]
+                            onChoice: function(v) { root.setSetting("updateChannel", v) }
+                            devNote: "待开发"
+                        }
 
-                    SectionTitle { style: root.style; label: "日志与调试" }
-                    TextEditRow { style: root.style; label: "日志字体"; description: "对应 HMCL log.font。"; valueText: root.settingText("logFont"); suffix: ""; onAccepted: function(v) { root.setSetting("logFont", v) } }
-                    ActionRow { style: root.style; label: "导出启动器日志"; description: "对应 HMCL 导出日志。"; actionText: "待开发"; enabled: false }
-                    ActionRow { style: root.style; label: "打开日志文件夹"; description: "对应 HMCL 打开日志文件夹。"; actionText: "待开发"; enabled: false }
-                }
+                        SwitchRow {
+                            style: root.style
+                            label: "接收测试版更新"
+                            description: "对应 HMCL 的预览版更新。"
+                            checkedValue: root.settingBool("acceptPreviewUpdate")
+                            onToggledValue: function(v) { root.setSetting("acceptPreviewUpdate", String(v)) }
+                            devNote: "待开发"
+                        }
 
-                Column {
-                    width: parent.width
-                    spacing: 8
-                    visible: root.currentSection === "appearance"
-
-                    PageHeader { style: root.style; titleText: "外观"; subtitleText: "对应 HMCL 的个性化/外观设置。" }
-                    SectionTitle { style: root.style; label: "主题" }
-
-                    ChoiceRow {
-                        style: root.style
-                        label: "主题模式"
-                        description: "浅色、深色或跟随系统。"
-                        choices: [
-                            {"text": "浅色", "value": "light"},
-                            {"text": "深色", "value": "dark"},
-                            {"text": "跟随系统", "value": "system"}
-                        ]
-                        currentValue: root.themeMode
-                        onChoice: function(v) {
-                            root.themeMode = v
-                            root.setSetting("themeMode", v)
-                            root.themeSelected(v)
+                        SwitchRow {
+                            style: root.style
+                            label: "不自动显示更新对话框"
+                            description: "对应 HMCL 的自动更新提示。"
+                            checkedValue: root.settingBool("disableAutoShowUpdateDialog")
+                            onToggledValue: function(v) { root.setSetting("disableAutoShowUpdateDialog", String(v)) }
+                            devNote: "待开发"
                         }
                     }
 
-                    ChoiceRow {
+                    SettingsTitle { style: root.style; label: "语言" }
+
+                    OptionList {
+                        width: parent.width
                         style: root.style
-                        label: "主题色"
-                        description: "当前保存配置，完整 Monet 色板待开发。"
-                        choices: [
-                            {"text": "默认", "value": "default"},
-                            {"text": "紫色", "value": "purple"},
-                            {"text": "蓝色", "value": "blue"},
-                            {"text": "绿色", "value": "green"}
-                        ]
-                        currentValue: root.settingText("themeColor")
-                        onChoice: function(v) { root.setSetting("themeColor", v) }
+
+                        ChoiceRow {
+                            style: root.style
+                            label: "语言"
+                            description: "更改后重启生效。"
+                            currentValue: root.settingText("language")
+                            choices: [
+                                {"text": "简体中文", "value": "zh_CN"},
+                                {"text": "English", "value": "en"}
+                            ]
+                            onChoice: function(v) { root.setSetting("language", v) }
+                            devNote: "待开发"
+                        }
+
+                        SwitchRow {
+                            style: root.style
+                            label: "不自动切换游戏语言"
+                            description: "对应 HMCL disableAutoGameOptions。"
+                            checkedValue: root.settingBool("disableAutoGameOptions")
+                            onToggledValue: function(v) { root.setSetting("disableAutoGameOptions", String(v)) }
+                        }
                     }
 
-                    SwitchRow { style: root.style; label: "标题栏透明"; description: "对应 HMCL title_transparent。"; checkedValue: root.settingBool("titleTransparent"); onToggledValue: function(v) { root.setSetting("titleTransparent", String(v)) } }
-                    SwitchRow { style: root.style; label: "关闭动画"; description: "对应 HMCL turn_off_animations。"; checkedValue: root.settingBool("turnOffAnimations"); onToggledValue: function(v) { root.setSetting("turnOffAnimations", String(v)) } }
+                    SettingsTitle { style: root.style; label: "杂项" }
 
-                    ChoiceRow {
+                    OptionList {
+                        width: parent.width
                         style: root.style
-                        label: "字体抗锯齿"
-                        description: "对应 HMCL font.anti_aliasing。"
-                        choices: [
-                            {"text": "自动", "value": "auto"},
-                            {"text": "灰度", "value": "gray"},
-                            {"text": "子像素", "value": "lcd"}
-                        ]
-                        currentValue: root.settingText("fontAntiAliasing")
-                        onChoice: function(v) { root.setSetting("fontAntiAliasing", v) }
+
+                        SwitchRow {
+                            style: root.style
+                            label: "在主页内显示游戏列表"
+                            description: "对应 HMCL 首页游戏列表。"
+                            checkedValue: root.settingBool("enableGameList")
+                            onToggledValue: function(v) { root.setSetting("enableGameList", String(v)) }
+                            devNote: "待开发"
+                        }
+
+                        SwitchRow {
+                            style: root.style
+                            label: "允许启动器修改游戏"
+                            description: "允许通过 Java Agent 改善游戏体验；外置登录已接入 authlib-injector。"
+                            checkedValue: root.settingBool("allowAutoAgent")
+                            onToggledValue: function(v) { root.setSetting("allowAutoAgent", String(v)) }
+                        }
+                    }
+
+                    SettingsTitle { style: root.style; label: "日志" }
+
+                    OptionList {
+                        width: parent.width
+                        style: root.style
+
+                        TextRow {
+                            style: root.style
+                            label: "日志字体"
+                            description: "对应 HMCL 日志字体。"
+                            valueText: root.settingText("logFont")
+                            suffix: ""
+                            onAccepted: function(v) { root.setSetting("logFont", v) }
+                            devNote: "待开发"
+                        }
+
+                        ActionRow {
+                            style: root.style
+                            label: "导出启动器日志"
+                            description: "导出当前启动器日志。"
+                            actionText: "待开发"
+                            actionEnabled: false
+                        }
+
+                        ActionRow {
+                            style: root.style
+                            label: "打开日志目录"
+                            description: "打开启动器日志文件夹。"
+                            actionText: "待开发"
+                            actionEnabled: false
+                        }
                     }
                 }
 
+                // 外观
                 Column {
-                    width: parent.width
-                    spacing: 8
+                    width: parent.width - 20
+                    spacing: 10
+                    visible: root.currentSection === "appearance"
+
+                    SettingsTitle { style: root.style; label: "外观" }
+
+                    OptionList {
+                        width: parent.width
+                        style: root.style
+
+                        ChoiceRow {
+                            style: root.style
+                            label: "主题模式"
+                            description: "切换浅色、深色或跟随系统。"
+                            currentValue: root.themeMode
+                            choices: [
+                                {"text": "浅色模式", "value": "light"},
+                                {"text": "深色模式", "value": "dark"},
+                                {"text": "跟随系统设置", "value": "system"}
+                            ]
+                            onChoice: function(v) {
+                                root.themeMode = v
+                                root.setSetting("themeMode", v)
+                                root.themeSelected(v)
+                            }
+                        }
+
+                        ChoiceRow {
+                            style: root.style
+                            label: "主题色"
+                            description: "对应 HMCL 主题色。"
+                            currentValue: root.settingText("themeColor")
+                            choices: [
+                                {"text": "默认", "value": "default"},
+                                {"text": "紫色", "value": "purple"},
+                                {"text": "蓝色", "value": "blue"},
+                                {"text": "绿色", "value": "green"}
+                            ]
+                            onChoice: function(v) { root.setSetting("themeColor", v) }
+                            devNote: "待开发"
+                        }
+
+                        SwitchRow {
+                            style: root.style
+                            label: "标题栏透明"
+                            description: "对应 HMCL title_transparent。"
+                            checkedValue: root.settingBool("titleTransparent")
+                            onToggledValue: function(v) { root.setSetting("titleTransparent", String(v)) }
+                            devNote: "待开发"
+                        }
+
+                        SwitchRow {
+                            style: root.style
+                            label: "关闭动画"
+                            description: "对应 HMCL turn_off_animations。"
+                            checkedValue: root.settingBool("turnOffAnimations")
+                            onToggledValue: function(v) { root.setSetting("turnOffAnimations", String(v)) }
+                            devNote: "待开发"
+                        }
+
+                        ChoiceRow {
+                            style: root.style
+                            label: "反锯齿"
+                            description: "对应 HMCL 字体反锯齿。"
+                            currentValue: root.settingText("fontAntiAliasing")
+                            choices: [
+                                {"text": "自动", "value": "auto"},
+                                {"text": "灰阶", "value": "gray"},
+                                {"text": "子像素", "value": "lcd"}
+                            ]
+                            onChoice: function(v) { root.setSetting("fontAntiAliasing", v) }
+                            devNote: "待开发"
+                        }
+                    }
+                }
+
+                // 下载
+                Column {
+                    width: parent.width - 20
+                    spacing: 10
                     visible: root.currentSection === "download"
 
-                    PageHeader { style: root.style; titleText: "下载"; subtitleText: "对应 HMCL 下载设置：下载源、缓存、线程数、代理。" }
-                    SectionTitle { style: root.style; label: "下载源" }
+                    SettingsTitle { style: root.style; label: "下载来源" }
 
-                    SwitchRow { style: root.style; label: "自动选择下载源"; description: "对应 HMCL autoChooseDownloadSource。"; checkedValue: root.settingBool("autoChooseDownloadSource"); onToggledValue: function(v) { root.setSetting("autoChooseDownloadSource", String(v)) } }
-
-                    ChoiceRow {
+                    OptionList {
+                        width: parent.width
                         style: root.style
-                        label: "版本列表源"
-                        description: "官方 / BMCLAPI / 自动。"
-                        choices: [
-                            {"text": "自动", "value": "auto"},
-                            {"text": "官方", "value": "mojang"},
-                            {"text": "BMCLAPI", "value": "bmclapi"}
-                        ]
-                        currentValue: root.settingText("versionListSource")
-                        onChoice: function(v) { root.setSetting("versionListSource", v) }
+
+                        SwitchRow {
+                            style: root.style
+                            label: "自动选择下载源"
+                            description: "自动选择合适的下载源。"
+                            checkedValue: root.settingBool("autoChooseDownloadSource")
+                            onToggledValue: function(v) { root.setSetting("autoChooseDownloadSource", String(v)) }
+                            devNote: "待开发"
+                        }
+
+                        ChoiceRow {
+                            style: root.style
+                            label: "版本列表来源"
+                            description: "版本清单下载来源。"
+                            currentValue: root.settingText("versionListSource")
+                            choices: [
+                                {"text": "自动", "value": "auto"},
+                                {"text": "官方", "value": "mojang"},
+                                {"text": "BMCLAPI", "value": "bmclapi"}
+                            ]
+                            onChoice: function(v) { root.setSetting("versionListSource", v) }
+                            devNote: "待开发"
+                        }
+
+                        ChoiceRow {
+                            style: root.style
+                            label: "下载源"
+                            description: "游戏文件、资源文件、依赖库下载源。"
+                            currentValue: root.settingText("downloadSource")
+                            choices: [
+                                {"text": "自动", "value": "auto"},
+                                {"text": "官方", "value": "mojang"},
+                                {"text": "BMCLAPI", "value": "bmclapi"}
+                            ]
+                            onChoice: function(v) { root.setSetting("downloadSource", v) }
+                            devNote: "待开发"
+                        }
+
+                        ChoiceRow {
+                            style: root.style
+                            label: "游戏内容默认下载源"
+                            description: "Modrinth 或 CurseForge。"
+                            currentValue: root.settingText("defaultAddonSource")
+                            choices: [
+                                {"text": "Modrinth", "value": "modrinth"},
+                                {"text": "CurseForge", "value": "curseforge"}
+                            ]
+                            onChoice: function(v) { root.setSetting("defaultAddonSource", v) }
+                            devNote: "待开发"
+                        }
                     }
 
-                    ChoiceRow {
+                    SettingsTitle { style: root.style; label: "下载" }
+
+                    OptionList {
+                        width: parent.width
                         style: root.style
-                        label: "下载源"
-                        description: "游戏文件、资源文件、依赖库下载源。"
-                        choices: [
-                            {"text": "自动", "value": "auto"},
-                            {"text": "官方", "value": "mojang"},
-                            {"text": "BMCLAPI", "value": "bmclapi"}
-                        ]
-                        currentValue: root.settingText("downloadSource")
-                        onChoice: function(v) { root.setSetting("downloadSource", v) }
+
+                        TextRow {
+                            style: root.style
+                            label: "文件下载缓存目录"
+                            description: "启动器将游戏资源和依赖库集中管理。"
+                            valueText: root.settingText("commonDirectory")
+                            suffix: "待开发"
+                            onAccepted: function(v) { root.setSetting("commonDirectory", v) }
+                        }
+
+                        SwitchRow {
+                            style: root.style
+                            label: "自动选择线程数"
+                            description: "线程数过高可能导致系统卡顿。"
+                            checkedValue: root.settingBool("autoDownloadThreads")
+                            onToggledValue: function(v) { root.setSetting("autoDownloadThreads", String(v)) }
+                            devNote: "待开发"
+                        }
+
+                        TextRow {
+                            style: root.style
+                            label: "线程数"
+                            description: "HMCL 范围 1-256。"
+                            valueText: root.settingText("downloadThreads")
+                            suffix: "待开发"
+                            onAccepted: function(v) { root.setSetting("downloadThreads", v) }
+                        }
                     }
 
-                    ChoiceRow {
+                    SettingsTitle { style: root.style; label: "代理" }
+
+                    OptionList {
+                        width: parent.width
                         style: root.style
-                        label: "游戏内容默认下载源"
-                        description: "对应 HMCL defaultAddonSource。"
-                        choices: [
-                            {"text": "Modrinth", "value": "modrinth"},
-                            {"text": "CurseForge", "value": "curseforge"}
-                        ]
-                        currentValue: root.settingText("defaultAddonSource")
-                        onChoice: function(v) { root.setSetting("defaultAddonSource", v) }
+
+                        ChoiceRow {
+                            style: root.style
+                            label: "代理"
+                            description: "使用系统代理 / 不使用代理 / HTTP / SOCKS。"
+                            currentValue: root.settingText("proxyType")
+                            choices: [
+                                {"text": "使用系统代理", "value": "default"},
+                                {"text": "不使用代理", "value": "none"},
+                                {"text": "HTTP", "value": "http"},
+                                {"text": "SOCKS", "value": "socks"}
+                            ]
+                            onChoice: function(v) { root.setSetting("proxyType", v) }
+                            devNote: "待开发"
+                        }
+
+                        TextRow { style: root.style; label: "IP 地址"; description: "代理服务器地址。"; valueText: root.settingText("proxyHost"); suffix: "待开发"; onAccepted: function(v) { root.setSetting("proxyHost", v) } }
+                        TextRow { style: root.style; label: "端口"; description: "代理服务器端口。"; valueText: root.settingText("proxyPort"); suffix: "待开发"; onAccepted: function(v) { root.setSetting("proxyPort", v) } }
+                        TextRow { style: root.style; label: "账户"; description: "代理身份验证账户。"; valueText: root.settingText("proxyUsername"); suffix: "待开发"; onAccepted: function(v) { root.setSetting("proxyUsername", v) } }
+                        TextRow { style: root.style; label: "密码"; description: "代理身份验证密码。"; valueText: root.settingText("proxyPassword"); password: true; suffix: "待开发"; onAccepted: function(v) { root.setSetting("proxyPassword", v) } }
                     }
-
-                    SectionTitle { style: root.style; label: "缓存" }
-                    TextEditRow { style: root.style; label: "文件下载缓存目录"; description: "对应 HMCL common directory。留空使用默认路径。"; valueText: root.settingText("commonDirectory"); suffix: ""; onAccepted: function(v) { root.setSetting("commonDirectory", v) } }
-                    ActionRow { style: root.style; label: "清理缓存"; description: "删除下载缓存和临时文件。"; actionText: "待开发"; enabled: false }
-
-                    SectionTitle { style: root.style; label: "线程数" }
-                    SwitchRow { style: root.style; label: "自动选择线程数"; description: "对应 HMCL autoDownloadThreads。"; checkedValue: root.settingBool("autoDownloadThreads"); onToggledValue: function(v) { root.setSetting("autoDownloadThreads", String(v)) } }
-                    TextEditRow { style: root.style; label: "线程数"; description: "HMCL 范围 1-256。当前保存配置，下载器接入待开发。"; valueText: root.settingText("downloadThreads"); suffix: ""; onAccepted: function(v) { root.setSetting("downloadThreads", v) } }
-
-                    SectionTitle { style: root.style; label: "代理" }
-                    ChoiceRow {
-                        style: root.style
-                        label: "代理"
-                        description: "使用系统代理 / 不使用代理 / HTTP / SOCKS。"
-                        choices: [
-                            {"text": "系统代理", "value": "default"},
-                            {"text": "不使用", "value": "none"},
-                            {"text": "HTTP", "value": "http"},
-                            {"text": "SOCKS", "value": "socks"}
-                        ]
-                        currentValue: root.settingText("proxyType")
-                        onChoice: function(v) { root.setSetting("proxyType", v) }
-                    }
-                    TextEditRow { style: root.style; label: "代理主机"; description: "HTTP/SOCKS 主机。"; valueText: root.settingText("proxyHost"); suffix: ""; onAccepted: function(v) { root.setSetting("proxyHost", v) } }
-                    TextEditRow { style: root.style; label: "代理端口"; description: "HTTP/SOCKS 端口。"; valueText: root.settingText("proxyPort"); suffix: ""; onAccepted: function(v) { root.setSetting("proxyPort", v) } }
-                    TextEditRow { style: root.style; label: "代理账户"; description: "代理身份验证账户。"; valueText: root.settingText("proxyUsername"); suffix: ""; onAccepted: function(v) { root.setSetting("proxyUsername", v) } }
-                    TextEditRow { style: root.style; label: "代理密码"; description: "代理身份验证密码。"; valueText: root.settingText("proxyPassword"); suffix: ""; password: true; onAccepted: function(v) { root.setSetting("proxyPassword", v) } }
                 }
 
+                // 帮助
                 Column {
-                    width: parent.width
-                    spacing: 8
+                    width: parent.width - 20
+                    spacing: 10
                     visible: root.currentSection === "help"
 
-                    PageHeader { style: root.style; titleText: "帮助"; subtitleText: "对应 HMCL 帮助页。" }
-                    LinkRow { style: root.style; label: "HMCL 帮助文档"; description: "查看 HMCL 文档和使用教程。"; url: "https://docs.hmcl.net/" }
-                    LinkRow { style: root.style; label: "Minecraft Wiki"; description: "查看 Minecraft 资料。"; url: "https://minecraft.wiki/" }
-                    ActionRow { style: root.style; label: "启动问题排查"; description: "Java、游戏文件、外置登录、下载源等检查。"; actionText: "待开发"; enabled: false }
-                    ActionRow { style: root.style; label: "导出游戏崩溃信息"; description: "用于反馈和求助。"; actionText: "待开发"; enabled: false }
+                    SettingsTitle { style: root.style; label: "帮助" }
+
+                    OptionList {
+                        width: parent.width
+                        style: root.style
+
+                        LinkRow { style: root.style; label: "HMCL 帮助文档"; description: "查看 HMCL 文档和使用教程。"; url: "https://docs.hmcl.net/" }
+                        LinkRow { style: root.style; label: "Minecraft Wiki"; description: "查看 Minecraft 资料。"; url: "https://minecraft.wiki/" }
+                        ActionRow { style: root.style; label: "启动问题排查"; description: "Java、游戏文件、外置登录、下载源等检查。"; actionText: "待开发"; actionEnabled: false }
+                        ActionRow { style: root.style; label: "导出游戏崩溃信息"; description: "用于反馈和求助。"; actionText: "待开发"; actionEnabled: false }
+                    }
                 }
 
+                // 反馈
                 Column {
-                    width: parent.width
-                    spacing: 8
+                    width: parent.width - 20
+                    spacing: 10
                     visible: root.currentSection === "feedback"
 
-                    PageHeader { style: root.style; titleText: "反馈"; subtitleText: "对应 HMCL 反馈页。" }
-                    LinkRow { style: root.style; label: "GitHub Issues"; description: "提交 mc-launcher 的问题反馈。"; url: "https://github.com/Bihrys/mc-launcher/issues" }
-                    LinkRow { style: root.style; label: "项目仓库"; description: "查看源码、提交 Issue 或 Pull Request。"; url: "https://github.com/Bihrys/mc-launcher" }
-                    ActionRow { style: root.style; label: "导出诊断信息"; description: "包含启动器日志、游戏日志、系统信息。"; actionText: "待开发"; enabled: false }
+                    SettingsTitle { style: root.style; label: "反馈" }
+
+                    OptionList {
+                        width: parent.width
+                        style: root.style
+
+                        LinkRow { style: root.style; label: "GitHub Issues"; description: "提交 mc-launcher 的问题反馈。"; url: "https://github.com/Bihrys/mc-launcher/issues" }
+                        LinkRow { style: root.style; label: "项目仓库"; description: "查看源码、提交 Issue 或 Pull Request。"; url: "https://github.com/Bihrys/mc-launcher" }
+                        ActionRow { style: root.style; label: "导出诊断信息"; description: "包含启动器日志、游戏日志、系统信息。"; actionText: "待开发"; actionEnabled: false }
+                    }
                 }
 
+                // 关于
                 Column {
-                    width: parent.width
-                    spacing: 8
+                    width: parent.width - 20
+                    spacing: 10
                     visible: root.currentSection === "about"
 
-                    PageHeader { style: root.style; titleText: "关于"; subtitleText: "mc-launcher" }
+                    SettingsTitle { style: root.style; label: "关于" }
 
-                    SectionTitle { style: root.style; label: "项目" }
-                    InfoRow { style: root.style; label: "mc-launcher"; description: "Rust + Qt/QML Minecraft 启动器"; valueText: "0.1.0" }
-                    LinkRow { style: root.style; label: "开源地址"; description: "https://github.com/Bihrys/mc-launcher"; url: "https://github.com/Bihrys/mc-launcher" }
-                    LinkRow { style: root.style; label: "开发者"; description: "https://github.com/Bihrys"; url: "https://github.com/Bihrys" }
-
-                    SectionTitle { style: root.style; label: "依赖组件" }
-                    ParagraphBlock {
+                    OptionList {
+                        width: parent.width
                         style: root.style
-                        body: "Rust / Qt 6 / Qt Quick / Qt Quick Controls / CXX-Qt / launcher-core / launcher-qt / serde / serde_json / reqwest + rustls / uuid / sha1 / sha2 / base64 / flate2 / tar / image / authlib-injector"
+
+                        InfoRow { style: root.style; label: "mc-launcher"; description: "Rust + Qt/QML Minecraft 启动器"; valueText: "0.1.0" }
+                        LinkRow { style: root.style; label: "开源地址"; description: "https://github.com/Bihrys/mc-launcher"; url: "https://github.com/Bihrys/mc-launcher" }
+                        LinkRow { style: root.style; label: "开发者"; description: "https://github.com/Bihrys"; url: "https://github.com/Bihrys" }
                     }
 
-                    SectionTitle { style: root.style; label: "鸣谢" }
-                    ParagraphBlock {
+                    SettingsTitle { style: root.style; label: "依赖组件" }
+
+                    OptionList {
+                        width: parent.width
                         style: root.style
-                        body: "本项目参考了 Hello Minecraft! Launcher（HMCL）的界面布局、设置结构、启动流程、任务对话框、账户系统和外置登录逻辑。这里是 Qt/QML 等价实现，不是直接复制 JavaFX 控件。"
+
+                        ParagraphRow {
+                            style: root.style
+                            label: "依赖"
+                            description: "Rust / Qt 6 / Qt Quick / Qt Quick Controls / CXX-Qt / launcher-core / launcher-qt / serde / serde_json / reqwest + rustls / uuid / sha1 / sha2 / base64 / flate2 / tar / image / authlib-injector"
+                        }
                     }
 
-                    ParagraphBlock {
+                    SettingsTitle { style: root.style; label: "鸣谢" }
+
+                    OptionList {
+                        width: parent.width
                         style: root.style
-                        body: "感谢 HMCL 项目及其贡献者提供的开源实现参考。公开发布时请继续保留相应开源许可证、参考来源与致谢信息。"
+
+                        ParagraphRow {
+                            style: root.style
+                            label: "Hello Minecraft! Launcher"
+                            description: "本项目参考了 Hello Minecraft! Launcher（HMCL）的界面布局、设置结构、启动流程、任务对话框、账户系统和外置登录逻辑。这里是 Qt/QML 等价实现，不是直接复制 JavaFX 控件。"
+                        }
+
+                        ParagraphRow {
+                            style: root.style
+                            label: "开源致谢"
+                            description: "感谢 HMCL 项目及其贡献者提供的开源实现参考。公开发布时请保留相应许可证、参考来源与致谢信息。"
+                        }
                     }
                 }
             }
@@ -381,96 +749,229 @@ Item {
         return value === true || value === "true"
     }
 
-    component NavCategory: Text {
+    component DrawerCategory: Item {
         required property var style
         property string label: ""
 
-        width: parent ? parent.width : 180
-        height: 24
-        text: label
-        color: style.cTextOnSurfaceVariant
-        font.pixelSize: 11
-        font.bold: true
-        verticalAlignment: Text.AlignBottom
-        leftPadding: 8
+        width: parent ? parent.width : 200
+        height: 34
+
+        Column {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.leftMargin: 0
+            anchors.rightMargin: 0
+            spacing: 4
+
+            Text {
+                text: parent.parent.label
+                color: parent.parent.style.cTextOnSurface
+                font.pixelSize: 12
+                height: 16
+                verticalAlignment: Text.AlignVCenter
+                leftPadding: 0
+            }
+
+            Rectangle {
+                width: parent.width
+                height: 1
+                color: parent.parent.style.cTextOnSurfaceVariant
+                opacity: 0.45
+            }
+        }
     }
 
-    component SettingsNavButton: Rectangle {
+    component NavItem: Item {
         id: nav
 
         required property var style
         property string label: ""
+        property string iconKind: ""
         property string section: ""
         property string currentSection: ""
 
         signal clicked(string section)
 
-        width: parent ? parent.width : 180
-        height: 36
-        radius: 4
-        color: section === currentSection ? style.cNavSelected : mouse.containsMouse ? style.cNavHover : "transparent"
+        width: parent ? parent.width : 200
+        height: 52
+
+        Rectangle {
+            anchors.fill: parent
+            color: nav.section === nav.currentSection
+                   ? Qt.rgba(nav.style.secondaryContainerR, nav.style.secondaryContainerG, nav.style.secondaryContainerB, 0.50)
+                   : "transparent"
+        }
 
         MouseArea {
-            id: mouse
+            id: navMouse
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: nav.clicked(nav.section)
         }
 
-        Text {
+        Rectangle {
             anchors.fill: parent
-            anchors.leftMargin: 12
-            anchors.rightMargin: 10
+            color: nav.section !== nav.currentSection && navMouse.containsMouse
+                   ? Qt.rgba(0, 0, 0, 0.045)
+                   : "transparent"
+        }
+
+        Item {
+            id: iconBox
+            width: 32
+            height: 32
+            anchors.left: parent.left
+            anchors.leftMargin: 16
+            anchors.verticalCenter: parent.verticalCenter
+
+            Canvas {
+                id: iconCanvas
+                anchors.centerIn: parent
+                width: 20
+                height: 20
+
+                property color drawColor: nav.style.cTextOnSurface
+                property string kind: nav.iconKind
+
+                onDrawColorChanged: requestPaint()
+                onKindChanged: requestPaint()
+                Component.onCompleted: requestPaint()
+
+                onPaint: {
+                    var ctx = getContext("2d")
+                    ctx.clearRect(0, 0, width, height)
+                    ctx.strokeStyle = drawColor
+                    ctx.fillStyle = drawColor
+                    ctx.lineWidth = 1.7
+                    ctx.lineCap = "round"
+                    ctx.lineJoin = "round"
+
+                    if (kind === "download") {
+                        ctx.beginPath()
+                        ctx.moveTo(10, 3)
+                        ctx.lineTo(10, 12)
+                        ctx.moveTo(6, 8)
+                        ctx.lineTo(10, 12)
+                        ctx.lineTo(14, 8)
+                        ctx.moveTo(4, 16)
+                        ctx.lineTo(16, 16)
+                        ctx.stroke()
+                    } else if (kind === "help") {
+                        ctx.beginPath()
+                        ctx.arc(10, 10, 8, 0, Math.PI * 2)
+                        ctx.stroke()
+                        ctx.font = "bold 14px sans-serif"
+                        ctx.textAlign = "center"
+                        ctx.textBaseline = "middle"
+                        ctx.fillText("?", 10, 10.5)
+                    } else if (kind === "info") {
+                        ctx.beginPath()
+                        ctx.arc(10, 10, 8, 0, Math.PI * 2)
+                        ctx.stroke()
+                        ctx.font = "bold 14px sans-serif"
+                        ctx.textAlign = "center"
+                        ctx.textBaseline = "middle"
+                        ctx.fillText("i", 10, 10.5)
+                    } else if (kind === "feedback") {
+                        ctx.beginPath()
+                        ctx.roundedRect(3, 4, 14, 11, 2, 2)
+                        ctx.stroke()
+                        ctx.beginPath()
+                        ctx.moveTo(7, 15)
+                        ctx.lineTo(6, 18)
+                        ctx.lineTo(10, 15)
+                        ctx.stroke()
+                    } else if (kind === "java") {
+                        ctx.beginPath()
+                        ctx.moveTo(5, 14)
+                        ctx.quadraticCurveTo(10, 17, 15, 14)
+                        ctx.stroke()
+                        ctx.beginPath()
+                        ctx.moveTo(7, 4)
+                        ctx.quadraticCurveTo(13, 7, 8, 11)
+                        ctx.stroke()
+                        ctx.beginPath()
+                        ctx.moveTo(11, 3)
+                        ctx.quadraticCurveTo(17, 6, 12, 10)
+                        ctx.stroke()
+                    } else if (kind === "style") {
+                        ctx.beginPath()
+                        ctx.arc(10, 10, 7, 0, Math.PI * 2)
+                        ctx.stroke()
+                        ctx.beginPath()
+                        ctx.arc(7, 8, 1.2, 0, Math.PI * 2)
+                        ctx.arc(11, 7, 1.2, 0, Math.PI * 2)
+                        ctx.arc(13, 11, 1.2, 0, Math.PI * 2)
+                        ctx.fill()
+                    } else if (kind === "tune") {
+                        ctx.beginPath()
+                        ctx.moveTo(4, 6)
+                        ctx.lineTo(16, 6)
+                        ctx.moveTo(4, 10)
+                        ctx.lineTo(16, 10)
+                        ctx.moveTo(4, 14)
+                        ctx.lineTo(16, 14)
+                        ctx.stroke()
+                        ctx.beginPath()
+                        ctx.arc(8, 6, 2, 0, Math.PI * 2)
+                        ctx.arc(12, 10, 2, 0, Math.PI * 2)
+                        ctx.arc(7, 14, 2, 0, Math.PI * 2)
+                        ctx.fill()
+                    } else {
+                        ctx.beginPath()
+                        ctx.roundedRect(4, 5, 12, 9, 2, 2)
+                        ctx.stroke()
+                        ctx.beginPath()
+                        ctx.moveTo(7, 16)
+                        ctx.lineTo(13, 16)
+                        ctx.stroke()
+                    }
+                }
+            }
+        }
+
+        Text {
+            anchors.left: parent.left
+            anchors.leftMargin: 16 + 32 + 10
+            anchors.right: parent.right
+            anchors.rightMargin: 16
+            anchors.verticalCenter: parent.verticalCenter
             text: nav.label
             color: nav.style.cTextOnSurface
             font.pixelSize: 13
             font.bold: nav.section === nav.currentSection
-            verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
         }
     }
 
-    component PageHeader: Item {
-        required property var style
-        property string titleText: ""
-        property string subtitleText: ""
-
-        width: parent ? parent.width : 600
-        height: 58
-
-        Text {
-            anchors.left: parent.left
-            anchors.top: parent.top
-            text: titleText
-            color: style.cTextOnSurface
-            font.pixelSize: 24
-            font.bold: true
-        }
-
-        Text {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.topMargin: 34
-            text: subtitleText
-            color: style.cTextOnSurfaceVariant
-            font.pixelSize: 12
-            elide: Text.ElideRight
-        }
-    }
-
-    component SectionTitle: Text {
+    component SettingsTitle: Item {
         required property var style
         property string label: ""
 
         width: parent ? parent.width : 600
-        height: 24
-        text: label
-        color: style.cTextOnSurfaceVariant
-        font.pixelSize: 12
-        font.bold: true
-        verticalAlignment: Text.AlignBottom
+        height: 28
+
+        Text {
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            text: label
+            color: style.cTextOnSurface
+            font.pixelSize: 12
+        }
+    }
+
+    component OptionList: Column {
+        id: list
+
+        required property var style
+        default property alias content: list.children
+
+        spacing: 0
+
+        layer.enabled: true
+        layer.effect: null
     }
 
     component BaseRow: Rectangle {
@@ -479,19 +980,31 @@ Item {
         required property var style
         property string label: ""
         property string description: ""
-        property int rowHeight: 60
+        property string devNote: ""
+        property bool firstRow: false
+        property bool lastRow: false
+        property int rowHeight: description.length > 0 ? 68 : 48
 
         width: parent ? parent.width : 600
         height: rowHeight
-        radius: 4
-        color: style.cSurfaceContainerHigh
+        color: style.cSurface
+        radius: 0
         border.width: 0
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: 1
+            color: row.style.cBorder
+            visible: row.y > 0
+        }
 
         Column {
             anchors.left: parent.left
             anchors.right: trailing.left
             anchors.verticalCenter: parent.verticalCenter
-            anchors.leftMargin: 14
+            anchors.leftMargin: 16
             anchors.rightMargin: 12
             spacing: 4
 
@@ -499,7 +1012,7 @@ Item {
                 width: parent.width
                 text: row.label
                 color: row.style.cTextOnSurface
-                font.pixelSize: 14
+                font.pixelSize: 13
                 elide: Text.ElideRight
             }
 
@@ -518,10 +1031,22 @@ Item {
         Item {
             id: trailing
             anchors.right: parent.right
-            anchors.rightMargin: 14
+            anchors.rightMargin: 16
             anchors.verticalCenter: parent.verticalCenter
-            width: Math.min(460, parent.width * 0.52)
+            width: Math.min(500, parent.width * 0.55)
             height: parent.height
+        }
+
+        Text {
+            anchors.right: parent.right
+            anchors.rightMargin: 16
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 6
+            visible: row.devNote.length > 0
+            text: row.devNote
+            color: row.style.cTextOnSurfaceVariant
+            opacity: 0.75
+            font.pixelSize: 10
         }
     }
 
@@ -530,9 +1055,9 @@ Item {
 
         Text {
             anchors.right: parent.right
-            anchors.rightMargin: 14
+            anchors.rightMargin: 16
             anchors.verticalCenter: parent.verticalCenter
-            width: 160
+            width: 220
             horizontalAlignment: Text.AlignRight
             text: valueText
             color: style.cTextOnSurfaceVariant
@@ -541,7 +1066,24 @@ Item {
         }
     }
 
-    component TextEditRow: BaseRow {
+    component ParagraphRow: BaseRow {
+        rowHeight: Math.max(78, paragraph.implicitHeight + 36)
+
+        Text {
+            id: paragraph
+            anchors.right: parent.right
+            anchors.rightMargin: 16
+            anchors.left: parent.left
+            anchors.leftMargin: 220
+            anchors.verticalCenter: parent.verticalCenter
+            text: description
+            color: style.cTextOnSurfaceVariant
+            font.pixelSize: 12
+            wrapMode: Text.WordWrap
+        }
+    }
+
+    component TextRow: BaseRow {
         id: editRow
 
         property string valueText: ""
@@ -553,20 +1095,29 @@ Item {
         TextField {
             id: textInput
             anchors.right: parent.right
-            anchors.rightMargin: editRow.suffix.length > 0 ? 82 : 14
+            anchors.rightMargin: editRow.suffix.length > 0 ? 86 : 16
             anchors.verticalCenter: parent.verticalCenter
-            width: 210
-            height: 34
+            width: 230
+            height: 32
             text: editRow.valueText
             echoMode: editRow.password ? TextInput.Password : TextInput.Normal
             selectByMouse: true
             color: editRow.style.cTextOnSurface
             placeholderTextColor: editRow.style.cTextOnSurfaceVariant
+            font.pixelSize: 12
             background: Rectangle {
-                radius: 3
-                color: editRow.style.cButtonSurface
-                border.width: 1
-                border.color: textInput.activeFocus ? editRow.style.cButtonSelected : editRow.style.cBorder
+                radius: 2
+                color: "transparent"
+                border.width: 0
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: 1
+                    color: textInput.activeFocus ? editRow.style.cButtonSelected : editRow.style.cTextOnSurfaceVariant
+                    opacity: textInput.activeFocus ? 1.0 : 0.45
+                }
             }
             onAccepted: editRow.accepted(text)
             onEditingFinished: editRow.accepted(text)
@@ -574,13 +1125,14 @@ Item {
 
         Text {
             anchors.right: parent.right
-            anchors.rightMargin: 14
+            anchors.rightMargin: 16
             anchors.verticalCenter: parent.verticalCenter
             width: 62
             text: editRow.suffix
             visible: editRow.suffix.length > 0
             color: editRow.style.cTextOnSurfaceVariant
             font.pixelSize: 12
+            horizontalAlignment: Text.AlignRight
             elide: Text.ElideRight
         }
     }
@@ -594,7 +1146,7 @@ Item {
 
         Switch {
             anchors.right: parent.right
-            anchors.rightMargin: 14
+            anchors.rightMargin: 16
             anchors.verticalCenter: parent.verticalCenter
             checked: switchRow.checkedValue
             onToggled: switchRow.toggledValue(checked)
@@ -609,30 +1161,31 @@ Item {
 
         signal choice(string value)
 
-        rowHeight: 72
+        rowHeight: Math.max(68, choiceFlow.implicitHeight + 22)
 
         Flow {
+            id: choiceFlow
             anchors.right: parent.right
-            anchors.rightMargin: 14
+            anchors.rightMargin: 16
             anchors.verticalCenter: parent.verticalCenter
-            width: Math.min(460, parent.width * 0.52)
+            width: Math.min(520, parent.width * 0.55)
             spacing: 6
 
             Repeater {
                 model: choiceRow.choices
 
                 delegate: Rectangle {
-                    width: Math.max(68, labelText.implicitWidth + 24)
-                    height: 30
-                    radius: 15
+                    width: Math.max(70, choiceText.implicitWidth + 24)
+                    height: 28
+                    radius: 14
                     color: modelData.value === choiceRow.currentValue
                            ? choiceRow.style.cButtonSelected
-                           : optionMouse.containsMouse ? choiceRow.style.cButtonHover : choiceRow.style.cButtonSurface
+                           : mouse.containsMouse ? choiceRow.style.cButtonHover : "transparent"
                     border.width: modelData.value === choiceRow.currentValue ? 0 : 1
                     border.color: choiceRow.style.cBorder
 
                     Text {
-                        id: labelText
+                        id: choiceText
                         anchors.centerIn: parent
                         text: modelData.text
                         color: modelData.value === choiceRow.currentValue
@@ -643,7 +1196,7 @@ Item {
                     }
 
                     MouseArea {
-                        id: optionMouse
+                        id: mouse
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
@@ -658,34 +1211,32 @@ Item {
         id: actionRow
 
         property string actionText: "执行"
-        property bool enabled: true
+        property bool actionEnabled: true
 
         signal action()
 
         Rectangle {
             anchors.right: parent.right
-            anchors.rightMargin: 14
+            anchors.rightMargin: 16
             anchors.verticalCenter: parent.verticalCenter
-            width: Math.max(78, actionLabel.implicitWidth + 24)
-            height: 32
-            radius: 16
-            opacity: actionRow.enabled ? 1.0 : 0.45
-            color: actionMouse.containsMouse && actionRow.enabled ? actionRow.style.cButtonHover : actionRow.style.cButtonSurface
-            border.width: 1
-            border.color: actionRow.style.cBorder
+            width: Math.max(72, actionLabel.implicitWidth + 24)
+            height: 30
+            radius: 2
+            opacity: actionRow.actionEnabled ? 1.0 : 0.45
+            color: actionMouse.containsMouse && actionRow.actionEnabled ? Qt.rgba(0,0,0,0.06) : "transparent"
 
             Text {
                 id: actionLabel
                 anchors.centerIn: parent
                 text: actionRow.actionText
-                color: actionRow.style.cTextOnSurface
+                color: actionRow.style.cTextOnSurfaceVariant
                 font.pixelSize: 12
             }
 
             MouseArea {
                 id: actionMouse
                 anchors.fill: parent
-                enabled: actionRow.enabled
+                enabled: actionRow.actionEnabled
                 hoverEnabled: true
                 cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
                 onClicked: actionRow.action()
@@ -703,27 +1254,6 @@ Item {
             if (url.length > 0) {
                 Qt.openUrlExternally(url)
             }
-        }
-    }
-
-    component ParagraphBlock: Rectangle {
-        required property var style
-        property string body: ""
-
-        width: parent ? parent.width : 600
-        height: Math.max(72, paragraphText.implicitHeight + 28)
-        radius: 4
-        color: style.cSurfaceContainerHigh
-        border.width: 0
-
-        Text {
-            id: paragraphText
-            anchors.fill: parent
-            anchors.margins: 14
-            text: parent.body
-            color: parent.style.cTextOnSurfaceVariant
-            font.pixelSize: 12
-            wrapMode: Text.WordWrap
         }
     }
 }

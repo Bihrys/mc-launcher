@@ -841,9 +841,10 @@ impl qobject::LauncherBackend {
         self.as_mut()
             .set_download_task_json(QString::from(&text));
 
+        // 不再在轮询中写 output。
+        // 下载页用 downloadTaskJson 显示任务状态，output 只显示用户主动触发的操作结果。
         QString::from(&text)
     }
-
 
 
 
@@ -1406,9 +1407,10 @@ impl qobject::LauncherBackend {
         self.as_mut()
             .set_launch_task_json(QString::from(&text));
 
+        // 不再在轮询中写 output。
+        // 否则用户点击“检测 Java”后，下一次启动轮询会把输出区改回启动信息。
         QString::from(&text)
     }
-
 
 
     pub fn refresh_launcher_settings(mut self: Pin<&mut Self>) -> QString {
