@@ -119,9 +119,8 @@ Item {
             spacing: 0
 
             Sidebar {
-                Layout.preferredWidth: root.currentPage === "settings" ? 0 : style.sidebarWidthValue
+                Layout.preferredWidth: style.sidebarWidthValue
                 Layout.fillHeight: true
-                visible: root.currentPage !== "settings"
                 style: style
                 backend: root.backend
                 currentPage: root.currentPage
@@ -167,6 +166,7 @@ Item {
                     visible: root.currentPage === "settings"
                     style: style
                     backend: root.backend
+                    uiScale: root.uiScale
                     themeMode: root.launcherTheme
                     launcherVisibility: root.launcherVisibility
                     onThemeSelected: function(mode) {
@@ -174,9 +174,6 @@ Item {
                     }
                     onLauncherVisibilitySelected: function(mode) {
                         root.launcherVisibility = mode
-                    }
-                    onBackRequested: {
-                        root.currentPage = "main"
                     }
                 }
 
