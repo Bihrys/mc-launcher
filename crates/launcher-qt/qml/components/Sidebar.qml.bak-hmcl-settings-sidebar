@@ -46,13 +46,11 @@ Rectangle {
                         clip: true
 
                         Image {
-                            id: accountAvatarImage
                             anchors.fill: parent
                             anchors.margins: 2
                             source: root.backend.currentAccountAvatarUrl
                             fillMode: Image.PreserveAspectFit
-                            visible: root.backend.currentAccountAvatarUrl.length > 0 && status !== Image.Error
-                            cache: true
+                            visible: root.backend.currentAccountAvatarUrl.length > 0
                         }
 
                         Text {
@@ -63,7 +61,7 @@ Rectangle {
                             color: root.style.cTextOnSurfaceVariant
                             font.pixelSize: 24
                             font.bold: true
-                            visible: !accountAvatarImage.visible
+                            visible: root.backend.currentAccountAvatarUrl.length === 0
                         }
                     }
 
@@ -120,7 +118,7 @@ Rectangle {
             NavItem {
                 style: root.style
                 title: "当前游戏"
-                subtitle: root.backend.selectedGameVersion.length > 0 ? root.backend.selectedGameVersion : "未选择版本"
+                subtitle: "未选择版本"
                 page: "main"
                 currentPage: root.currentPage
                 onClicked: function(page) {
@@ -156,9 +154,28 @@ Rectangle {
 
             NavItem {
                 style: root.style
-                title: "设置"
-                subtitle: "全局 / Java / 通用 / 下载 / 帮助 / 关于"
+                title: "启动器设置"
                 page: "settings"
+                currentPage: root.currentPage
+                onClicked: function(page) {
+                    root.navigate(page)
+                }
+            }
+
+            NavItem {
+                style: root.style
+                title: "Java 管理"
+                page: "java"
+                currentPage: root.currentPage
+                onClicked: function(page) {
+                    root.navigate(page)
+                }
+            }
+
+            NavItem {
+                style: root.style
+                title: "反馈"
+                page: "feedback"
                 currentPage: root.currentPage
                 onClicked: function(page) {
                     root.navigate(page)

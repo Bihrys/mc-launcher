@@ -262,12 +262,7 @@ Item {
         try {
             root.launchTaskStatus = JSON.parse(raw)
 
-            if (root.launchTaskStatus.gameStarted
-                    || root.launchTaskStatus.status === "finished"
-                    || root.launchTaskStatus.status === "gameRunning"
-                    || root.launchTaskStatus.status === "gameExited") {
-                root.launchDialogOpen = false
-            } else if (root.launchTaskStatus.active || root.launchTaskStatus.status === "failed") {
+            if (root.launchTaskStatus.active || root.launchTaskStatus.status === "failed") {
                 root.launchDialogOpen = true
             }
 
@@ -287,7 +282,6 @@ Item {
 
         if (status.gameStarted && root.launchWindowActionHandledId !== id) {
             root.launchWindowActionHandledId = id
-            root.launchDialogOpen = false
 
             if (status.shouldClose) {
                 root.appWindow.close()
