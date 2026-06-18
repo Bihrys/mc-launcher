@@ -819,8 +819,6 @@ Item {
     }
 
     component DrawerCategory: Item {
-        id: drawerCategory
-
         required property var style
         property string label: ""
 
@@ -836,8 +834,8 @@ Item {
             spacing: 4
 
             Text {
-                text: drawerCategory.label
-                color: drawerCategory.style.cTextOnSurface
+                text: parent.parent.label
+                color: parent.parent.style.cTextOnSurface
                 font.pixelSize: 12
                 height: 16
                 verticalAlignment: Text.AlignVCenter
@@ -847,7 +845,7 @@ Item {
             Rectangle {
                 width: parent.width
                 height: 1
-                color: drawerCategory.style.cTextOnSurfaceVariant
+                color: parent.parent.style.cTextOnSurfaceVariant
                 opacity: 0.45
             }
         }

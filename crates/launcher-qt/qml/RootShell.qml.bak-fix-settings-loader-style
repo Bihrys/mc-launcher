@@ -13,7 +13,6 @@ Item {
 
     property string currentPage: "main"
     property bool settingsPageLoaded: false
-    readonly property var appStyle: style
     readonly property real uiScale: Math.max(0.78, Math.min(1.18, Math.min(root.width / 1280, root.height / 720)))
     property string launcherTheme: appSettings.launcherTheme
     property string launcherVisibility: appSettings.launcherVisibility
@@ -185,7 +184,7 @@ Item {
 
                     SettingsPage {
                         anchors.fill: parent
-                        style: root.appStyle
+                        style: style
                         backend: root.backend
                         themeMode: root.launcherTheme
                         launcherVisibility: root.launcherVisibility
