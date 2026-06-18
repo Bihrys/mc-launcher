@@ -536,8 +536,8 @@ Item {
 
         DownloadDialogCard {
             anchors.centerIn: parent
-            width: Math.min(root.width - 64, 500)
-            height: Math.min(root.height - 64, 300)
+            width: Math.min(root.width - 64, 560)
+            height: Math.min(root.height - 64, 340)
             style: root.style
             status: root.downloadTaskStatus
             onCancelRequested: root.backend.cancelDownloadTask()
@@ -1118,8 +1118,6 @@ Item {
         }
     }
 
-    // HMCL TaskExecutorDialogPane + TaskListPane 的 Qt/QML 等价实现。
-    // 用在“安装所选版本”之后的下载/安装任务弹窗。
     component DownloadDialogCard: Rectangle {
         id: panel
 
@@ -1142,337 +1140,158 @@ Item {
         signal cancelRequested()
         signal closeRequested()
 
-        radius: 4
-        color: panel.style.cSurfaceContainerHigh
-        border.width: 0
-        clip: true
+        radius: 8
+        color: style.cSurfaceContainer
+        border.color: style.cBorder
+        border.width: 1
 
         MouseArea {
             anchors.fill: parent
             acceptedButtons: Qt.NoButton
         }
 
-        // HMCL: center VBox padding 16, bottom BorderPane padding 0 8 8 8
         ColumnLayout {
             anchors.fill: parent
-            spacing: 0
+            anchors.margins: 16
+            spacing: 10
 
-            Column {
+            Text {
+                Layout.fillWidth: true
+                text: panel.status.title || "下载任务"
+                color: panel.style.cTextOnSurface
+                font.pixelSize: 16
+                font.bold: true
+                elide: Text.ElideRight
+            }
+
+            Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.margins: 16
-                spacing: 0
+                radius: 6
+                color: panel.style.cSurfaceContainerHigh
+                border.color: panel.style.cBorder
+                border.width: 1
+                clip: true
 
-                Text {
-                    width: parent.width
-                    height: 18
-                    text: panel.status.title || "正在进行"
-                    color: panel.style.cTextOnSurface
-                    font.pixelSize: 14
-                    font.bold: true
-                    elide: Text.ElideRight
-                    verticalAlignment: Text.AlignVCenter
-                }
+                ColumnLayout {
+                    anchors.fill: parent
+                    anchors.margins: 12
+                    spacing: 8
 
-                // HMCL TaskListPane: ListView padding top 12
-                Item {
-                    width: parent.width
-                    height: parent.height - 18
-                    clip: true
+                    TaskRow {
+                        Layout.fillWidth: true
+                        style: panel.style
+                        title: panel.status.currentFile && panel.status.currentFile.length > 0
+                               ? panel.status.currentFile
+                               : "等待下载任务开始"
+                        rightText: String(Math.round(panel.status.percent || 0)) + "%"
+                        progress: panel.status.percent || 0
+                    }
 
-                    Column {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.topMargin: 12
-                        spacing: 4
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
 
-                        HmclTaskStageRow {
-                            width: parent.width
+                        StatBlock {
+                            Layout.fillWidth: true
                             style: panel.style
-                            title: panel.stageTitle()
-                            state: panel.stageState()
+                            label: "文件"
+                            value: (panel.status.finishedFiles || 0) + " / " + (panel.status.totalFiles || 0)
                         }
 
-                        HmclTaskProgressRow {
-                            width: parent.width
+                        StatBlock {
+                            Layout.fillWidth: true
                             style: panel.style
-                            title: panel.taskTitle()
-                            message: panel.taskMessage()
-                            progress: panel.status.percent || 0
-                            indented: true
+                            label: "大小"
+                            value: root.formatBytes(panel.status.downloadedBytes || 0)
+                                   + " / "
+                                   + root.formatBytes(panel.status.totalBytes || 0)
                         }
 
-                        HmclTaskProgressRow {
-                            width: parent.width
-                            visible: (panel.status.totalFiles || 0) > 0
+                        StatBlock {
+                            Layout.fillWidth: true
                             style: panel.style
-                            title: "处理文件"
-                            message: (panel.status.finishedFiles || 0) + " / " + (panel.status.totalFiles || 0)
-                            progress: panel.filePercent()
-                            indented: true
+                            label: "速度"
+                            value: root.formatBytes(panel.status.speed || 0) + "/s"
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        radius: 6
+                        color: panel.style.cSurfaceContainer
+                        border.color: panel.style.cBorder
+                        border.width: 1
+
+                        Text {
+                            anchors.fill: parent
+                            anchors.margins: 10
+                            text: panel.status.message || "等待下载任务开始。"
+                            color: panel.style.cTextOnSurfaceVariant
+                            font.pixelSize: 12
+                            wrapMode: Text.WordWrap
+                            maximumLineCount: 4
+                            elide: Text.ElideRight
+                            verticalAlignment: Text.AlignVCenter
                         }
                     }
                 }
             }
 
-            Item {
+            BorderPaneLikeFooter {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 46
-
-                Text {
-                    anchors.left: parent.left
-                    anchors.leftMargin: 8
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - 130
-                    text: panel.bottomText()
-                    color: panel.style.cTextOnSurfaceVariant
-                    font.pixelSize: 12
-                    elide: Text.ElideRight
-                }
-
-                HmclDialogTextButton {
-                    anchors.right: parent.right
-                    anchors.rightMargin: 8
-                    anchors.verticalCenter: parent.verticalCenter
-                    style: panel.style
-                    text: panel.status.active
-                          ? panel.status.status === "cancelling" ? "取消中" : "取消"
-                          : "关闭"
-                    enabled: true
-                    onClicked: {
-                        if (panel.status.active) {
-                            if (panel.status.status !== "cancelling") {
-                                panel.cancelRequested()
-                            }
-                        } else {
-                            panel.closeRequested()
-                        }
-                    }
-                }
+                style: panel.style
+                status: panel.status
+                onCancelRequested: panel.cancelRequested()
+                onCloseRequested: panel.closeRequested()
             }
-        }
-
-        function stageTitle() {
-            if (status.status === "finished") return "完成安装"
-            if (status.status === "failed") return "安装失败"
-            if (status.status === "cancelled") return "安装已取消"
-            if (status.status === "cancelling") return "正在取消"
-            return "安装游戏"
-        }
-
-        function stageState() {
-            if (status.status === "finished") return "success"
-            if (status.status === "failed") return "failed"
-            if (status.status === "cancelled") return "cancelled"
-            return "running"
-        }
-
-        function taskTitle() {
-            if (status.currentFile && status.currentFile.length > 0) {
-                return status.currentFile
-            }
-
-            if (status.message && status.message.length > 0) {
-                var firstLine = String(status.message).split("\\n")[0]
-                if (firstLine.length > 0) return firstLine
-            }
-
-            if (status.status === "finished") return "任务完成"
-            if (status.status === "failed") return "任务失败"
-            if (status.status === "cancelled") return "任务已取消"
-            return "等待下载任务开始"
-        }
-
-        function taskMessage() {
-            if (status.status === "finished") return "100%"
-            if (status.status === "failed") return "失败"
-            if (status.status === "cancelled") return "已取消"
-            if (status.status === "cancelling") return "取消中"
-            return String(Math.round(status.percent || 0)) + "%"
-        }
-
-        function filePercent() {
-            var total = Number(status.totalFiles || 0)
-            if (total <= 0) return 0
-            return Math.min(100, Math.round(Number(status.finishedFiles || 0) * 100 / total))
-        }
-
-        function bottomText() {
-            if (status.active) {
-                return root.formatBytes(status.speed || 0) + "/s"
-            }
-
-            if (status.status === "finished") return "下载完成"
-            if (status.status === "cancelled") return "下载已取消"
-            if (status.status === "failed") return "下载失败"
-            return "空闲"
         }
     }
 
-    component HmclTaskStageRow: Item {
-        id: row
+    component BorderPaneLikeFooter: Item {
+        id: footer
 
         required property var style
-        property string title: ""
-        property string state: "running"
+        property var status
 
-        height: 26
+        signal cancelRequested()
+        signal closeRequested()
 
-        Item {
-            id: iconBox
-            width: 14
-            height: 14
-            anchors.left: parent.left
-            anchors.verticalCenter: parent.verticalCenter
-
-            Rectangle {
-                anchors.centerIn: parent
-                width: 14
-                height: 14
-                radius: 7
-                color: "transparent"
-                border.width: 1.5
-                border.color: row.iconColor()
-            }
-
-            Text {
-                anchors.centerIn: parent
-                text: row.iconText()
-                color: row.iconColor()
-                font.pixelSize: row.state === "running" ? 9 : 10
-                font.bold: true
-            }
-        }
+        height: 38
 
         Text {
-            anchors.left: iconBox.right
-            anchors.leftMargin: 12
-            anchors.right: parent.right
+            anchors.left: parent.left
             anchors.verticalCenter: parent.verticalCenter
-            text: row.title
-            color: row.style.cTextOnSurface
-            font.pixelSize: 13
+            width: parent.width - 150
+            text: footer.status.active
+                  ? root.formatBytes(footer.status.speed || 0) + "/s"
+                  : footer.status.status === "finished" ? "下载完成"
+                  : footer.status.status === "cancelled" ? "下载已取消"
+                  : footer.status.status === "failed" ? "下载失败"
+                  : "空闲"
+            color: footer.style.cTextOnSurfaceVariant
+            font.pixelSize: 12
             elide: Text.ElideRight
         }
 
-        function iconText() {
-            if (state === "success") return "✓"
-            if (state === "failed") return "×"
-            if (state === "cancelled") return "−"
-            return ""
-        }
-
-        function iconColor() {
-            if (state === "failed") return "#BA1A1A"
-            if (state === "cancelled") return row.style.cTextOnSurfaceVariant
-            if (state === "success") return row.style.cButtonSelected
-            return row.style.cTextOnSurfaceVariant
-        }
-    }
-
-    component HmclTaskProgressRow: Item {
-        id: row
-
-        required property var style
-        property string title: ""
-        property string message: ""
-        property real progress: 0
-        property bool indented: false
-
-        height: 42
-
-        Column {
-            anchors.left: parent.left
-            anchors.leftMargin: row.indented ? 26 : 0
+        ActionButton {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 4
-
-            RowLayout {
-                width: parent.width
-                spacing: 8
-
-                Text {
-                    Layout.fillWidth: true
-                    text: row.title
-                    color: row.style.cTextOnSurface
-                    font.pixelSize: 12
-                    elide: Text.ElideRight
-                }
-
-                Text {
-                    text: row.message
-                    color: row.style.cTextOnSurfaceVariant
-                    font.pixelSize: 12
-                    elide: Text.ElideRight
+            style: footer.style
+            text: footer.status.active
+                  ? footer.status.status === "cancelling" ? "取消中" : "取消"
+                  : "关闭"
+            primary: !footer.status.active
+            onClicked: {
+                if (footer.status.active) {
+                    if (footer.status.status !== "cancelling") {
+                        footer.cancelRequested()
+                    }
+                } else {
+                    footer.closeRequested()
                 }
             }
-
-            HmclTinyProgressBar {
-                width: parent.width
-                style: row.style
-                value: row.progress
-            }
-        }
-    }
-
-    component HmclTinyProgressBar: Rectangle {
-        id: bar
-
-        required property var style
-        property real value: 0
-
-        height: 2
-        radius: 1
-        color: bar.style.cSurfaceContainer
-        clip: true
-
-        Rectangle {
-            height: parent.height
-            radius: 1
-            color: bar.style.cButtonSelected
-            width: Math.max(0, Math.min(parent.width, parent.width * bar.value / 100.0))
-
-            Behavior on width {
-                NumberAnimation {
-                    duration: 120
-                    easing.type: Easing.OutCubic
-                }
-            }
-        }
-    }
-
-    component HmclDialogTextButton: Rectangle {
-        id: button
-
-        required property var style
-        property string text: ""
-        property bool enabled: true
-
-        signal clicked()
-
-        width: Math.max(72, label.implicitWidth + 28)
-        height: 34
-        radius: 2
-        opacity: button.enabled ? 1.0 : 0.45
-        color: mouse.containsMouse && button.enabled ? button.style.cButtonHover : "transparent"
-
-        Text {
-            id: label
-            anchors.centerIn: parent
-            text: button.text
-            color: button.style.cTextOnSurfaceVariant
-            font.pixelSize: 13
-        }
-
-        MouseArea {
-            id: mouse
-            anchors.fill: parent
-            enabled: button.enabled
-            hoverEnabled: true
-            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-            onClicked: button.clicked()
         }
     }
 
