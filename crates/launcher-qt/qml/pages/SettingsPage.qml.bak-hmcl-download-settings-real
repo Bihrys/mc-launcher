@@ -585,6 +585,7 @@ Item {
                             description: "自动选择合适的下载源。"
                             checkedValue: root.settingBool("autoChooseDownloadSource")
                             onToggledValue: function(v) { root.setSetting("autoChooseDownloadSource", String(v)) }
+                            devNote: "待开发"
                         }
 
                         ChoiceRow {
@@ -593,11 +594,12 @@ Item {
                             description: "版本清单下载来源。"
                             currentValue: root.settingText("versionListSource")
                             choices: [
-                                {"text": "平衡", "value": "balanced"},
-                                {"text": "官方优先", "value": "official"},
-                                {"text": "镜像优先", "value": "mirror"}
+                                {"text": "自动", "value": "auto"},
+                                {"text": "官方", "value": "mojang"},
+                                {"text": "BMCLAPI", "value": "bmclapi"}
                             ]
                             onChoice: function(v) { root.setSetting("versionListSource", v) }
+                            devNote: "待开发"
                         }
 
                         ChoiceRow {
@@ -606,10 +608,12 @@ Item {
                             description: "游戏文件、资源文件、依赖库下载源。"
                             currentValue: root.settingText("downloadSource")
                             choices: [
+                                {"text": "自动", "value": "auto"},
                                 {"text": "官方", "value": "mojang"},
                                 {"text": "BMCLAPI", "value": "bmclapi"}
                             ]
                             onChoice: function(v) { root.setSetting("downloadSource", v) }
+                            devNote: "待开发"
                         }
 
                         ChoiceRow {
@@ -622,6 +626,7 @@ Item {
                                 {"text": "CurseForge", "value": "curseforge"}
                             ]
                             onChoice: function(v) { root.setSetting("defaultAddonSource", v) }
+                            devNote: "待开发"
                         }
                     }
 
@@ -636,11 +641,8 @@ Item {
                             label: "文件下载缓存目录"
                             description: "启动器将游戏资源和依赖库集中管理。"
                             valueText: root.settingText("commonDirectory")
-                            suffix: ""
-                            onAccepted: function(v) {
-                                root.setSetting("commonDirType", v.length > 0 ? "custom" : "default")
-                                root.setSetting("commonDirectory", v)
-                            }
+                            suffix: "待开发"
+                            onAccepted: function(v) { root.setSetting("commonDirectory", v) }
                         }
 
                         SwitchRow {
@@ -649,6 +651,7 @@ Item {
                             description: "线程数过高可能导致系统卡顿。"
                             checkedValue: root.settingBool("autoDownloadThreads")
                             onToggledValue: function(v) { root.setSetting("autoDownloadThreads", String(v)) }
+                            devNote: "待开发"
                         }
 
                         TextRow {
@@ -656,7 +659,7 @@ Item {
                             label: "线程数"
                             description: "HMCL 范围 1-256。"
                             valueText: root.settingText("downloadThreads")
-                            suffix: ""
+                            suffix: "待开发"
                             onAccepted: function(v) { root.setSetting("downloadThreads", v) }
                         }
                     }

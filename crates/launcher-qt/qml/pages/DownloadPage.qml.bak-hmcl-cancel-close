@@ -540,11 +540,7 @@ Item {
             height: Math.min(root.height - 64, 300)
             style: root.style
             status: root.downloadTaskStatus
-            onCancelRequested: {
-                // HMCL 逻辑：UI 立刻关闭；后台任务继续收到 cancel 信号后自己退出/清理。
-                root.downloadDialogOpen = false
-                root.backend.cancelDownloadTask()
-            }
+            onCancelRequested: root.backend.cancelDownloadTask()
             onCloseRequested: root.downloadDialogOpen = false
         }
     }
@@ -559,9 +555,7 @@ Item {
         try {
             root.downloadTaskStatus = JSON.parse(raw)
 
-            if (root.downloadTaskStatus.active
-                    && root.downloadTaskStatus.status !== "cancelling"
-                    && root.downloadTaskStatus.status !== "cancelled") {
+            if (root.downloadTaskStatus.active) {
                 root.downloadDialogOpen = true
             }
         } catch (e) {

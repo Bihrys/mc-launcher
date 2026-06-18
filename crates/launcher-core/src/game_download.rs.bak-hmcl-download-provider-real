@@ -13,8 +13,6 @@ use std::time::Duration;
 enum DownloadSource {
     Official,
     Bmcl,
-    Balanced,
-    Mirror,
 }
 
 #[derive(Debug, Serialize)]
@@ -696,11 +694,9 @@ fn library_from_name_to_file(
         format!("{base_url}/")
     };
 
-    Some(DownloadFile::with_candidates(
-        inject_url_candidates(source, &(base_url + &path)),
+    Some(DownloadFile::new(
+        inject_url(source, &(base_url + &path)),
         root.join("libraries").join(path),
-        None,
-        None,
     ))
 }
 
@@ -754,8 +750,17 @@ fn collect_assets_from_version_json(
         let target = root.join("assets").join("objects").join(prefix).join(hash);
         let size = object.get("size").and_then(Value::as_u64);
 
-        files.push(DownloadFile::with_candidates(
-            asset_object_candidates(source, prefix, hash),
+        let url = match source {
+            DownloadSource::Official => {
+                format!("https://resources.download.minecraft.net/{prefix}/{hash}")
+            }
+            DownloadSource::Bmcl => {
+                format!("https://bmclapi2.bangbang93.com/assets/{prefix}/{hash}")
+            }
+        };
+
+        files.push(DownloadFile::with_metadata(
+            url,
             target,
             size,
             Some(hash.to_string()),
@@ -771,8 +776,8 @@ fn download_file_from_artifact(
     target: &Path,
     artifact: &Value,
 ) -> DownloadFile {
-    DownloadFile::with_candidates(
-        inject_url_candidates(source, url),
+    DownloadFile::with_metadata(
+        inject_url(source, url),
         target.to_path_buf(),
         artifact.get("size").and_then(Value::as_u64),
         artifact
@@ -785,39 +790,15 @@ fn download_file_from_artifact(
 fn manifest_url(source: DownloadSource) -> String {
     match source {
         DownloadSource::Official => "https://piston-meta.mojang.com/mc/game/version_manifest.json".to_string(),
-        DownloadSource::Bmcl | DownloadSource::Balanced | DownloadSource::Mirror => {
-            "https://bmclapi2.bangbang93.com/mc/game/version_manifest.json".to_string()
-        }
+        DownloadSource::Bmcl => "https://bmclapi2.bangbang93.com/mc/game/version_manifest.json".to_string(),
     }
 }
 
 fn inject_url(source: DownloadSource, url: &str) -> String {
-    match source {
-        DownloadSource::Official => url.to_string(),
-        DownloadSource::Bmcl | DownloadSource::Balanced | DownloadSource::Mirror => inject_bmcl_url(url),
+    if !matches!(source, DownloadSource::Bmcl) {
+        return url.to_string();
     }
-}
 
-fn inject_url_candidates(source: DownloadSource, url: &str) -> Vec<String> {
-    match source {
-        DownloadSource::Official => vec![url.to_string()],
-        DownloadSource::Bmcl | DownloadSource::Mirror => unique_urls(vec![inject_bmcl_url(url)]),
-        DownloadSource::Balanced => unique_urls(vec![inject_bmcl_url(url), url.to_string()]),
-    }
-}
-
-fn asset_object_candidates(source: DownloadSource, prefix: &str, hash: &str) -> Vec<String> {
-    let official = format!("https://resources.download.minecraft.net/{prefix}/{hash}");
-    let bmcl = format!("https://bmclapi2.bangbang93.com/assets/{prefix}/{hash}");
-
-    match source {
-        DownloadSource::Official => vec![official],
-        DownloadSource::Bmcl | DownloadSource::Mirror => vec![bmcl],
-        DownloadSource::Balanced => unique_urls(vec![bmcl, official]),
-    }
-}
-
-fn inject_bmcl_url(url: &str) -> String {
     let replacements = [
         ("https://bmclapi2.bangbang93.com", "https://bmclapi2.bangbang93.com"),
         ("https://launchermeta.mojang.com", "https://bmclapi2.bangbang93.com"),
@@ -831,14 +812,6 @@ fn inject_bmcl_url(url: &str) -> String {
         ("https://maven.neoforged.net/releases/", "https://bmclapi2.bangbang93.com/maven/"),
         ("https://meta.fabricmc.net", "https://bmclapi2.bangbang93.com/fabric-meta"),
         ("https://maven.fabricmc.net", "https://bmclapi2.bangbang93.com/maven"),
-
-        // HMCL BMCLAPIDownloadProvider 的内容源 fallback 逻辑：
-        // 对 Modrinth/CursorForge 下载 URL 也提供镜像候选。
-        ("https://api.modrinth.com", "https://mod.mcimirror.top/modrinth"),
-        ("https://cdn.modrinth.com", "https://mod.mcimirror.top"),
-        ("https://edge.forgecdn.net", "https://mod.mcimirror.top/curseforge"),
-        ("https://mediafilez.forgecdn.net", "https://mod.mcimirror.top/curseforge"),
-
         ("https://hmcl.glavo.site/metadata/forge", "https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/json"),
     ];
 
@@ -849,18 +822,6 @@ fn inject_bmcl_url(url: &str) -> String {
     }
 
     url.to_string()
-}
-
-fn unique_urls(urls: Vec<String>) -> Vec<String> {
-    let mut out = Vec::new();
-
-    for url in urls {
-        if !url.is_empty() && !out.iter().any(|existing| existing == &url) {
-            out.push(url);
-        }
-    }
-
-    out
 }
 
 fn maven_path(descriptor: &str) -> Option<String> {
@@ -895,9 +856,7 @@ fn maven_path(descriptor: &str) -> Option<String> {
 
 fn parse_source(source: &str) -> Result<DownloadSource, DownloadError> {
     match source.trim().to_ascii_lowercase().as_str() {
-        "" | "auto" | "balanced" => Ok(DownloadSource::Balanced),
-        "official" | "mojang" => Ok(DownloadSource::Official),
-        "mirror" => Ok(DownloadSource::Mirror),
+        "" | "official" | "mojang" => Ok(DownloadSource::Official),
         "bmcl" | "bmclapi" => Ok(DownloadSource::Bmcl),
         other => Err(simple_error(format!("未知下载源：{other}"))),
     }
@@ -974,12 +933,6 @@ fn minecraft_root() -> Result<PathBuf, DownloadError> {
 }
 
 fn cache_root() -> Result<PathBuf, DownloadError> {
-    if let Some(value) = std::env::var_os("MC_LAUNCHER_COMMON_DIRECTORY") {
-        if !value.is_empty() {
-            return Ok(PathBuf::from(value));
-        }
-    }
-
     if let Some(value) = std::env::var_os("XDG_CACHE_HOME") {
         if !value.is_empty() {
             return Ok(PathBuf::from(value).join("mc-launcher"));
@@ -1018,8 +971,6 @@ impl DownloadSource {
         match self {
             DownloadSource::Official => "official",
             DownloadSource::Bmcl => "bmcl",
-            DownloadSource::Balanced => "balanced",
-            DownloadSource::Mirror => "mirror",
         }
     }
 }

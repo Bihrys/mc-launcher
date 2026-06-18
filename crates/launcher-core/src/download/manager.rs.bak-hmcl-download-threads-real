@@ -411,16 +411,14 @@ impl DownloadManager {
 fn configured_worker_count() -> usize {
     if let Ok(value) = std::env::var("MC_LAUNCHER_DOWNLOAD_WORKERS") {
         if let Ok(workers) = value.trim().parse::<usize>() {
-            return workers.clamp(1, 256);
+            return workers.clamp(1, 64);
         }
     }
 
-    // HMCL 的 BMCLAPI provider 并发：max(Runtime.availableProcessors() * 2, 6)
     std::thread::available_parallelism()
-        .map(|value| value.get().saturating_mul(2))
-        .unwrap_or(6)
-        .max(6)
-        .clamp(6, 64)
+        .map(|value| value.get().saturating_mul(4))
+        .unwrap_or(16)
+        .clamp(8, 64)
 }
 
 fn existing_part_len(path: &Path) -> u64 {

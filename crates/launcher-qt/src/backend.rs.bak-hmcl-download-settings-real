@@ -631,10 +631,7 @@ impl qobject::LauncherBackend {
     }
 
     pub fn start_refresh_download_catalog(mut self: Pin<&mut Self>, source: QString) {
-        let requested_source = source.to_string();
-        let settings = load_launcher_settings_value();
-        apply_download_runtime_settings(&settings);
-        let source = resolve_download_source(&settings, &requested_source, true);
+        let source = source.to_string();
         let status_path = download_catalog_task_status_path();
 
         if download_task_is_active(&status_path) {
@@ -753,10 +750,7 @@ impl qobject::LauncherBackend {
         loader_kind: QString,
         loader_version: QString,
     ) {
-        let requested_source = source.to_string();
-        let settings = load_launcher_settings_value();
-        apply_download_runtime_settings(&settings);
-        let source = resolve_download_source(&settings, &requested_source, false);
+        let source = source.to_string();
         let game_version = game_version.to_string();
         let loader_kind = loader_kind.to_string();
         let loader_version = loader_version.to_string();
@@ -1495,93 +1489,6 @@ fn download_cancel_flag() -> Arc<AtomicBool> {
 
 
 
-
-fn resolve_download_source(settings: &serde_json::Value, requested_source: &str, for_version_list: bool) -> String {
-    let auto = launcher_setting_bool(settings, "autoChooseDownloadSource").unwrap_or(true);
-
-    if auto {
-        let source = launcher_setting_string(settings, "versionListSource")
-            .unwrap_or_else(|| "balanced".to_string());
-
-        return match source.as_str() {
-            // HMCL DEFAULT_AUTO_PROVIDER_ID = "balanced"。
-            // 中国大陆时 balanced 默认走 BMCLAPI；这里按中文环境直接走 bmcl。
-            "" | "auto" | "balanced" => "balanced".to_string(),
-
-            // HMCL 的 official auto provider 偏向官方列表。
-            "official" | "mojang" => {
-                if for_version_list {
-                    "official".to_string()
-                } else {
-                    "balanced".to_string()
-                }
-            }
-
-            // HMCL mirror 对应镜像优先。
-            "mirror" | "bmcl" | "bmclapi" => "mirror".to_string(),
-
-            _ => "balanced".to_string(),
-        };
-    }
-
-    let source = launcher_setting_string(settings, "downloadSource")
-        .unwrap_or_else(|| requested_source.to_string());
-
-    match source.as_str() {
-        "bmcl" | "bmclapi" | "mirror" => "bmcl".to_string(),
-        "official" | "mojang" => "official".to_string(),
-        "" | "auto" => normalize_requested_download_source(requested_source),
-        _ => normalize_requested_download_source(requested_source),
-    }
-}
-
-fn normalize_requested_download_source(value: &str) -> String {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "bmcl" | "bmclapi" | "mirror" => "bmcl".to_string(),
-        "official" | "mojang" => "official".to_string(),
-        "balanced" | "auto" | "" => "balanced".to_string(),
-        _ => "balanced".to_string(),
-    }
-}
-
-fn apply_download_runtime_settings(settings: &serde_json::Value) {
-    let workers = resolve_download_workers(settings);
-
-    // Rust 2024 下修改进程环境变量是 unsafe。
-    // 这里在创建下载线程前写入，DownloadManager::new 会读取这些值。
-    unsafe {
-        std::env::set_var("MC_LAUNCHER_DOWNLOAD_WORKERS", workers.to_string());
-
-        if let Some(dir_type) = launcher_setting_string(settings, "commonDirType") {
-            if dir_type == "custom" {
-                if let Some(dir) = launcher_setting_string(settings, "commonDirectory") {
-                    if !dir.trim().is_empty() {
-                        std::env::set_var("MC_LAUNCHER_COMMON_DIRECTORY", dir);
-                    }
-                }
-            } else {
-                std::env::remove_var("MC_LAUNCHER_COMMON_DIRECTORY");
-            }
-        }
-    }
-}
-
-fn resolve_download_workers(settings: &serde_json::Value) -> usize {
-    let auto = launcher_setting_bool(settings, "autoDownloadThreads").unwrap_or(true);
-
-    if auto {
-        return std::thread::available_parallelism()
-            .map(|value| value.get().saturating_mul(2))
-            .unwrap_or(6)
-            .clamp(6, 64);
-    }
-
-    launcher_setting_u32(settings, "downloadThreads")
-        .map(|value| value as usize)
-        .unwrap_or(64)
-        .clamp(1, 256)
-}
-
 fn launcher_settings_path() -> PathBuf {
     if let Some(value) = std::env::var_os("XDG_CONFIG_HOME") {
         if !value.is_empty() {
@@ -1626,8 +1533,8 @@ fn default_launcher_settings_value() -> serde_json::Value {
         "logFont": "monospace",
 
         "autoChooseDownloadSource": true,
-        "versionListSource": "balanced",
-        "downloadSource": "mojang",
+        "versionListSource": "auto",
+        "downloadSource": "auto",
         "defaultAddonSource": "modrinth",
         "commonDirType": "default",
         "commonDirectory": "",
