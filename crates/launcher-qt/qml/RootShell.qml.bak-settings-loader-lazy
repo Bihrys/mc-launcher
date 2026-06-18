@@ -12,7 +12,6 @@ Item {
     required property var backend
 
     property string currentPage: "main"
-    property bool settingsPageLoaded: false
     readonly property real uiScale: Math.max(0.78, Math.min(1.18, Math.min(root.width / 1280, root.height / 720)))
     property string launcherTheme: appSettings.launcherTheme
     property string launcherVisibility: appSettings.launcherVisibility
@@ -62,12 +61,6 @@ Item {
 
     onLauncherVisibilityChanged: {
         appSettings.launcherVisibility = root.launcherVisibility
-    }
-
-    onCurrentPageChanged: {
-        if (root.currentPage === "settings") {
-            root.settingsPageLoaded = true
-        }
     }
 
     SystemPalette {
@@ -169,37 +162,21 @@ Item {
                     backend: root.backend
                 }
 
-                Loader {
-                    id: settingsPageLoader
-
+                SettingsPage {
                     anchors.fill: parent
-                    active: root.settingsPageLoaded
                     visible: root.currentPage === "settings"
-                    asynchronous: true
-                    sourceComponent: settingsPageComponent
-                }
-
-                Component {
-                    id: settingsPageComponent
-
-                    SettingsPage {
-                        anchors.fill: parent
-                        style: style
-                        backend: root.backend
-                        themeMode: root.launcherTheme
-                        launcherVisibility: root.launcherVisibility
-
-                        onThemeSelected: function(mode) {
-                            root.launcherTheme = mode
-                        }
-
-                        onLauncherVisibilitySelected: function(mode) {
-                            root.launcherVisibility = mode
-                        }
-
-                        onBackRequested: {
-                            root.currentPage = "main"
-                        }
+                    style: style
+                    backend: root.backend
+                    themeMode: root.launcherTheme
+                    launcherVisibility: root.launcherVisibility
+                    onThemeSelected: function(mode) {
+                        root.launcherTheme = mode
+                    }
+                    onLauncherVisibilitySelected: function(mode) {
+                        root.launcherVisibility = mode
+                    }
+                    onBackRequested: {
+                        root.currentPage = "main"
                     }
                 }
 
