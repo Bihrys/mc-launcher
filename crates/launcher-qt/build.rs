@@ -16,6 +16,8 @@ fn main() {
             "qml/components/HmclRipple.qml",
             "qml/components/HmclImageContainer.qml",
             "qml/components/HmclPageLayer.qml",
+            "qml/components/BackPageShell.qml",
+            "qml/components/HmclDecoratorPageLayer.qml",
             "qml/components/HmclSectionTransition.qml",
             "qml/components/HmclSlideUpFadePane.qml",
 

@@ -134,165 +134,255 @@ Item {
             style: style
         }
 
-        RowLayout {
+        Item {
+            id: navigatorHost
+
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: 0
+            clip: true
 
-            Sidebar {
-                Layout.preferredWidth: root.currentPage === "settings" ? 0 : style.sidebarWidthValue
-                Layout.fillHeight: true
-                visible: root.currentPage !== "settings"
+            HmclDecoratorPageLayer {
+                id: mainPageLayer
+
+                anchors.fill: parent
                 style: style
-                backend: root.backend
-                currentPage: root.currentPage
-                onNavigate: function(page) {
-                    root.currentPage = page
-                }
-                onNavigateSettingsSection: function(section) {
-                    root.requestedSettingsSection = section
-                    root.prepareSettingsPage()
-                    root.currentPage = "settings"
-                }
-                onPrepareSettings: root.prepareSettingsPage()
-                onPrepareDownload: root.prepareDownloadPage()
-                onPrepareVersion: root.prepareVersionPage()
-            }
+                active: root.currentPage === "main"
+                leftWidth: style.sidebarWidthValue
 
-            Item {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                clip: true
-
-                HmclPageLayer {
-                    anchors.fill: parent
-                    style: style
-                    active: root.currentPage === "main"
-
-                    MainPage {
-                        anchors.fill: parent
-                        style: style
-                        backend: root.backend
-                    }
-
-                    SplitLaunchButton {
-                        anchors.right: parent.right
-                        anchors.bottom: parent.bottom
-                        style: style
-                        title: root.backend.selectedGameVersion.length > 0 ? "启动游戏" : "开始游戏"
-                        subtitle: root.backend.selectedGameVersion.length > 0
-                                  ? root.backend.selectedGameVersion
-                                  : ""
-
-                        onLaunchClicked: {
-                            root.startLaunch()
-                        }
-
-                        onMenuClicked: {
-                            root.currentPage = "versions"
-                        }
-                    }
-                }
-
-                HmclPageLayer {
-                    anchors.fill: parent
-                    style: style
-                    active: root.currentPage === "account"
-
-                    AccountPage {
-                        anchors.fill: parent
-                        style: style
-                        backend: root.backend
-                    }
-                }
-
-                HmclPageLayer {
-                    anchors.fill: parent
-                    style: style
-                    active: root.currentPage === "download"
-
-                    DownloadPage {
-                        anchors.fill: parent
-                        style: style
-                        backend: root.backend
-                    }
-                }
-
-                HmclPageLayer {
-                    anchors.fill: parent
-                    style: style
-                    active: root.currentPage === "versions"
-
-                    VersionPage {
-                        anchors.fill: parent
-                        style: style
-                        backend: root.backend
-                    }
-                }
-
-                HmclPageLayer {
-                    anchors.fill: parent
-                    style: style
-                    mode: "fade"
-                    active: root.currentPage === "settings"
-
-                    Loader {
-                        id: settingsPageLoader
-
-                        anchors.fill: parent
-                        active: root.settingsPageLoaded
-                        asynchronous: true
-                        sourceComponent: settingsPageComponent
-                    }
-                }
-
-                Component {
-                    id: settingsPageComponent
-
-                    SettingsPage {
+                leftComponent: Component {
+                    Sidebar {
                         anchors.fill: parent
                         style: root.appStyle
                         backend: root.backend
-                        themeMode: root.launcherTheme
-                        launcherVisibility: root.launcherVisibility
-                        requestedSection: root.requestedSettingsSection
-                        pageActive: root.currentPage === "settings"
+                        currentPage: root.currentPage
 
-                        onThemeSelected: function(mode) {
-                            root.launcherTheme = mode
+                        onNavigate: function(page) {
+                            root.currentPage = page
                         }
 
-                        onLauncherVisibilitySelected: function(mode) {
-                            root.launcherVisibility = mode
+                        onNavigateSettingsSection: function(section) {
+                            root.requestedSettingsSection = section
+                            root.prepareSettingsPage()
+                            root.currentPage = "settings"
                         }
+
+                        onPrepareSettings: root.prepareSettingsPage()
+                        onPrepareDownload: root.prepareDownloadPage()
+                        onPrepareVersion: root.prepareVersionPage()
+                    }
+                }
+
+                centerComponent: Component {
+                    Item {
+                        anchors.fill: parent
+
+                        MainPage {
+                            anchors.fill: parent
+                            style: root.appStyle
+                            backend: root.backend
+                        }
+
+                        SplitLaunchButton {
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            style: root.appStyle
+                            title: root.backend.selectedGameVersion.length > 0 ? "启动游戏" : "开始游戏"
+                            subtitle: root.backend.selectedGameVersion.length > 0
+                                      ? root.backend.selectedGameVersion
+                                      : ""
+
+                            onLaunchClicked: {
+                                root.startLaunch()
+                            }
+
+                            onMenuClicked: {
+                                root.currentPage = "versions"
+                            }
+                        }
+                    }
+                }
+            }
+
+            HmclDecoratorPageLayer {
+                id: accountPageLayer
+
+                anchors.fill: parent
+                style: style
+                active: root.currentPage === "account"
+                leftWidth: 0
+
+                centerComponent: Component {
+                    BackPageShell {
+                        anchors.fill: parent
+                        style: root.appStyle
 
                         onBackRequested: {
                             root.currentPage = "main"
                         }
+
+                        contentComponent: Component {
+                            AccountPage {
+                                anchors.fill: parent
+                                style: root.appStyle
+                                backend: root.backend
+                            }
+                        }
                     }
                 }
+            }
 
-                HmclPageLayer {
-                    anchors.fill: parent
-                    style: style
-                    active: root.currentPage === "java"
+            HmclDecoratorPageLayer {
+                id: downloadPageLayer
 
-                    JavaPage {
+                anchors.fill: parent
+                style: style
+                active: root.currentPage === "download"
+                leftWidth: 0
+
+                centerComponent: Component {
+                    BackPageShell {
                         anchors.fill: parent
-                        style: style
-                        backend: root.backend
+                        style: root.appStyle
+
+                        onBackRequested: {
+                            root.currentPage = "main"
+                        }
+
+                        contentComponent: Component {
+                            DownloadPage {
+                                anchors.fill: parent
+                                style: root.appStyle
+                                backend: root.backend
+                            }
+                        }
                     }
                 }
+            }
 
-                HmclPageLayer {
-                    anchors.fill: parent
-                    style: style
-                    active: root.isPlaceholderPage(root.currentPage)
+            HmclDecoratorPageLayer {
+                id: versionsPageLayer
 
-                    PlaceholderPage {
+                anchors.fill: parent
+                style: style
+                active: root.currentPage === "versions"
+                leftWidth: 0
+
+                centerComponent: Component {
+                    BackPageShell {
                         anchors.fill: parent
-                        style: style
-                        titleText: root.getPageTitle(root.currentPage)
+                        style: root.appStyle
+
+                        onBackRequested: {
+                            root.currentPage = "main"
+                        }
+
+                        contentComponent: Component {
+                            VersionPage {
+                                anchors.fill: parent
+                                style: root.appStyle
+                                backend: root.backend
+                            }
+                        }
+                    }
+                }
+            }
+
+            HmclPageLayer {
+                id: settingsLayer
+
+                anchors.fill: parent
+                style: style
+                mode: "fade"
+                active: root.currentPage === "settings"
+
+                Loader {
+                    id: settingsPageLoader
+
+                    anchors.fill: parent
+                    active: root.settingsPageLoaded
+                    asynchronous: true
+                    sourceComponent: settingsPageComponent
+                }
+            }
+
+            Component {
+                id: settingsPageComponent
+
+                SettingsPage {
+                    anchors.fill: parent
+                    style: root.appStyle
+                    backend: root.backend
+                    themeMode: root.launcherTheme
+                    launcherVisibility: root.launcherVisibility
+                    requestedSection: root.requestedSettingsSection
+                    pageActive: root.currentPage === "settings"
+
+                    onThemeSelected: function(mode) {
+                        root.launcherTheme = mode
+                    }
+
+                    onLauncherVisibilitySelected: function(mode) {
+                        root.launcherVisibility = mode
+                    }
+
+                    onBackRequested: {
+                        root.currentPage = "main"
+                    }
+                }
+            }
+
+            HmclDecoratorPageLayer {
+                id: javaPageLayer
+
+                anchors.fill: parent
+                style: style
+                active: root.currentPage === "java"
+                leftWidth: 0
+
+                centerComponent: Component {
+                    BackPageShell {
+                        anchors.fill: parent
+                        style: root.appStyle
+
+                        onBackRequested: {
+                            root.currentPage = "main"
+                        }
+
+                        contentComponent: Component {
+                            JavaPage {
+                                anchors.fill: parent
+                                style: root.appStyle
+                                backend: root.backend
+                            }
+                        }
+                    }
+                }
+            }
+
+            HmclDecoratorPageLayer {
+                id: placeholderPageLayer
+
+                anchors.fill: parent
+                style: style
+                active: root.isPlaceholderPage(root.currentPage)
+                leftWidth: 0
+
+                centerComponent: Component {
+                    BackPageShell {
+                        anchors.fill: parent
+                        style: root.appStyle
+
+                        onBackRequested: {
+                            root.currentPage = "main"
+                        }
+
+                        contentComponent: Component {
+                            PlaceholderPage {
+                                anchors.fill: parent
+                                style: root.appStyle
+                                titleText: root.getPageTitle(root.currentPage)
+                            }
+                        }
                     }
                 }
             }
