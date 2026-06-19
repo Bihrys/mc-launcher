@@ -24,6 +24,7 @@ Item {
     property bool yggdrasilProfileDialogOpen: false
     property string yggdrasilProfileServer: ""
     property string yggdrasilProfileUsername: ""
+    property int selectedYggdrasilProfileIndex: -1
 
     ListModel {
         id: accountsModel
@@ -110,21 +111,32 @@ Item {
                         Repeater {
                             model: authServersModel
 
-                            HmclNavMethodItem {
-                                style: root.style
-                                title: model.name
-                                subtitle: model.host
-                                iconKind: "DRESSER"
-                                rightIconKind: "CLOSE"
+                            delegate: Item {
+                                required property int index
+                                required property string name
+                                required property string url
+                                required property string host
 
-                                onClicked: {
-                                    root.yggdrasilServer = model.url
-                                    root.openDialog("yggdrasil")
-                                }
+                                width: 200
+                                height: host.length > 0 ? 58 : 52
 
-                                onRightClicked: {
-                                    if (index >= 0) {
-                                        authServersModel.remove(index)
+                                HmclNavMethodItem {
+                                    anchors.fill: parent
+                                    style: root.style
+                                    title: parent.name
+                                    subtitle: parent.host
+                                    iconKind: "DRESSER"
+                                    rightIconKind: "CLOSE"
+
+                                    onClicked: {
+                                        root.yggdrasilServer = parent.url
+                                        root.openDialog("yggdrasil")
+                                    }
+
+                                    onRightClicked: {
+                                        if (parent.index >= 0) {
+                                            authServersModel.remove(parent.index)
+                                        }
                                     }
                                 }
                             }
@@ -187,41 +199,55 @@ Item {
                 Repeater {
                     model: accountsModel
 
-                    AccountCard {
+                    delegate: Item {
+                        required property int index
+                        required property string username
+                        required property string uuid
+                        required property string displayKind
+                        required property string serverUrl
+                        required property string avatarUrl
+                        required property bool selected
+
                         width: accountListColumn.width
-                        style: root.style
-                        accountIndex: index
-                        username: model.username
-                        uuid: model.uuid
-                        displayKind: model.displayKind
-                        serverUrl: model.serverUrl
-                        avatarUrl: model.avatarUrl
-                        selected: model.selected
+                        height: 80
 
-                        onSelectRequested: {
-                            root.backend.switchAccount(String(accountIndex))
-                            root.reloadAccounts()
-                        }
+                        AccountCard {
+                            id: accountCard
+                            anchors.fill: parent
+                            style: root.style
+                            accountIndex: parent.index
+                            username: parent.username
+                            uuid: parent.uuid
+                            displayKind: parent.displayKind
+                            serverUrl: parent.serverUrl
+                            avatarUrl: parent.avatarUrl
+                            selected: parent.selected
 
-                        onDeleteRequested: {
-                            root.deleteIndex = accountIndex
-                        }
+                            onSelectRequested: {
+                                root.backend.switchAccount(String(accountCard.accountIndex))
+                                root.reloadAccounts()
+                            }
 
-                        onRefreshRequested: {
-                            root.backend.switchAccount(String(accountIndex))
-                            root.reloadAccounts()
-                        }
+                            onDeleteRequested: {
+                                root.deleteIndex = accountCard.accountIndex
+                            }
 
-                        onCopyUuidRequested: {
-                            root.copyText(uuid)
-                        }
+                            onRefreshRequested: {
+                                root.backend.switchAccount(String(accountCard.accountIndex))
+                                root.reloadAccounts()
+                            }
 
-                        onMoveRequested: {
-                            root.showUnsupportedHint("账户本地/全局迁移")
-                        }
+                            onCopyUuidRequested: {
+                                root.copyText(accountCard.uuid)
+                            }
 
-                        onUploadSkinRequested: {
-                            root.showUnsupportedHint("上传皮肤")
+                            onMoveRequested: {
+                                root.showUnsupportedHint("账户本地/全局迁移")
+                            }
+
+                            onUploadSkinRequested: {
+                                root.showUnsupportedHint("上传皮肤")
+                            }
                         }
                     }
                 }
@@ -553,13 +579,28 @@ Item {
                         policy: ScrollBar.AsNeeded
                     }
 
-                    delegate: Rectangle {
+                    delegate: Item {
+                        id: profileDelegate
+
+                        required property int index
+                        required property string name
+                        required property string uuid
+                        required property string avatarUrl
+
                         width: profileList.width
                         height: 62
-                        radius: 4
-                        color: profileMouse.containsMouse ? root.style.cNavHover : root.style.cSurfaceContainer
-                        border.color: root.style.cBorder
-                        border.width: 1
+
+                        readonly property bool checked: root.selectedYggdrasilProfileIndex === index
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: 4
+                            color: profileMouse.containsMouse || profileDelegate.checked
+                                   ? root.style.cNavHover
+                                   : root.style.cSurfaceContainer
+                            border.color: profileDelegate.checked ? root.style.cButtonSelected : root.style.cBorder
+                            border.width: 1
+                        }
 
                         MouseArea {
                             id: profileMouse
@@ -568,9 +609,7 @@ Item {
                             cursorShape: Qt.PointingHandCursor
 
                             onClicked: {
-                                root.backend.selectYggdrasilProfile(String(index))
-                                root.yggdrasilProfileDialogOpen = false
-                                root.reloadAccounts()
+                                root.selectedYggdrasilProfileIndex = profileDelegate.index
                             }
                         }
 
@@ -579,10 +618,38 @@ Item {
                             anchors.margins: 8
                             spacing: 10
 
+                            Item {
+                                Layout.preferredWidth: 28
+                                Layout.fillHeight: true
+
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: 18
+                                    height: 18
+                                    radius: 9
+                                    color: "transparent"
+                                    border.color: profileDelegate.checked
+                                                  ? root.style.cButtonSelected
+                                                  : root.style.cTextOnSurfaceVariant
+                                    border.width: 2
+
+                                    Rectangle {
+                                        anchors.centerIn: parent
+                                        width: 8
+                                        height: 8
+                                        radius: 4
+                                        visible: profileDelegate.checked
+                                        color: root.style.cButtonSelected
+                                    }
+                                }
+                            }
+
                             AvatarBox {
                                 style: root.style
-                                source: avatarUrl
-                                fallbackText: name.length > 0 ? name.substring(0, 1).toUpperCase() : "?"
+                                source: profileDelegate.avatarUrl
+                                fallbackText: profileDelegate.name.length > 0
+                                              ? profileDelegate.name.substring(0, 1).toUpperCase()
+                                              : "?"
                                 size: 44
                             }
 
@@ -592,16 +659,16 @@ Item {
 
                                 Text {
                                     width: parent.width
-                                    text: name
+                                    text: profileDelegate.name
                                     color: root.style.cTextOnSurface
                                     font.pixelSize: 14
-                                    font.bold: true
+                                    font.bold: profileDelegate.checked
                                     elide: Text.ElideRight
                                 }
 
                                 Text {
                                     width: parent.width
-                                    text: uuid
+                                    text: profileDelegate.uuid
                                     color: root.style.cTextOnSurfaceVariant
                                     font.pixelSize: 10
                                     elide: Text.ElideMiddle
@@ -616,7 +683,9 @@ Item {
 
                     Text {
                         Layout.fillWidth: true
-                        text: "选择后会调用 refresh 绑定 selectedProfile。"
+                        text: root.selectedYggdrasilProfileIndex >= 0
+                              ? "已选择角色，点击确定完成登录。"
+                              : "请选择一个角色。"
                         color: root.style.cTextOnSurfaceVariant
                         font.pixelSize: 11
                         elide: Text.ElideRight
@@ -625,7 +694,26 @@ Item {
                     DialogButton {
                         style: root.style
                         text: "取消"
-                        onClicked: root.yggdrasilProfileDialogOpen = false
+                        onClicked: {
+                            root.selectedYggdrasilProfileIndex = -1
+                            root.yggdrasilProfileDialogOpen = false
+                        }
+                    }
+
+                    DialogButton {
+                        style: root.style
+                        text: "确定"
+                        primary: true
+                        enabled: root.selectedYggdrasilProfileIndex >= 0
+                        opacity: enabled ? 1 : 0.45
+                        onClicked: {
+                            if (root.selectedYggdrasilProfileIndex >= 0) {
+                                root.backend.selectYggdrasilProfile(String(root.selectedYggdrasilProfileIndex))
+                                root.selectedYggdrasilProfileIndex = -1
+                                root.yggdrasilProfileDialogOpen = false
+                                root.reloadAccounts()
+                            }
+                        }
                     }
                 }
             }
@@ -748,6 +836,7 @@ Item {
     function loadPendingYggdrasilProfiles() {
         var raw = root.backend.pendingYggdrasilProfilesJson
 
+        root.selectedYggdrasilProfileIndex = -1
         yggdrasilProfileModel.clear()
 
         if (!raw || raw.length === 0) {
