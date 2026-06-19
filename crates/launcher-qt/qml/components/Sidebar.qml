@@ -153,27 +153,35 @@ Rectangle {
         width: parent ? parent.width : 200
         height: 34
 
+        // HMCL .class-title:
+        // -fx-padding: 8 16 8 16;
+        // Text + 1px Rectangle 都在左右 16px 内容区内，所以横线不贯穿侧栏。
         Column {
             anchors.left: parent.left
             anchors.right: parent.right
+            anchors.top: parent.top
             anchors.bottom: parent.bottom
-            spacing: 4
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
+            anchors.topMargin: 8
+            anchors.bottomMargin: 8
+            spacing: 0
 
             Text {
-                anchors.left: parent.left
-                anchors.leftMargin: 0
+                width: parent.width
                 height: 16
                 text: titleItem.title
                 color: titleItem.style.cTextOnSurface
                 font.pixelSize: 12
                 verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
             }
 
             Rectangle {
                 width: parent.width
                 height: 1
                 color: titleItem.style.cTextOnSurfaceVariant
-                opacity: 0.45
+                opacity: 1.0
             }
         }
     }
