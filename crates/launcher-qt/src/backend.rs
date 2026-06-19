@@ -518,7 +518,14 @@ impl qobject::LauncherBackend {
                     return;
                 };
 
+                if let Err(err) = launcher_core::select_account(account) {
+                    self.as_mut()
+                        .set_output(QString::from(&format!("切换账户失败：无法保存选择。\n\n{err}")));
+                    return;
+                }
+
                 set_current_account(self.as_mut(), account);
+                refresh_accounts_property(self.as_mut());
                 self.as_mut().set_output(QString::from(&format!(
                     "已切换账户。\n\n账户: {}\n类型: {}\nUUID: {}",
                     account.username,

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "../components"
 
 Item {
     id: root
@@ -8,19 +9,34 @@ Item {
     required property var style
     required property var backend
 
-    property string loginMode: "offline"
-
+    property string dialogMode: ""
     property string offlineName: "Steve"
     property string microsoftClientId: ""
     property string yggdrasilServer: ""
     property string yggdrasilUsername: ""
     property string yggdrasilPassword: ""
+
+    property string addServerName: ""
+    property string addServerUrl: ""
+
+    property int deleteIndex: -1
+
     property bool yggdrasilProfileDialogOpen: false
     property string yggdrasilProfileServer: ""
     property string yggdrasilProfileUsername: ""
 
     ListModel {
         id: accountsModel
+    }
+
+    ListModel {
+        id: authServersModel
+
+        ListElement {
+            name: "LittleSkin"
+            url: "https://littleskin.cn/api/yggdrasil"
+            host: "littleskin.cn"
+        }
     }
 
     ListModel {
@@ -31,418 +47,462 @@ Item {
         root.reloadAccounts()
     }
 
-    ColumnLayout {
-        anchors.fill: parent
-        anchors.margins: 24
-        anchors.bottomMargin: 96
-        spacing: 18
+    Connections {
+        target: root.backend
 
-        RowLayout {
+        function onAccountsJsonChanged() {
+            root.reloadAccountsFromJson(root.backend.accountsJson)
+        }
+
+        function onPendingYggdrasilProfilesJsonChanged() {
+            root.loadPendingYggdrasilProfiles()
+        }
+    }
+
+    RowLayout {
+        anchors.fill: parent
+        spacing: 0
+
+        Item {
+            Layout.preferredWidth: 200
+            Layout.fillHeight: true
+
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: 0
+
+                ScrollView {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    contentWidth: availableWidth
+                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
+
+                    Column {
+                        width: 200
+                        spacing: 0
+
+                        Item {
+                            width: 1
+                            height: 12
+                        }
+
+                        HmclClassTitle {
+                            style: root.style
+                            title: "创建账户"
+                        }
+
+                        HmclNavMethodItem {
+                            style: root.style
+                            title: "Microsoft"
+                            iconKind: "MICROSOFT"
+                            onClicked: root.openDialog("microsoft")
+                        }
+
+                        HmclNavMethodItem {
+                            style: root.style
+                            title: "离线账户"
+                            iconKind: "PERSON"
+                            onClicked: root.openDialog("offline")
+                        }
+
+                        Repeater {
+                            model: authServersModel
+
+                            HmclNavMethodItem {
+                                style: root.style
+                                title: model.name
+                                subtitle: model.host
+                                iconKind: "DRESSER"
+                                rightIconKind: "CLOSE"
+
+                                onClicked: {
+                                    root.yggdrasilServer = model.url
+                                    root.openDialog("yggdrasil")
+                                }
+
+                                onRightClicked: {
+                                    if (index >= 0) {
+                                        authServersModel.remove(index)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HmclNavMethodItem {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 58
+                    style: root.style
+                    title: "添加认证服务器"
+                    subtitle: "authlib-injector"
+                    iconKind: "ADD_CIRCLE"
+                    onClicked: {
+                        root.addServerName = ""
+                        root.addServerUrl = ""
+                        root.openDialog("addServer")
+                    }
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 12
+                }
+            }
+        }
+
+        ScrollView {
+            id: accountsScroll
+
             Layout.fillWidth: true
-            spacing: 12
+            Layout.fillHeight: true
+            clip: true
+            contentWidth: availableWidth
+            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+            ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
             Column {
-                Layout.fillWidth: true
-                spacing: 4
+                id: accountListColumn
+
+                width: accountsScroll.availableWidth
+                spacing: 10
+
+                Item {
+                    width: 1
+                    height: 10
+                }
 
                 Text {
-                    text: "账户管理"
+                    visible: accountsModel.count === 0
+                    width: parent.width
+                    text: "还没有账户。请从左侧选择一种方式添加账户。"
+                    color: root.style.cTextOnSurfaceVariant
+                    font.pixelSize: 13
+                    horizontalAlignment: Text.AlignHCenter
+                    topPadding: 80
+                }
+
+                Repeater {
+                    model: accountsModel
+
+                    AccountCard {
+                        width: accountListColumn.width
+                        style: root.style
+                        accountIndex: index
+                        username: model.username
+                        uuid: model.uuid
+                        displayKind: model.displayKind
+                        serverUrl: model.serverUrl
+                        avatarUrl: model.avatarUrl
+                        selected: model.selected
+
+                        onSelectRequested: {
+                            root.backend.switchAccount(String(accountIndex))
+                            root.reloadAccounts()
+                        }
+
+                        onDeleteRequested: {
+                            root.deleteIndex = accountIndex
+                        }
+
+                        onRefreshRequested: {
+                            root.backend.switchAccount(String(accountIndex))
+                            root.reloadAccounts()
+                        }
+
+                        onCopyUuidRequested: {
+                            root.copyText(uuid)
+                        }
+
+                        onMoveRequested: {
+                            root.showUnsupportedHint("账户本地/全局迁移")
+                        }
+
+                        onUploadSkinRequested: {
+                            root.showUnsupportedHint("上传皮肤")
+                        }
+                    }
+                }
+
+                Item {
+                    width: 1
+                    height: 24
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        id: accountDialogOverlay
+
+        anchors.fill: parent
+        visible: root.dialogMode.length > 0 && root.deleteIndex < 0
+        z: 1000
+        color: "#80000000"
+
+        MouseArea {
+            anchors.fill: parent
+        }
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: Math.min(parent.width - 64, 560)
+            height: dialogContent.implicitHeight + 34
+            radius: 4
+            color: root.style.cSurface
+            border.color: root.style.cBorder
+            border.width: 1
+            clip: true
+
+            ColumnLayout {
+                id: dialogContent
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: 17
+                spacing: 14
+
+                Text {
+                    Layout.fillWidth: true
+                    text: root.dialogTitle()
                     color: root.style.cTextOnSurface
-                    font.pixelSize: 24
+                    font.pixelSize: 18
+                    font.bold: true
+                    elide: Text.ElideRight
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    text: root.dialogSubtitle()
+                    color: root.style.cTextOnSurfaceVariant
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                }
+
+                AccountField {
+                    visible: root.dialogMode === "offline"
+                    Layout.fillWidth: true
+                    style: root.style
+                    label: "玩家名"
+                    textValue: root.offlineName
+                    placeholderText: "Steve"
+                    onEdited: function(value) {
+                        root.offlineName = value
+                    }
+                }
+
+                Rectangle {
+                    visible: root.dialogMode === "microsoft"
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 62
+                    radius: 4
+                    color: root.style.cSurfaceContainer
+                    border.color: root.style.cBorder
+                    border.width: 1
+
+                    Text {
+                        anchors.fill: parent
+                        anchors.margins: 10
+                        text: "当前后端使用浏览器 OAuth。需要你自己的 Azure Public Client ID。"
+                        color: root.style.cTextOnSurfaceVariant
+                        font.pixelSize: 12
+                        wrapMode: Text.WordWrap
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                }
+
+                AccountField {
+                    visible: root.dialogMode === "microsoft"
+                    Layout.fillWidth: true
+                    style: root.style
+                    label: "Microsoft Client ID"
+                    textValue: root.microsoftClientId
+                    placeholderText: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    onEdited: function(value) {
+                        root.microsoftClientId = value
+                    }
+                }
+
+                AccountField {
+                    visible: root.dialogMode === "yggdrasil"
+                    Layout.fillWidth: true
+                    style: root.style
+                    label: "服务器 API 根地址"
+                    textValue: root.yggdrasilServer
+                    placeholderText: "https://littleskin.cn/api/yggdrasil"
+                    onEdited: function(value) {
+                        root.yggdrasilServer = value
+                    }
+                }
+
+                AccountField {
+                    visible: root.dialogMode === "yggdrasil"
+                    Layout.fillWidth: true
+                    style: root.style
+                    label: "用户名 / 邮箱"
+                    textValue: root.yggdrasilUsername
+                    placeholderText: "name@example.com"
+                    onEdited: function(value) {
+                        root.yggdrasilUsername = value
+                    }
+                }
+
+                AccountField {
+                    visible: root.dialogMode === "yggdrasil"
+                    Layout.fillWidth: true
+                    style: root.style
+                    label: "密码"
+                    textValue: root.yggdrasilPassword
+                    placeholderText: "Password"
+                    password: true
+                    onEdited: function(value) {
+                        root.yggdrasilPassword = value
+                    }
+                }
+
+                AccountField {
+                    visible: root.dialogMode === "addServer"
+                    Layout.fillWidth: true
+                    style: root.style
+                    label: "服务器名称"
+                    textValue: root.addServerName
+                    placeholderText: "LittleSkin"
+                    onEdited: function(value) {
+                        root.addServerName = value
+                    }
+                }
+
+                AccountField {
+                    visible: root.dialogMode === "addServer"
+                    Layout.fillWidth: true
+                    style: root.style
+                    label: "服务器 API 根地址"
+                    textValue: root.addServerUrl
+                    placeholderText: "https://example.com/api/yggdrasil"
+                    onEdited: function(value) {
+                        root.addServerUrl = value
+                    }
+                }
+
+                Text {
+                    visible: root.backend.output.length > 0
+                             && (root.dialogMode === "microsoft" || root.dialogMode === "yggdrasil")
+                    Layout.fillWidth: true
+                    text: root.backend.output
+                    color: root.style.cTextOnSurfaceVariant
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 6
+                    elide: Text.ElideRight
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Item {
+                        Layout.fillWidth: true
+                    }
+
+                    DialogButton {
+                        style: root.style
+                        text: "取消"
+                        onClicked: root.closeDialog()
+                    }
+
+                    DialogButton {
+                        style: root.style
+                        text: root.dialogAcceptText()
+                        primary: true
+                        onClicked: root.acceptDialog()
+                    }
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        id: deleteOverlay
+
+        anchors.fill: parent
+        visible: root.deleteIndex >= 0
+        z: 1100
+        color: "#80000000"
+
+        MouseArea {
+            anchors.fill: parent
+        }
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: Math.min(parent.width - 64, 420)
+            height: 168
+            radius: 4
+            color: root.style.cSurface
+            border.color: root.style.cBorder
+            border.width: 1
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 17
+                spacing: 12
+
+                Text {
+                    Layout.fillWidth: true
+                    text: "删除账户"
+                    color: root.style.cTextOnSurface
+                    font.pixelSize: 18
                     font.bold: true
                 }
 
                 Text {
-                    text: "管理已添加账户，点击账户即可切换。"
+                    Layout.fillWidth: true
+                    text: "确定要删除这个账户吗？"
                     color: root.style.cTextOnSurfaceVariant
                     font.pixelSize: 12
+                    wrapMode: Text.WordWrap
                 }
-            }
 
-            ActionButton {
-                style: root.style
-                text: "刷新账户"
-                primary: false
-                onClicked: root.reloadAccounts()
-            }
-        }
-
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.maximumWidth: 960
-            Layout.preferredHeight: 430
-            radius: root.style.radiusValue
-            color: root.style.cSurfaceContainerHigh
-            border.color: root.style.cBorder
-            border.width: 1
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.margins: 14
-                spacing: 14
-
-                Rectangle {
-                    Layout.preferredWidth: 300
+                Item {
                     Layout.fillHeight: true
-                    radius: root.style.radiusValue
-                    color: root.style.cSurfaceContainer
-                    border.color: root.style.cBorder
-                    border.width: 1
-                    clip: true
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 10
-                        spacing: 8
-
-                        Text {
-                            text: "已有账户"
-                            color: root.style.cTextOnSurface
-                            font.pixelSize: 16
-                            font.bold: true
-                        }
-
-                        Text {
-                            text: accountsModel.count > 0
-                                  ? "点击账户切换，右侧可继续添加账户。"
-                                  : "还没有账户。先在右侧添加一个。"
-                            color: root.style.cTextOnSurfaceVariant
-                            font.pixelSize: 12
-                            wrapMode: Text.WordWrap
-                            Layout.fillWidth: true
-                        }
-
-                        ListView {
-                            id: accountsList
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            clip: true
-                            model: accountsModel
-                            spacing: 8
-
-                            delegate: Rectangle {
-                                id: accountItem
-
-                                width: accountsList.width
-                                height: 74
-                                radius: 8
-                                color: selected ? root.style.cNavSelected : mouse.containsMouse ? root.style.cNavHover : "transparent"
-                                border.width: selected ? 1 : 0
-                                border.color: root.style.cButtonSelected
-
-                                MouseArea {
-                                    id: mouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.switchAccount(index)
-                                }
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: 8
-                                    spacing: 10
-
-                                    Rectangle {
-                                        Layout.preferredWidth: 48
-                                        Layout.preferredHeight: 48
-                                        radius: 8
-                                        color: root.style.cButtonSurface
-                                        border.color: root.style.cBorder
-                                        border.width: 1
-                                        clip: true
-
-                                        Image {
-                                            id: accountAvatarImage
-                                            anchors.fill: parent
-                                            anchors.margins: 2
-                                            source: avatarUrl
-                                            fillMode: Image.PreserveAspectFit
-                                            visible: avatarUrl.length > 0 && status !== Image.Error
-                                            cache: true
-                                        }
-
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: username.length > 0 ? username.substring(0, 1).toUpperCase() : "?"
-                                            color: root.style.cTextOnSurfaceVariant
-                                            font.pixelSize: 22
-                                            font.bold: true
-                                            visible: !accountAvatarImage.visible
-                                        }
-                                    }
-
-                                    Column {
-                                        Layout.fillWidth: true
-                                        spacing: 4
-
-                                        Text {
-                                            width: parent.width
-                                            text: username
-                                            color: root.style.cTextOnSurface
-                                            font.pixelSize: 14
-                                            font.bold: selected
-                                            elide: Text.ElideRight
-                                        }
-
-                                        Text {
-                                            width: parent.width
-                                            text: displayKind + (serverUrl ? " · " + serverUrl : "")
-                                            color: root.style.cTextOnSurfaceVariant
-                                            font.pixelSize: 11
-                                            elide: Text.ElideRight
-                                        }
-                                    }
-
-                                    SmallButton {
-                                        style: root.style
-                                        text: "删除"
-                                        onClicked: {
-                                            root.backend.deleteAccount(String(index))
-                                            root.reloadAccounts()
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
 
-                Rectangle {
+                RowLayout {
                     Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    radius: root.style.radiusValue
-                    color: root.style.cSurfaceContainer
-                    border.color: root.style.cBorder
-                    border.width: 1
-                    clip: true
 
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 14
-                        spacing: 12
+                    Item {
+                        Layout.fillWidth: true
+                    }
 
-                        Row {
-                            spacing: 8
+                    DialogButton {
+                        style: root.style
+                        text: "取消"
+                        onClicked: root.deleteIndex = -1
+                    }
 
-                            ChoiceButton {
-                                style: root.style
-                                text: "离线"
-                                selected: root.loginMode === "offline"
-                                onClicked: root.loginMode = "offline"
-                            }
-
-                            ChoiceButton {
-                                style: root.style
-                                text: "Microsoft"
-                                selected: root.loginMode === "microsoft"
-                                onClicked: root.loginMode = "microsoft"
-                            }
-
-                            ChoiceButton {
-                                style: root.style
-                                text: "第三方服务器"
-                                selected: root.loginMode === "yggdrasil"
-                                onClicked: root.loginMode = "yggdrasil"
-                            }
-                        }
-
-                        ScrollView {
-                            id: addScroll
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            clip: true
-                            contentWidth: availableWidth
-                            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                            ScrollBar.vertical.policy: ScrollBar.AsNeeded
-
-                            ColumnLayout {
-                                width: addScroll.availableWidth
-                                spacing: 12
-
-                                PageHeader {
-                                    visible: root.loginMode === "offline"
-                                    Layout.fillWidth: true
-                                    style: root.style
-                                    title: "添加离线账户"
-                                    subtitle: "离线账户不会验证正版身份，适合本地测试和离线游戏。"
-                                }
-
-                                AccountField {
-                                    visible: root.loginMode === "offline"
-                                    Layout.fillWidth: true
-                                    style: root.style
-                                    label: "玩家名"
-                                    textValue: root.offlineName
-                                    placeholderText: "Steve"
-                                    onEdited: function(value) {
-                                        root.offlineName = value
-                                    }
-                                }
-
-                                ActionButton {
-                                    visible: root.loginMode === "offline"
-                                    style: root.style
-                                    text: "添加并切换"
-                                    primary: true
-                                    onClicked: {
-                                        root.backend.loginOffline(root.offlineName)
-                                        root.reloadAccounts()
-                                    }
-                                }
-
-                                PageHeader {
-                                    visible: root.loginMode === "microsoft"
-                                    Layout.fillWidth: true
-                                    style: root.style
-                                    title: "添加 Microsoft 账户"
-                                    subtitle: "打开系统浏览器完成登录。登录成功后会自动加入账户列表并切换到该账户。"
-                                }
-
-                                Rectangle {
-                                    visible: root.loginMode === "microsoft"
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 62
-                                    radius: root.style.radiusValue
-                                    color: root.style.cSurfaceContainerHigh
-                                    border.color: root.style.cBorder
-                                    border.width: 1
-
-                                    Text {
-                                        anchors.fill: parent
-                                        anchors.margins: 10
-                                        text: "需要你自己的 Azure Public Client ID。不能复用 HMCL 官方客户端 ID。"
-                                        color: root.style.cTextOnSurfaceVariant
-                                        font.pixelSize: 12
-                                        wrapMode: Text.WordWrap
-                                        verticalAlignment: Text.AlignVCenter
-                                    }
-                                }
-
-                                AccountField {
-                                    visible: root.loginMode === "microsoft"
-                                    Layout.fillWidth: true
-                                    style: root.style
-                                    label: "Microsoft Client ID"
-                                    textValue: root.microsoftClientId
-                                    placeholderText: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                                    onEdited: function(value) {
-                                        root.microsoftClientId = value
-                                    }
-                                }
-
-                                ActionButton {
-                                    visible: root.loginMode === "microsoft"
-                                    style: root.style
-                                    text: "打开浏览器登录 Microsoft"
-                                    primary: true
-                                    width: 220
-                                    onClicked: {
-                                        root.backend.loginMicrosoftBrowser(root.microsoftClientId)
-                                        root.reloadAccounts()
-                                    }
-                                }
-
-                                PageHeader {
-                                    visible: root.loginMode === "yggdrasil"
-                                    Layout.fillWidth: true
-                                    style: root.style
-                                    title: "添加第三方服务器账户"
-                                    subtitle: "适用于 LittleSkin、Blessing Skin 或其他 Yggdrasil/authlib-injector 兼容服务器。"
-                                }
-
-                                AccountField {
-                                    visible: root.loginMode === "yggdrasil"
-                                    Layout.fillWidth: true
-                                    style: root.style
-                                    label: "服务器 API 根地址"
-                                    textValue: root.yggdrasilServer
-                                    placeholderText: "https://littleskin.cn/api/yggdrasil"
-                                    onEdited: function(value) {
-                                        root.yggdrasilServer = value
-                                    }
-                                }
-
-                                Row {
-                                    visible: root.loginMode === "yggdrasil"
-                                    spacing: 8
-
-                                    SmallButton {
-                                        style: root.style
-                                        text: "LittleSkin"
-                                        onClicked: root.yggdrasilServer = "https://littleskin.cn/api/yggdrasil"
-                                    }
-
-                                    SmallButton {
-                                        style: root.style
-                                        text: "清空"
-                                        onClicked: root.yggdrasilServer = ""
-                                    }
-                                }
-
-                                AccountField {
-                                    visible: root.loginMode === "yggdrasil"
-                                    Layout.fillWidth: true
-                                    style: root.style
-                                    label: "用户名 / 邮箱"
-                                    textValue: root.yggdrasilUsername
-                                    placeholderText: "name@example.com"
-                                    onEdited: function(value) {
-                                        root.yggdrasilUsername = value
-                                    }
-                                }
-
-                                AccountField {
-                                    visible: root.loginMode === "yggdrasil"
-                                    Layout.fillWidth: true
-                                    style: root.style
-                                    label: "密码"
-                                    textValue: root.yggdrasilPassword
-                                    placeholderText: "Password"
-                                    password: true
-                                    onEdited: function(value) {
-                                        root.yggdrasilPassword = value
-                                    }
-                                }
-
-                                ActionButton {
-                                    visible: root.loginMode === "yggdrasil"
-                                    style: root.style
-                                    text: "登录并切换"
-                                    primary: true
-                                    onClicked: {
-                                        root.backend.loginYggdrasil(
-                                            root.yggdrasilServer,
-                                            root.yggdrasilUsername,
-                                            root.yggdrasilPassword
-                                        )
-                                        root.reloadAccounts()
-                                        root.loadPendingYggdrasilProfiles()
-                                    }
-                                }
-                            }
+                    DialogButton {
+                        style: root.style
+                        text: "删除"
+                        primary: true
+                        onClicked: {
+                            root.backend.deleteAccount(String(root.deleteIndex))
+                            root.deleteIndex = -1
+                            root.reloadAccounts()
                         }
                     }
                 }
             }
-        }
-
-        OutputPanel {
-            Layout.fillWidth: true
-            Layout.maximumWidth: 960
-            Layout.fillHeight: true
-            Layout.minimumHeight: 150
-            style: root.style
-            text: root.backend.output
         }
     }
-
 
     Rectangle {
         id: yggdrasilProfileOverlay
 
         anchors.fill: parent
-        z: 1000
+        z: 1200
         visible: root.yggdrasilProfileDialogOpen
         color: "#80000000"
 
@@ -454,14 +514,14 @@ Item {
             anchors.centerIn: parent
             width: Math.min(root.width - 64, 520)
             height: Math.min(root.height - 64, 420)
-            radius: 8
-            color: root.style.cSurfaceContainer
+            radius: 4
+            color: root.style.cSurface
             border.color: root.style.cBorder
             border.width: 1
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 16
+                anchors.margins: 17
                 spacing: 12
 
                 Text {
@@ -475,102 +535,76 @@ Item {
 
                 Text {
                     Layout.fillWidth: true
-                    text: "第三方账户 " + root.yggdrasilProfileUsername + " 有多个角色。请选择一个角色继续登录。\n服务器：" + root.yggdrasilProfileServer
+                    text: "第三方账户 " + root.yggdrasilProfileUsername + " 返回了多个角色。"
                     color: root.style.cTextOnSurfaceVariant
                     font.pixelSize: 12
                     wrapMode: Text.WordWrap
                 }
 
-                Rectangle {
+                ListView {
+                    id: profileList
+
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    radius: 6
-                    color: root.style.cSurfaceContainerHigh
-                    border.color: root.style.cBorder
-                    border.width: 1
                     clip: true
+                    spacing: 8
+                    model: yggdrasilProfileModel
+                    ScrollBar.vertical: ScrollBar {
+                        policy: ScrollBar.AsNeeded
+                    }
 
-                    ListView {
-                        id: profileList
-                        anchors.fill: parent
-                        anchors.margins: 8
-                        clip: true
-                        spacing: 8
-                        model: yggdrasilProfileModel
-                        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                    delegate: Rectangle {
+                        width: profileList.width
+                        height: 62
+                        radius: 4
+                        color: profileMouse.containsMouse ? root.style.cNavHover : root.style.cSurfaceContainer
+                        border.color: root.style.cBorder
+                        border.width: 1
 
-                        delegate: Rectangle {
-                            width: profileList.width
-                            height: 62
-                            radius: 8
-                            color: profileMouse.containsMouse ? root.style.cNavHover : "transparent"
-                            border.color: root.style.cBorder
-                            border.width: 1
+                        MouseArea {
+                            id: profileMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
 
-                            MouseArea {
-                                id: profileMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    root.backend.selectYggdrasilProfile(String(index))
-                                    root.yggdrasilProfileDialogOpen = false
-                                    root.reloadAccounts()
-                                }
+                            onClicked: {
+                                root.backend.selectYggdrasilProfile(String(index))
+                                root.yggdrasilProfileDialogOpen = false
+                                root.reloadAccounts()
+                            }
+                        }
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.margins: 8
+                            spacing: 10
+
+                            AvatarBox {
+                                style: root.style
+                                source: avatarUrl
+                                fallbackText: name.length > 0 ? name.substring(0, 1).toUpperCase() : "?"
+                                size: 44
                             }
 
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.margins: 8
-                                spacing: 10
+                            Column {
+                                Layout.fillWidth: true
+                                spacing: 4
 
-                                Rectangle {
-                                    Layout.preferredWidth: 44
-                                    Layout.preferredHeight: 44
-                                    radius: 8
-                                    color: root.style.cButtonSurface
-                                    border.color: root.style.cBorder
-                                    border.width: 1
-                                    clip: true
-
-                                    Image {
-                                        anchors.fill: parent
-                                        anchors.margins: 2
-                                        source: avatarUrl
-                                        fillMode: Image.PreserveAspectFit
-                                        visible: avatarUrl.length > 0
-                                    }
-
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: name.length > 0 ? name.substring(0, 1).toUpperCase() : "?"
-                                        color: root.style.cTextOnSurfaceVariant
-                                        font.pixelSize: 20
-                                        font.bold: true
-                                        visible: avatarUrl.length === 0
-                                    }
+                                Text {
+                                    width: parent.width
+                                    text: name
+                                    color: root.style.cTextOnSurface
+                                    font.pixelSize: 14
+                                    font.bold: true
+                                    elide: Text.ElideRight
                                 }
 
-                                Column {
-                                    Layout.fillWidth: true
-                                    spacing: 4
-
-                                    Text {
-                                        width: parent.width
-                                        text: name
-                                        color: root.style.cTextOnSurface
-                                        font.pixelSize: 14
-                                        font.bold: true
-                                        elide: Text.ElideRight
-                                    }
-
-                                    Text {
-                                        width: parent.width
-                                        text: uuid
-                                        color: root.style.cTextOnSurfaceVariant
-                                        font.pixelSize: 10
-                                        elide: Text.ElideMiddle
-                                    }
+                                Text {
+                                    width: parent.width
+                                    text: uuid
+                                    color: root.style.cTextOnSurfaceVariant
+                                    font.pixelSize: 10
+                                    elide: Text.ElideMiddle
                                 }
                             }
                         }
@@ -588,7 +622,7 @@ Item {
                         elide: Text.ElideRight
                     }
 
-                    SmallButton {
+                    DialogButton {
                         style: root.style
                         text: "取消"
                         onClicked: root.yggdrasilProfileDialogOpen = false
@@ -598,31 +632,118 @@ Item {
         }
     }
 
-    function reloadAccounts() {
-        var raw = root.backend.refreshAccounts()
-        var payload = JSON.parse(raw)
+    function openDialog(mode) {
+        root.dialogMode = mode
+    }
 
-        accountsModel.clear()
+    function closeDialog() {
+        root.dialogMode = ""
+    }
 
-        if (!payload.accounts) {
+    function dialogTitle() {
+        if (root.dialogMode === "offline") return "添加离线账户"
+        if (root.dialogMode === "microsoft") return "添加 Microsoft 账户"
+        if (root.dialogMode === "yggdrasil") return "添加第三方服务器账户"
+        if (root.dialogMode === "addServer") return "添加认证服务器"
+        return ""
+    }
+
+    function dialogSubtitle() {
+        if (root.dialogMode === "offline") return "创建一个本地离线账户。"
+        if (root.dialogMode === "microsoft") return "打开系统浏览器完成 Microsoft 正版登录。"
+        if (root.dialogMode === "yggdrasil") return "适用于 LittleSkin、Blessing Skin 或其他 Yggdrasil/authlib-injector 兼容服务器。"
+        if (root.dialogMode === "addServer") return "添加后会出现在左侧创建账户列表中。"
+        return ""
+    }
+
+    function dialogAcceptText() {
+        if (root.dialogMode === "addServer") return "添加"
+        return "确定"
+    }
+
+    function acceptDialog() {
+        if (root.dialogMode === "offline") {
+            root.backend.loginOffline(root.offlineName)
+            root.reloadAccounts()
+            root.closeDialog()
             return
         }
 
-        for (var i = 0; i < payload.accounts.length; i++) {
-            var account = payload.accounts[i]
-            accountsModel.append({
-                "username": account.username || "",
-                "uuid": account.uuid || "",
-                "kind": account.kind || "",
-                "displayKind": account.displayKind || "",
-                "serverUrl": account.serverUrl || "",
-                "avatarUrl": account.avatarUrl || "",
-                "note": account.note || "",
-                "selected": !!account.selected
-            })
+        if (root.dialogMode === "microsoft") {
+            root.backend.loginMicrosoftBrowser(root.microsoftClientId)
+            root.reloadAccounts()
+            root.closeDialog()
+            return
+        }
+
+        if (root.dialogMode === "yggdrasil") {
+            root.backend.loginYggdrasil(root.yggdrasilServer, root.yggdrasilUsername, root.yggdrasilPassword)
+            root.reloadAccounts()
+            root.loadPendingYggdrasilProfiles()
+            if (!root.yggdrasilProfileDialogOpen) {
+                root.closeDialog()
+            }
+            return
+        }
+
+        if (root.dialogMode === "addServer") {
+            var name = root.addServerName.trim()
+            var url = root.addServerUrl.trim()
+
+            if (name.length === 0) {
+                name = url
+            }
+
+            if (url.length > 0) {
+                authServersModel.append({
+                    "name": name,
+                    "url": url,
+                    "host": root.hostFromUrl(url)
+                })
+                root.yggdrasilServer = url
+                root.closeDialog()
+            }
+
+            return
         }
     }
 
+    function reloadAccounts() {
+        var raw = root.backend.refreshAccounts()
+        root.reloadAccountsFromJson(raw)
+    }
+
+    function reloadAccountsFromJson(raw) {
+        accountsModel.clear()
+
+        if (!raw || raw.length === 0) {
+            return
+        }
+
+        try {
+            var payload = JSON.parse(raw)
+
+            if (!payload.accounts) {
+                return
+            }
+
+            for (var i = 0; i < payload.accounts.length; i++) {
+                var account = payload.accounts[i]
+                accountsModel.append({
+                    "username": account.username || "",
+                    "uuid": account.uuid || "",
+                    "kind": account.kind || "",
+                    "displayKind": account.displayKind || "",
+                    "serverUrl": account.serverUrl || "",
+                    "avatarUrl": account.avatarUrl || "",
+                    "note": account.note || "",
+                    "selected": !!account.selected
+                })
+            }
+        } catch (e) {
+            console.log("Failed to parse accounts JSON", e)
+        }
+    }
 
     function loadPendingYggdrasilProfiles() {
         var raw = root.backend.pendingYggdrasilProfilesJson
@@ -660,32 +781,384 @@ Item {
         }
     }
 
-    function switchAccount(index) {
-        root.backend.switchAccount(String(index))
+    function hostFromUrl(url) {
+        try {
+            var parts = url.split("/")
+            if (parts.length >= 3) {
+                return parts[2]
+            }
+        } catch (e) {
+        }
+        return url
     }
 
-    component PageHeader: ColumnLayout {
+    function copyText(value) {
+        // Qt QML 没有跨平台稳定剪贴板 API；这里先选中输出语义。
+        // 后端剪贴板会下一步接到 Rust/系统命令层。
+        console.log("UUID:", value)
+    }
+
+    function showUnsupportedHint(name) {
+        console.log(name + " 当前后端还没有实现。")
+    }
+
+    component HmclClassTitle: Item {
+        id: titleItem
+
+        required property var style
+        property string title: ""
+
+        width: parent ? parent.width : 200
+        height: 34
+
+        Column {
+            anchors.fill: parent
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
+            anchors.topMargin: 8
+            anchors.bottomMargin: 8
+            spacing: 0
+
+            Text {
+                width: parent.width
+                height: 16
+                text: titleItem.title
+                color: titleItem.style.cTextOnSurface
+                font.pixelSize: 12
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
+            }
+
+            Rectangle {
+                width: parent.width
+                height: 1
+                color: titleItem.style.cTextOnSurfaceVariant
+            }
+        }
+    }
+
+    component HmclNavMethodItem: Item {
+        id: item
+
         required property var style
         property string title: ""
         property string subtitle: ""
+        property string iconKind: ""
+        property string rightIconKind: ""
 
-        spacing: 5
+        signal clicked()
+        signal rightClicked()
+
+        width: parent ? parent.width : 200
+        height: subtitle.length > 0 ? 58 : 52
+        clip: true
+
+        HmclRipple {
+            id: ripple
+            anchors.fill: parent
+            hovered: mouseArea.containsMouse
+            hoverColor: item.style.cTextOnSurface
+            hoverOpacity: 0.04
+            rippleColor: item.style.cTextOnSurfaceVariant
+            rippleOpacity: 0.10
+            animationsEnabled: item.style.animationsEnabled
+            hoverDuration: item.style.motionShort4
+        }
+
+        MouseArea {
+            id: mouseArea
+
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+
+            onPressed: function(event) {
+                ripple.press(event.x, event.y)
+            }
+
+            onClicked: item.clicked()
+        }
+
+        HmclSvgIcon {
+            anchors.left: parent.left
+            anchors.leftMargin: 16
+            anchors.verticalCenter: parent.verticalCenter
+            icon: item.iconKind
+            iconSize: 24
+            iconColor: item.style.cTextOnSurface
+            animationsEnabled: item.style.animationsEnabled
+            animationDuration: item.style.motionShort4
+        }
+
+        Column {
+            anchors.left: parent.left
+            anchors.leftMargin: 58
+            anchors.right: rightButton.visible ? rightButton.left : parent.right
+            anchors.rightMargin: 8
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 3
+
+            Text {
+                width: parent.width
+                text: item.title
+                color: item.style.cTextOnSurface
+                font.pixelSize: 13
+                elide: Text.ElideRight
+            }
+
+            Text {
+                width: parent.width
+                visible: item.subtitle.length > 0
+                text: item.subtitle
+                color: item.style.cTextOnSurfaceVariant
+                font.pixelSize: 10
+                elide: Text.ElideRight
+            }
+        }
+
+        Item {
+            id: rightButton
+
+            anchors.right: parent.right
+            anchors.rightMargin: 8
+            anchors.verticalCenter: parent.verticalCenter
+            width: 32
+            height: 32
+            visible: item.rightIconKind.length > 0
+
+            HmclSvgIcon {
+                anchors.centerIn: parent
+                icon: item.rightIconKind
+                iconSize: 18
+                iconColor: item.style.cTextOnSurfaceVariant
+                animationsEnabled: item.style.animationsEnabled
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: item.rightClicked()
+            }
+        }
+    }
+
+    component AccountCard: Rectangle {
+        id: card
+
+        required property var style
+        property int accountIndex: -1
+        property string username: ""
+        property string uuid: ""
+        property string displayKind: ""
+        property string serverUrl: ""
+        property string avatarUrl: ""
+        property bool selected: false
+
+        signal selectRequested()
+        signal deleteRequested()
+        signal refreshRequested()
+        signal copyUuidRequested()
+        signal moveRequested()
+        signal uploadSkinRequested()
+
+        height: 80
+        radius: 4
+        color: style.cSurfaceContainer
+        border.color: selected ? style.cButtonSelected : style.cBorder
+        border.width: selected ? 1 : 0
+
+        MouseArea {
+            id: cardMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: card.selectRequested()
+        }
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.margins: 8
+            spacing: 8
+
+            Item {
+                Layout.preferredWidth: 28
+                Layout.fillHeight: true
+
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: 18
+                    height: 18
+                    radius: 9
+                    color: "transparent"
+                    border.color: card.selected ? card.style.cButtonSelected : card.style.cTextOnSurfaceVariant
+                    border.width: 2
+
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: 8
+                        height: 8
+                        radius: 4
+                        visible: card.selected
+                        color: card.style.cButtonSelected
+                    }
+                }
+            }
+
+            AvatarBox {
+                style: card.style
+                source: card.avatarUrl
+                fallbackText: card.username.length > 0 ? card.username.substring(0, 1).toUpperCase() : "?"
+                size: 32
+            }
+
+            Column {
+                Layout.fillWidth: true
+                spacing: 4
+
+                Text {
+                    width: parent.width
+                    text: card.username
+                    color: card.style.cTextOnSurface
+                    font.pixelSize: 14
+                    font.bold: card.selected
+                    elide: Text.ElideRight
+                }
+
+                Text {
+                    width: parent.width
+                    text: card.displayKind + (card.serverUrl.length > 0 ? ", 认证服务器: " + card.serverUrl : "")
+                    color: card.style.cTextOnSurfaceVariant
+                    font.pixelSize: 11
+                    elide: Text.ElideRight
+                }
+            }
+
+            Row {
+                Layout.preferredWidth: 176
+                Layout.alignment: Qt.AlignVCenter
+                spacing: 2
+
+                IconButton {
+                    style: card.style
+                    iconKind: "OUTPUT"
+                    tooltip: "迁移账户存储"
+                    onClicked: card.moveRequested()
+                }
+
+                IconButton {
+                    style: card.style
+                    iconKind: "REFRESH"
+                    tooltip: "刷新"
+                    onClicked: card.refreshRequested()
+                }
+
+                IconButton {
+                    style: card.style
+                    iconKind: "CHECKROOM"
+                    tooltip: "上传皮肤"
+                    onClicked: card.uploadSkinRequested()
+                }
+
+                IconButton {
+                    style: card.style
+                    iconKind: "CONTENT_COPY"
+                    tooltip: "复制 UUID"
+                    onClicked: card.copyUuidRequested()
+                }
+
+                IconButton {
+                    style: card.style
+                    iconKind: "DELETE_FOREVER"
+                    tooltip: "删除"
+                    onClicked: card.deleteRequested()
+                }
+            }
+        }
+    }
+
+    component AvatarBox: Rectangle {
+        id: avatar
+
+        required property var style
+        property string source: ""
+        property string fallbackText: "?"
+        property int size: 32
+
+        Layout.preferredWidth: size
+        Layout.preferredHeight: size
+        width: size
+        height: size
+        radius: 4
+        color: style.cButtonSurface
+        border.color: style.cBorder
+        border.width: 1
+        clip: true
+
+        Image {
+            id: avatarImage
+            anchors.fill: parent
+            source: avatar.source
+            fillMode: Image.PreserveAspectFit
+            visible: avatar.source.length > 0 && status !== Image.Error
+            cache: true
+            smooth: false
+        }
 
         Text {
-            Layout.fillWidth: true
-            text: parent.title
-            color: parent.style.cTextOnSurface
-            font.pixelSize: 18
+            anchors.centerIn: parent
+            visible: !avatarImage.visible
+            text: avatar.fallbackText
+            color: avatar.style.cTextOnSurfaceVariant
+            font.pixelSize: avatar.size >= 40 ? 20 : 15
             font.bold: true
         }
+    }
 
-        Text {
-            Layout.fillWidth: true
-            text: parent.subtitle
-            color: parent.style.cTextOnSurfaceVariant
-            font.pixelSize: 12
-            wrapMode: Text.WordWrap
+    component IconButton: Item {
+        id: button
+
+        required property var style
+        property string iconKind: ""
+        property string tooltip: ""
+
+        signal clicked()
+
+        width: 32
+        height: 32
+
+        Rectangle {
+            anchors.fill: parent
+            radius: 16
+            color: mouse.containsMouse
+                   ? Qt.rgba(button.style.cTextOnSurface.r,
+                             button.style.cTextOnSurface.g,
+                             button.style.cTextOnSurface.b,
+                             0.06)
+                   : "transparent"
         }
+
+        HmclSvgIcon {
+            anchors.centerIn: parent
+            icon: button.iconKind
+            iconSize: 18
+            iconColor: button.style.cTextOnSurfaceVariant
+            animationsEnabled: button.style.animationsEnabled
+        }
+
+        MouseArea {
+            id: mouse
+
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+
+            onClicked: button.clicked()
+        }
+
+        ToolTip.visible: mouse.containsMouse && button.tooltip.length > 0
+        ToolTip.text: button.tooltip
+        ToolTip.delay: 350
     }
 
     component AccountField: Item {
@@ -715,13 +1188,14 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 36
-                radius: 8
+                radius: 4
                 color: field.style.cButtonSurface
                 border.color: input.activeFocus ? field.style.cButtonSelected : field.style.cBorder
                 border.width: 1
 
                 TextField {
                     id: input
+
                     anchors.fill: parent
                     anchors.leftMargin: 8
                     anchors.rightMargin: 8
@@ -732,51 +1206,14 @@ Item {
                     placeholderTextColor: field.style.cTextOnSurfaceVariant
                     background: Item {}
                     selectByMouse: true
+
                     onTextChanged: field.edited(text)
                 }
             }
         }
     }
 
-    component ChoiceButton: Rectangle {
-        id: button
-
-        required property var style
-        property string text: ""
-        property bool selected: false
-
-        signal clicked()
-
-        width: Math.max(74, label.implicitWidth + 24)
-        height: 34
-        radius: 17
-
-        color: selected
-               ? style.cButtonSelected
-               : mouse.containsMouse ? style.cButtonHover : style.cButtonSurface
-
-        border.width: selected ? 0 : 1
-        border.color: style.cBorder
-
-        Text {
-            id: label
-            anchors.centerIn: parent
-            text: button.text
-            color: button.selected ? button.style.cButtonSelectedText : button.style.cTextOnSurface
-            font.pixelSize: 13
-            font.bold: button.selected
-        }
-
-        MouseArea {
-            id: mouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: button.clicked()
-        }
-    }
-
-    component ActionButton: Rectangle {
+    component DialogButton: Rectangle {
         id: button
 
         required property var style
@@ -785,14 +1222,12 @@ Item {
 
         signal clicked()
 
-        width: Math.max(160, label.implicitWidth + 28)
-        height: 38
-        radius: 19
-
+        width: Math.max(76, label.implicitWidth + 28)
+        height: 36
+        radius: 4
         color: primary
-               ? mouse.containsMouse ? style.cLaunchButtonHover : style.cLaunchButton
-               : mouse.containsMouse ? style.cButtonHover : style.cButtonSurface
-
+               ? style.cButtonSelected
+               : mouse.containsMouse ? style.cButtonHover : "transparent"
         border.width: primary ? 0 : 1
         border.color: style.cBorder
 
@@ -800,7 +1235,7 @@ Item {
             id: label
             anchors.centerIn: parent
             text: button.text
-            color: button.primary ? button.style.cLaunchButtonText : button.style.cTextOnSurface
+            color: button.primary ? button.style.cButtonSelectedText : button.style.cTextOnSurface
             font.pixelSize: 13
             font.bold: button.primary
         }
@@ -811,84 +1246,6 @@ Item {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: button.clicked()
-        }
-    }
-
-    component SmallButton: Rectangle {
-        id: button
-
-        required property var style
-        property string text: ""
-
-        signal clicked()
-
-        width: Math.max(58, label.implicitWidth + 18)
-        height: 28
-        radius: 14
-
-        color: mouse.containsMouse ? style.cButtonHover : style.cButtonSurface
-        border.width: 1
-        border.color: style.cBorder
-
-        Text {
-            id: label
-            anchors.centerIn: parent
-            text: button.text
-            color: button.style.cTextOnSurface
-            font.pixelSize: 12
-        }
-
-        MouseArea {
-            id: mouse
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: button.clicked()
-        }
-    }
-
-    component OutputPanel: Rectangle {
-        id: panel
-
-        required property var style
-        property string text: ""
-
-        radius: style.radiusValue
-        color: style.cSurfaceContainer
-        border.color: style.cBorder
-        border.width: 1
-
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 12
-            spacing: 8
-
-            Text {
-                text: "输出"
-                color: panel.style.cTextOnSurface
-                font.pixelSize: 14
-                font.bold: true
-            }
-
-            ScrollView {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                clip: true
-                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                ScrollBar.vertical.policy: ScrollBar.AsNeeded
-
-                TextArea {
-                    width: parent.width
-                    readOnly: true
-                    wrapMode: TextEdit.Wrap
-                    selectByMouse: true
-                    text: panel.text
-                    placeholderText: "账户操作结果会显示在这里。"
-                    color: panel.style.cTextOnSurface
-                    placeholderTextColor: panel.style.cTextOnSurfaceVariant
-                    background: Item {}
-                }
-            }
         }
     }
 }
