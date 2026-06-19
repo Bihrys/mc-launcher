@@ -35,9 +35,13 @@ Item {
         HmclRipple {
             id: mainRipple
             anchors.fill: parent
+            hovered: mainMouse.containsMouse
+            hoverColor: root.style.cTextOnPrimaryContainer
+            hoverOpacity: 0.04
             rippleColor: root.style.cTextOnPrimaryContainer
             rippleOpacity: 0.13
             animationsEnabled: root.style.animationsEnabled
+            hoverDuration: root.style.motionShort4
         }
 
         Rectangle {
@@ -75,7 +79,9 @@ Item {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onPressed: mainRipple.press(mouse.x, mouse.y)
+            onPressed: function(mouse) {
+                mainRipple.press(mouse.x, mouse.y)
+            }
             onClicked: root.launchClicked()
         }
     }
@@ -101,9 +107,13 @@ Item {
         HmclRipple {
             id: menuRipple
             anchors.fill: parent
+            hovered: menuMouse.containsMouse
+            hoverColor: root.style.cTextOnPrimaryContainer
+            hoverOpacity: 0.04
             rippleColor: root.style.cTextOnPrimaryContainer
             rippleOpacity: 0.13
             animationsEnabled: root.style.animationsEnabled
+            hoverDuration: root.style.motionShort4
         }
 
         Rectangle {
@@ -128,7 +138,9 @@ Item {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onPressed: menuRipple.press(mouse.x, mouse.y)
+            onPressed: function(mouse) {
+                menuRipple.press(mouse.x, mouse.y)
+            }
             onClicked: root.menuClicked()
         }
     }

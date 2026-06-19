@@ -212,9 +212,7 @@ Rectangle {
 
         Rectangle {
             anchors.fill: parent
-            color: item.active
-                   ? item.style.cNavSelected
-                   : mouse.containsMouse ? item.style.cNavHover : "transparent"
+            color: item.active ? item.style.cNavSelected : "transparent"
 
             Behavior on color {
                 ColorAnimation {
@@ -227,9 +225,13 @@ Rectangle {
         HmclRipple {
             id: accountRipple
             anchors.fill: parent
-            rippleColor: item.style.cTextOnSurfaceVariant
+            hovered: mouse.containsMouse
+            hoverColor: item.style.cTextOnSurface
+            hoverOpacity: 0.04
+            rippleColor: item.active ? item.style.cTextOnSurface : item.style.cTextOnSurfaceVariant
             rippleOpacity: 0.10
             animationsEnabled: item.style.animationsEnabled
+            hoverDuration: item.style.motionShort4
         }
 
         MouseArea {
@@ -237,7 +239,9 @@ Rectangle {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onPressed: accountRipple.press(mouse.x, mouse.y)
+            onPressed: function(mouse) {
+                accountRipple.press(mouse.x, mouse.y)
+            }
             onClicked: item.clicked()
         }
 
@@ -319,9 +323,7 @@ Rectangle {
 
         Rectangle {
             anchors.fill: parent
-            color: item.active
-                   ? item.style.cNavSelected
-                   : mouse.containsMouse ? item.style.cNavHover : "transparent"
+            color: item.active ? item.style.cNavSelected : "transparent"
 
             Behavior on color {
                 ColorAnimation {
@@ -334,9 +336,13 @@ Rectangle {
         HmclRipple {
             id: ripple
             anchors.fill: parent
-            rippleColor: item.style.cTextOnSurfaceVariant
+            hovered: mouse.containsMouse
+            hoverColor: item.style.cTextOnSurface
+            hoverOpacity: 0.04
+            rippleColor: item.active ? item.style.cTextOnSurface : item.style.cTextOnSurfaceVariant
             rippleOpacity: 0.10
             animationsEnabled: item.style.animationsEnabled
+            hoverDuration: item.style.motionShort4
         }
 
         MouseArea {
@@ -345,7 +351,9 @@ Rectangle {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onEntered: item.entered()
-            onPressed: ripple.press(mouse.x, mouse.y)
+            onPressed: function(mouse) {
+                ripple.press(mouse.x, mouse.y)
+            }
             onClicked: item.clicked()
         }
 
