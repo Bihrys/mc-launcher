@@ -109,6 +109,20 @@ pub struct YggdrasilPendingLogin {
     pub profiles: Vec<YggdrasilProfileChoice>,
 }
 
+pub fn offline_player_uuid(username: &str) -> Uuid {
+    // HMCL / Minecraft Java 版离线 UUID：
+    // UUID.nameUUIDFromBytes(("OfflinePlayer:" + username).getBytes(UTF_8))
+    let mut bytes = md5::compute(format!("OfflinePlayer:{username}").as_bytes()).0;
+
+    bytes[6] &= 0x0f;
+    bytes[6] |= 0x30;
+
+    bytes[8] &= 0x3f;
+    bytes[8] |= 0x80;
+
+    Uuid::from_bytes(bytes)
+}
+
 pub fn login_offline(username: &str) -> Result<AuthAccount, AuthError> {
     let username = username.trim();
 
@@ -120,10 +134,7 @@ pub fn login_offline(username: &str) -> Result<AuthAccount, AuthError> {
         return Err(simple_error("离线用户名只能包含 3-16 位字母、数字或下划线。"));
     }
 
-    let uuid = Uuid::new_v5(
-        &Uuid::NAMESPACE_OID,
-        format!("OfflinePlayer:{username}").as_bytes(),
-    );
+    let uuid = offline_player_uuid(username);
 
     Ok(AuthAccount {
         kind: "offline".to_string(),

@@ -10,11 +10,35 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
+use uuid::Uuid;
 
 pub type AvatarError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
+const DEFAULT_SKINS: [&str; 9] = [
+    "alex",
+    "ari",
+    "efe",
+    "kai",
+    "makena",
+    "noor",
+    "steve",
+    "sunny",
+    "zuri",
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DefaultSkinModel {
+    Slim,
+    Wide,
+}
+
 pub fn account_avatar_url(account: &AuthAccount, size: u32) -> Result<Option<String>, AvatarError> {
     let size = size.clamp(16, 256);
+
+    if account.kind == "offline" {
+        let avatar_path = make_offline_default_avatar(&account.uuid, size)?;
+        return Ok(Some(path_to_qml_url(&avatar_path)));
+    }
 
     let skin_url = match account.kind.as_str() {
         "yggdrasil" => {
@@ -49,6 +73,82 @@ pub fn yggdrasil_profile_avatar_url(
     let avatar_path = make_avatar_from_skin_url(&skin_url, size.clamp(16, 256))?;
 
     Ok(Some(path_to_qml_url(&avatar_path)))
+}
+
+fn make_offline_default_avatar(uuid_text: &str, size: u32) -> Result<PathBuf, AvatarError> {
+    let uuid = parse_uuid_relaxed(uuid_text)?;
+    let index = java_uuid_hash_code(uuid).rem_euclid((DEFAULT_SKINS.len() * 2) as i32) as usize;
+
+    let (model, skin_name) = if index < DEFAULT_SKINS.len() {
+        (DefaultSkinModel::Slim, DEFAULT_SKINS[index])
+    } else {
+        (DefaultSkinModel::Wide, DEFAULT_SKINS[index - DEFAULT_SKINS.len()])
+    };
+
+    let model_dir = match model {
+        DefaultSkinModel::Slim => "slim",
+        DefaultSkinModel::Wide => "wide",
+    };
+
+    let cache_dir = avatar_cache_dir()?;
+    fs::create_dir_all(&cache_dir)?;
+
+    let avatar_path = cache_dir.join(format!(
+        "offline-default-{model_dir}-{skin_name}-{size}.png"
+    ));
+
+    if avatar_path.is_file() {
+        return Ok(avatar_path);
+    }
+
+    let skin = image::load_from_memory(default_skin_bytes(model, skin_name))?.to_rgba8();
+    crop_avatar_from_skin_image(&skin, &avatar_path, size)?;
+
+    Ok(avatar_path)
+}
+
+fn default_skin_bytes(model: DefaultSkinModel, name: &str) -> &'static [u8] {
+    match (model, name) {
+        (DefaultSkinModel::Slim, "alex") => &include_bytes!("../assets/img/skin/slim/alex.png")[..],
+        (DefaultSkinModel::Slim, "ari") => &include_bytes!("../assets/img/skin/slim/ari.png")[..],
+        (DefaultSkinModel::Slim, "efe") => &include_bytes!("../assets/img/skin/slim/efe.png")[..],
+        (DefaultSkinModel::Slim, "kai") => &include_bytes!("../assets/img/skin/slim/kai.png")[..],
+        (DefaultSkinModel::Slim, "makena") => &include_bytes!("../assets/img/skin/slim/makena.png")[..],
+        (DefaultSkinModel::Slim, "noor") => &include_bytes!("../assets/img/skin/slim/noor.png")[..],
+        (DefaultSkinModel::Slim, "steve") => &include_bytes!("../assets/img/skin/slim/steve.png")[..],
+        (DefaultSkinModel::Slim, "sunny") => &include_bytes!("../assets/img/skin/slim/sunny.png")[..],
+        (DefaultSkinModel::Slim, "zuri") => &include_bytes!("../assets/img/skin/slim/zuri.png")[..],
+
+        (DefaultSkinModel::Wide, "alex") => &include_bytes!("../assets/img/skin/wide/alex.png")[..],
+        (DefaultSkinModel::Wide, "ari") => &include_bytes!("../assets/img/skin/wide/ari.png")[..],
+        (DefaultSkinModel::Wide, "efe") => &include_bytes!("../assets/img/skin/wide/efe.png")[..],
+        (DefaultSkinModel::Wide, "kai") => &include_bytes!("../assets/img/skin/wide/kai.png")[..],
+        (DefaultSkinModel::Wide, "makena") => &include_bytes!("../assets/img/skin/wide/makena.png")[..],
+        (DefaultSkinModel::Wide, "noor") => &include_bytes!("../assets/img/skin/wide/noor.png")[..],
+        (DefaultSkinModel::Wide, "steve") => &include_bytes!("../assets/img/skin/wide/steve.png")[..],
+        (DefaultSkinModel::Wide, "sunny") => &include_bytes!("../assets/img/skin/wide/sunny.png")[..],
+        (DefaultSkinModel::Wide, "zuri") => &include_bytes!("../assets/img/skin/wide/zuri.png")[..],
+
+        _ => unreachable!("unknown HMCL default skin: {name}"),
+    }
+}
+
+fn parse_uuid_relaxed(uuid_text: &str) -> Result<Uuid, AvatarError> {
+    let trimmed = uuid_text.trim();
+
+    if trimmed.is_empty() {
+        return Err(simple_error("UUID 为空"));
+    }
+
+    Ok(Uuid::parse_str(trimmed)?)
+}
+
+fn java_uuid_hash_code(uuid: Uuid) -> i32 {
+    let value = uuid.as_u128();
+    let most = (value >> 64) as u64;
+    let least = value as u64;
+
+    ((most >> 32) ^ most ^ (least >> 32) ^ least) as i32
 }
 
 fn yggdrasil_skin_url(server_url: &str, uuid: &str) -> Result<Option<String>, AvatarError> {
@@ -162,6 +262,14 @@ fn make_avatar_from_skin_url(skin_url: &str, size: u32) -> Result<PathBuf, Avata
 
 fn crop_avatar_from_skin(skin_path: &Path, avatar_path: &Path, size: u32) -> Result<(), AvatarError> {
     let skin = image::open(skin_path)?.to_rgba8();
+    crop_avatar_from_skin_image(&skin, avatar_path, size)
+}
+
+fn crop_avatar_from_skin_image(
+    skin: &RgbaImage,
+    avatar_path: &Path,
+    size: u32,
+) -> Result<(), AvatarError> {
     let width = skin.width();
     let height = skin.height();
 
@@ -180,9 +288,9 @@ fn crop_avatar_from_skin(skin_path: &Path, avatar_path: &Path, size: u32) -> Res
     let hat_x = 40 * scale;
     let hat_y = 8 * scale;
 
-    let face = crop_imm(&skin, base_x, base_y, unit, unit).to_image();
+    let face = crop_imm(skin, base_x, base_y, unit, unit).to_image();
     let hat = if hat_x + unit <= width && hat_y + unit <= height {
-        Some(crop_imm(&skin, hat_x, hat_y, unit, unit).to_image())
+        Some(crop_imm(skin, hat_x, hat_y, unit, unit).to_image())
     } else {
         None
     };
@@ -261,5 +369,5 @@ fn path_to_qml_url(path: &Path) -> String {
 }
 
 fn simple_error(message: impl Into<String>) -> AvatarError {
-    Box::new(io::Error::other(message.into()))
+    Box::new(io::Error::new(io::ErrorKind::Other, message.into()))
 }
