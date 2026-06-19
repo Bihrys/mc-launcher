@@ -15,7 +15,6 @@ Item {
     property var catalog: null
     property var activeVersionModel: releaseVersionModel
     property bool downloadDialogOpen: false
-    property bool downloadCancelDismissed: false
 
     property var downloadTaskStatus: ({
         "active": false,
@@ -542,8 +541,7 @@ Item {
             style: root.style
             status: root.downloadTaskStatus
             onCancelRequested: {
-                // HMCL 逻辑：UI 立刻关闭；后台任务取消由后端继续处理。
-                root.downloadCancelDismissed = true
+                // HMCL 逻辑：UI 立刻关闭；后台任务继续收到 cancel 信号后自己退出/清理。
                 root.downloadDialogOpen = false
                 root.backend.cancelDownloadTask()
             }
@@ -563,13 +561,8 @@ Item {
 
             if (root.downloadTaskStatus.active
                     && root.downloadTaskStatus.status !== "cancelling"
-                    && root.downloadTaskStatus.status !== "cancelled"
-                    && !root.downloadCancelDismissed) {
+                    && root.downloadTaskStatus.status !== "cancelled") {
                 root.downloadDialogOpen = true
-            }
-
-            if (!root.downloadTaskStatus.active) {
-                root.downloadCancelDismissed = false
             }
         } catch (e) {
             console.log("Failed to parse download task status", e)
@@ -853,7 +846,6 @@ Item {
     }
 
     function installSelected() {
-        root.downloadCancelDismissed = false
         root.downloadDialogOpen = true
 
         root.backend.installGameVersion(
