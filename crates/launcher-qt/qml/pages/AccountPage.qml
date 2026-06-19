@@ -219,6 +219,7 @@ Item {
                         required property string serverUrl
                         required property string avatarUrl
                         required property bool selected
+                        property var pageRoot: root
 
                         width: accountListColumn.width
                         height: 48
@@ -226,7 +227,7 @@ Item {
                         AccountCard {
                             id: accountCard
                             anchors.fill: parent
-                            style: root.style
+                            style: parent.pageRoot.style
                             accountIndex: parent.index
                             username: parent.username
                             uuid: parent.uuid
@@ -234,31 +235,36 @@ Item {
                             serverUrl: parent.serverUrl
                             avatarUrl: parent.avatarUrl
                             selected: parent.selected
-                            refreshing: root.refreshingAccountIndex === parent.index
+                            refreshing: parent.pageRoot.refreshingAccountIndex === parent.index
 
                             onSelectRequested: {
-                                root.backend.switchAccount(String(accountCard.accountIndex))
-                                root.reloadAccounts()
+                                parent.pageRoot.markSelectedAccount(accountCard.accountIndex)
+                                parent.pageRoot.backend.switchAccountFast(
+                                    String(accountCard.accountIndex),
+                                    accountCard.username,
+                                    accountCard.displayKind,
+                                    accountCard.avatarUrl
+                                )
                             }
 
                             onDeleteRequested: {
-                                root.deleteIndex = accountCard.accountIndex
+                                parent.pageRoot.deleteIndex = accountCard.accountIndex
                             }
 
                             onRefreshRequested: {
-                                root.startAccountRefresh(accountCard.accountIndex)
+                                parent.pageRoot.startAccountRefresh(accountCard.accountIndex)
                             }
 
                             onCopyUuidRequested: {
-                                root.copyText(accountCard.uuid)
+                                parent.pageRoot.copyText(accountCard.uuid)
                             }
 
                             onMoveRequested: {
-                                root.showUnsupportedHint("账户本地/全局迁移")
+                                parent.pageRoot.showUnsupportedHint("账户本地/全局迁移")
                             }
 
                             onUploadSkinRequested: {
-                                root.showUnsupportedHint("上传皮肤")
+                                parent.pageRoot.showUnsupportedHint("上传皮肤")
                             }
                         }
                     }
@@ -805,6 +811,12 @@ Item {
             }
 
             return
+        }
+    }
+
+    function markSelectedAccount(index) {
+        for (var i = 0; i < accountsModel.count; i++) {
+            accountsModel.setProperty(i, "selected", i === index)
         }
     }
 

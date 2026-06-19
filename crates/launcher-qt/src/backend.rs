@@ -67,6 +67,16 @@ pub mod qobject {
         fn switch_account(self: Pin<&mut LauncherBackend>, index: QString);
 
         #[qinvokable]
+        #[cxx_name = "switchAccountFast"]
+        fn switch_account_fast(
+            self: Pin<&mut LauncherBackend>,
+            index: QString,
+            username: QString,
+            display_kind: QString,
+            avatar_url: QString,
+        );
+
+        #[qinvokable]
         #[cxx_name = "deleteAccount"]
         fn delete_account(self: Pin<&mut LauncherBackend>, index: QString);
 
@@ -532,14 +542,70 @@ impl qobject::LauncherBackend {
                     return;
                 }
 
-                set_current_account(self.as_mut(), account);
-                refresh_accounts_property(self.as_mut());
-                self.as_mut().set_output(QString::from(&format!(
-                    "已切换账户。\n\n账户: {}\n类型: {}\nUUID: {}",
-                    account.username,
-                    display_account_kind(&account.kind),
-                    account.uuid
-                )));
+                // HMCL 选择账号只切 selected item，不重建列表，不刷新头像。
+                self.as_mut()
+                    .set_current_account_name(QString::from(&account.username));
+                self.as_mut()
+                    .set_current_account_kind(QString::from(&display_account_kind(&account.kind)));
+            }
+            Err(err) => {
+                self.as_mut()
+                    .set_output(QString::from(&format!("切换账户失败。\n\n{err}")));
+            }
+        }
+    }
+
+    pub fn switch_account_fast(
+        mut self: Pin<&mut Self>,
+        index: QString,
+        username: QString,
+        display_kind: QString,
+        avatar_url: QString,
+    ) {
+        let index = match index.to_string().parse::<usize>() {
+            Ok(value) => value,
+            Err(err) => {
+                self.as_mut()
+                    .set_output(QString::from(&format!("切换账户失败：无效索引。\n\n{err}")));
+                return;
+            }
+        };
+
+        match launcher_core::load_accounts() {
+            Ok(accounts) => {
+                let Some(account) = accounts.get(index) else {
+                    self.as_mut()
+                        .set_output(QString::from("切换账户失败：账户索引不存在。"));
+                    return;
+                };
+
+                if let Err(err) = launcher_core::select_account(account) {
+                    self.as_mut()
+                        .set_output(QString::from(&format!("切换账户失败：无法保存选择。\n\n{err}")));
+                    return;
+                }
+
+                let username = username.to_string();
+                let display_kind = display_kind.to_string();
+                let avatar_url = avatar_url.to_string();
+
+                self.as_mut().set_current_account_name(QString::from(
+                    if username.is_empty() { &account.username } else { &username },
+                ));
+
+                self.as_mut().set_current_account_kind(QString::from(
+                    if display_kind.is_empty() {
+                        display_account_kind(&account.kind)
+                    } else {
+                        display_kind
+                    },
+                ));
+
+                // 使用 QML 已经显示出来的头像 URL，避免重新生成/下载头像导致 UI 卡顿。
+                if !avatar_url.is_empty() {
+                    self.as_mut()
+                        .set_current_account_avatar_url(QString::from(&avatar_url));
+                }
             }
             Err(err) => {
                 self.as_mut()
