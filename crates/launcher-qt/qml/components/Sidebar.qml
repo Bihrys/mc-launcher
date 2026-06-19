@@ -7,6 +7,7 @@ Rectangle {
     required property var style
     required property var backend
     property string currentPage: "main"
+    property bool sidebarHovered: false
 
     signal navigate(string page)
     signal navigateSettingsSection(string section)
@@ -22,16 +23,14 @@ Rectangle {
         clip: true
         contentWidth: availableWidth
         ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-        ScrollBar.vertical.policy: hovered ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
-
-        property bool hovered: false
+        ScrollBar.vertical.policy: root.sidebarHovered ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
 
         MouseArea {
             anchors.fill: parent
             hoverEnabled: true
             acceptedButtons: Qt.NoButton
-            onEntered: parent.hovered = true
-            onExited: parent.hovered = false
+            onEntered: root.sidebarHovered = true
+            onExited: root.sidebarHovered = false
         }
 
         Column {
