@@ -221,7 +221,7 @@ Item {
                         required property bool selected
 
                         width: accountListColumn.width
-                        height: 80
+                        height: 48
 
                         AccountCard {
                             id: accountCard
@@ -1102,11 +1102,11 @@ Item {
         signal moveRequested()
         signal uploadSkinRequested()
 
-        height: 80
+        height: 48
         radius: 4
         color: style.cSurfaceContainer
-        border.color: selected ? style.cButtonSelected : style.cBorder
-        border.width: selected ? 1 : 0
+        border.color: "transparent"
+        border.width: 0
 
         MouseArea {
             id: cardMouse
@@ -1118,7 +1118,10 @@ Item {
 
         RowLayout {
             anchors.fill: parent
-            anchors.margins: 8
+            anchors.leftMargin: 0
+            anchors.rightMargin: 8
+            anchors.topMargin: 8
+            anchors.bottomMargin: 8
             spacing: 8
 
             Item {
@@ -1160,8 +1163,8 @@ Item {
                     width: parent.width
                     text: card.username
                     color: card.style.cTextOnSurface
-                    font.pixelSize: 14
-                    font.bold: card.selected
+                    font.pixelSize: 15
+                    font.bold: false
                     elide: Text.ElideRight
                 }
 
@@ -1169,15 +1172,15 @@ Item {
                     width: parent.width
                     text: card.displayKind + (card.serverUrl.length > 0 ? ", 认证服务器: " + card.serverUrl : "")
                     color: card.style.cTextOnSurfaceVariant
-                    font.pixelSize: 11
+                    font.pixelSize: 12
                     elide: Text.ElideRight
                 }
             }
 
             Row {
-                Layout.preferredWidth: 176
+                Layout.preferredWidth: 150
                 Layout.alignment: Qt.AlignVCenter
-                spacing: 2
+                spacing: 0
 
                 IconButton {
                     style: card.style
@@ -1190,7 +1193,7 @@ Item {
                     style: card.style
                     iconKind: "REFRESH"
                     tooltip: card.refreshing ? "刷新中" : "刷新"
-                    spinning: card.refreshing
+                    loading: card.refreshing
                     enabled: !card.refreshing
                     onClicked: card.refreshRequested()
                 }
@@ -1263,16 +1266,20 @@ Item {
         required property var style
         property string iconKind: ""
         property string tooltip: ""
-        property bool spinning: false
+
+        // HMCL SpinnerPane：loading 时内容替换成小 spinner。
+        // 不是让 REFRESH 图标旋转。
+        property bool loading: false
 
         signal clicked()
 
-        width: 32
-        height: 32
+        width: 30
+        height: 30
+        enabled: !loading
 
         Rectangle {
             anchors.fill: parent
-            radius: 16
+            radius: 15
             color: button.enabled && mouse.containsMouse
                    ? Qt.rgba(button.style.cTextOnSurface.r,
                              button.style.cTextOnSurface.g,
@@ -1289,23 +1296,17 @@ Item {
             iconSize: 18
             iconColor: button.style.cTextOnSurfaceVariant
             animationsEnabled: button.style.animationsEnabled
-            opacity: button.enabled || button.spinning ? 1 : 0.45
-            transformOrigin: Item.Center
+            visible: !button.loading
+            opacity: button.enabled ? 1 : 0.45
         }
 
-        RotationAnimator {
-            target: iconGlyph
-            running: button.spinning && button.visible && button.style.animationsEnabled
-            loops: Animation.Infinite
-            from: 0
-            to: 360
-            duration: 650
-        }
-
-        onSpinningChanged: {
-            if (!button.spinning) {
-                iconGlyph.rotation = 0
-            }
+        HmclSmallSpinner {
+            anchors.centerIn: parent
+            visible: button.loading
+            running: button.loading && button.visible
+            style: button.style
+            size: 18
+            strokeWidth: 3
         }
 
         MouseArea {
@@ -1322,6 +1323,64 @@ Item {
         ToolTip.visible: mouse.containsMouse && button.tooltip.length > 0
         ToolTip.text: button.tooltip
         ToolTip.delay: 350
+    }
+
+    component HmclSmallSpinner: Item {
+        id: spinner
+
+        required property var style
+        property int size: 18
+        property real strokeWidth: 3
+        property bool running: false
+
+        width: size
+        height: size
+        visible: running
+
+        Canvas {
+            id: spinnerCanvas
+
+            anchors.fill: parent
+            antialiasing: true
+            rotation: 0
+
+            onPaint: {
+                var ctx = getContext("2d")
+                ctx.clearRect(0, 0, width, height)
+
+                var pad = spinner.strokeWidth / 2 + 1
+                var r = Math.min(width, height) / 2 - pad
+                var cx = width / 2
+                var cy = height / 2
+
+                ctx.lineWidth = spinner.strokeWidth
+                ctx.lineCap = "round"
+                ctx.strokeStyle = spinner.style.cButtonSelected
+
+                ctx.beginPath()
+                ctx.arc(cx, cy, r, -Math.PI * 0.20, Math.PI * 1.20, false)
+                ctx.stroke()
+            }
+
+            Component.onCompleted: requestPaint()
+            onWidthChanged: requestPaint()
+            onHeightChanged: requestPaint()
+        }
+
+        RotationAnimator {
+            target: spinnerCanvas
+            running: spinner.running && spinner.style.animationsEnabled
+            loops: Animation.Infinite
+            from: 0
+            to: 360
+            duration: 850
+        }
+
+        onRunningChanged: {
+            if (!running) {
+                spinnerCanvas.rotation = 0
+            }
+        }
     }
 
     component AccountField: Item {
