@@ -17,6 +17,20 @@ Item {
 
     Component.onCompleted: root.reloadVersions()
 
+    onVisibleChanged: {
+        if (visible) {
+            root.reloadVersions()
+        }
+    }
+
+    Connections {
+        target: root.backend
+
+        function onInstalledVersionsJsonChanged() {
+            root.applyVersionsJson(root.backend.installedVersionsJson)
+        }
+    }
+
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 24
@@ -299,6 +313,14 @@ Item {
 
     function reloadVersions() {
         var raw = root.backend.refreshInstalledVersions()
+        root.applyVersionsJson(raw)
+    }
+
+    function applyVersionsJson(raw) {
+        if (!raw || raw.length === 0) {
+            return
+        }
+
         var payload = JSON.parse(raw)
 
         versionModel.clear()

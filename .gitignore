@@ -9,3 +9,11 @@
 
 # Local HMCL source reference, do not upload
 HMCL-main/
+
+# Local assistant patch backups
+*.bak
+*.bak-*
+**/*.bak
+**/*.bak-*
+*.rs.bk
+**/*.rs.bk

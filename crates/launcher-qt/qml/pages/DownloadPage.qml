@@ -16,6 +16,7 @@ Item {
     property var activeVersionModel: releaseVersionModel
     property bool downloadDialogOpen: false
     property bool downloadCancelDismissed: false
+    property bool downloadFinishHandled: false
 
     property var downloadTaskStatus: ({
         "active": false,
@@ -568,6 +569,11 @@ Item {
                 root.downloadDialogOpen = true
             }
 
+            if (root.downloadTaskStatus.status === "finished" && !root.downloadFinishHandled) {
+                root.downloadFinishHandled = true
+                root.backend.refreshInstalledVersions()
+            }
+
             if (!root.downloadTaskStatus.active) {
                 root.downloadCancelDismissed = false
             }
@@ -854,6 +860,7 @@ Item {
 
     function installSelected() {
         root.downloadCancelDismissed = false
+        root.downloadFinishHandled = false
         root.downloadDialogOpen = true
 
         root.backend.installGameVersion(
@@ -1253,7 +1260,7 @@ Item {
                     text: panel.status.active
                           ? panel.status.status === "cancelling" ? "取消中" : "取消"
                           : "关闭"
-                    enabled: true
+                    buttonEnabled: true
                     onClicked: {
                         if (panel.status.active) {
                             if (panel.status.status !== "cancelling") {
@@ -1462,15 +1469,15 @@ Item {
 
         required property var style
         property string text: ""
-        property bool enabled: true
+        property bool buttonEnabled: true
 
         signal clicked()
 
         width: Math.max(72, label.implicitWidth + 28)
         height: 34
         radius: 2
-        opacity: button.enabled ? 1.0 : 0.45
-        color: mouse.containsMouse && button.enabled ? button.style.cButtonHover : "transparent"
+        opacity: button.buttonEnabled ? 1.0 : 0.45
+        color: mouse.containsMouse && button.buttonEnabled ? button.style.cButtonHover : "transparent"
 
         Text {
             id: label
@@ -1483,9 +1490,9 @@ Item {
         MouseArea {
             id: mouse
             anchors.fill: parent
-            enabled: button.enabled
+            enabled: button.buttonEnabled
             hoverEnabled: true
-            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+            cursorShape: button.buttonEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
             onClicked: button.clicked()
         }
     }
