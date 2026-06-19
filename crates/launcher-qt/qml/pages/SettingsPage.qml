@@ -62,6 +62,29 @@ Item {
         }
     }
 
+    function sectionComponentFor(section) {
+        switch (section) {
+        case "global":
+            return globalSectionComponent
+        case "java":
+            return javaSectionComponent
+        case "general":
+            return generalSectionComponent
+        case "appearance":
+            return appearanceSectionComponent
+        case "download":
+            return downloadSectionComponent
+        case "help":
+            return helpSectionComponent
+        case "feedback":
+            return feedbackSectionComponent
+        case "about":
+            return aboutSectionComponent
+        default:
+            return globalSectionComponent
+        }
+    }
+
     function playDecoratorEnter() {
         decoratorEnter.stop()
         decoratorExit.stop()
@@ -429,103 +452,19 @@ Item {
                 id: sectionHost
 
                 width: settingsScroll.availableWidth
-                height: Math.max(1, root.sectionContentHeight + 20)
-                clip: true
+                height: Math.max(1, sectionTransitionPane.height + 20)
+                clip: false
 
-                HmclSectionTransition {
-                    id: globalSectionLoader
+                HmclSlideUpFadePane {
+                    id: sectionTransitionPane
+
                     x: 10
                     y: 10
-                    width: parent.width - 20
+                    width: Math.max(1, parent.width - 20)
                     style: root.style
-                    active: root.currentSection === "global"
-                    sourceComponent: globalSectionComponent
+                    sourceComponent: root.sectionComponentFor(root.currentSection)
                     duration: root.style.motionMedium4
-                    onContentHeightChanged: if (active && contentHeight > 0) root.sectionContentHeight = contentHeight
-                }
-
-                HmclSectionTransition {
-                    id: javaSectionLoader
-                    x: 10
-                    y: 10
-                    width: parent.width - 20
-                    style: root.style
-                    active: root.currentSection === "java"
-                    sourceComponent: javaSectionComponent
-                    duration: root.style.motionMedium4
-                    onContentHeightChanged: if (active && contentHeight > 0) root.sectionContentHeight = contentHeight
-                }
-
-                HmclSectionTransition {
-                    id: generalSectionLoader
-                    x: 10
-                    y: 10
-                    width: parent.width - 20
-                    style: root.style
-                    active: root.currentSection === "general"
-                    sourceComponent: generalSectionComponent
-                    duration: root.style.motionMedium4
-                    onContentHeightChanged: if (active && contentHeight > 0) root.sectionContentHeight = contentHeight
-                }
-
-                HmclSectionTransition {
-                    id: appearanceSectionLoader
-                    x: 10
-                    y: 10
-                    width: parent.width - 20
-                    style: root.style
-                    active: root.currentSection === "appearance"
-                    sourceComponent: appearanceSectionComponent
-                    duration: root.style.motionMedium4
-                    onContentHeightChanged: if (active && contentHeight > 0) root.sectionContentHeight = contentHeight
-                }
-
-                HmclSectionTransition {
-                    id: downloadSectionLoader
-                    x: 10
-                    y: 10
-                    width: parent.width - 20
-                    style: root.style
-                    active: root.currentSection === "download"
-                    sourceComponent: downloadSectionComponent
-                    duration: root.style.motionMedium4
-                    onContentHeightChanged: if (active && contentHeight > 0) root.sectionContentHeight = contentHeight
-                }
-
-                HmclSectionTransition {
-                    id: helpSectionLoader
-                    x: 10
-                    y: 10
-                    width: parent.width - 20
-                    style: root.style
-                    active: root.currentSection === "help"
-                    sourceComponent: helpSectionComponent
-                    duration: root.style.motionMedium4
-                    onContentHeightChanged: if (active && contentHeight > 0) root.sectionContentHeight = contentHeight
-                }
-
-                HmclSectionTransition {
-                    id: feedbackSectionLoader
-                    x: 10
-                    y: 10
-                    width: parent.width - 20
-                    style: root.style
-                    active: root.currentSection === "feedback"
-                    sourceComponent: feedbackSectionComponent
-                    duration: root.style.motionMedium4
-                    onContentHeightChanged: if (active && contentHeight > 0) root.sectionContentHeight = contentHeight
-                }
-
-                HmclSectionTransition {
-                    id: aboutSectionLoader
-                    x: 10
-                    y: 10
-                    width: parent.width - 20
-                    style: root.style
-                    active: root.currentSection === "about"
-                    sourceComponent: aboutSectionComponent
-                    duration: root.style.motionMedium4
-                    onContentHeightChanged: if (active && contentHeight > 0) root.sectionContentHeight = contentHeight
+                    containerHeight: settingsScroll.height
                 }
             }
             }
