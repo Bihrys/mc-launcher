@@ -9,6 +9,9 @@ Item {
     property bool loaded: false
     property bool initialized: false
     property Component sourceComponent
+
+    // HMCL TabHeader 使用 Motion.MEDIUM4 = 400ms。
+    // 但它的曲线是 EASE_IN_OUT_CUBIC_EMPHASIZED，视觉上会很快进入主体。
     property int duration: 400
     property bool animationsEnabled: style.animationsEnabled
 
@@ -19,7 +22,7 @@ Item {
 
     property bool layerVisible: active
     property real contentOpacity: active ? 1 : 0
-    property real contentY: 0
+    property real contentY: active ? 0 : enterOffset
 
     visible: layerVisible
     width: parent ? parent.width : 0
@@ -30,7 +33,7 @@ Item {
         root.loaded = root.active
         root.layerVisible = root.active
         root.contentOpacity = root.active ? 1 : 0
-        root.contentY = 0
+        root.contentY = root.active ? 0 : root.enterOffset
     }
 
     onActiveChanged: {
@@ -52,7 +55,7 @@ Item {
             }
 
             // HMCL SLIDE_UP_FADE_IN:
-            // 新内容前半段保持透明，后半段从下方向上滑入。
+            // 新内容从 0ms 开始滑入，不等待旧内容淡出。
             root.contentOpacity = 0
             root.contentY = root.enterOffset
             enterAnimation.restart()
@@ -68,8 +71,7 @@ Item {
                 return
             }
 
-            // HMCL SLIDE_UP_FADE_IN:
-            // 旧内容只淡出，不做 translateY。
+            // 旧内容只做前半段淡出，不上滑。
             root.contentOpacity = 1
             root.contentY = 0
             exitAnimation.restart()
@@ -85,43 +87,36 @@ Item {
         width: root.width
         opacity: root.contentOpacity
         y: root.contentY
-
-        onLoaded: {
-            if (root.active) {
-                root.contentOpacity = root.animationsEnabled ? root.contentOpacity : 1
-                root.contentY = root.animationsEnabled ? root.contentY : 0
-            }
-        }
     }
 
-    SequentialAnimation {
+    // 对应 HMCL:
+    // KeyFrame(0): next opacity 0, translateY offset
+    // KeyFrame(duration): next opacity 1, translateY 0
+    ParallelAnimation {
         id: enterAnimation
 
-        PauseAnimation {
-            duration: root.duration / 2
+        NumberAnimation {
+            target: root
+            property: "contentOpacity"
+            from: 0
+            to: 1
+            duration: root.animationsEnabled ? root.duration : 0
+            easing.type: Easing.OutCubic
         }
 
-        ParallelAnimation {
-            NumberAnimation {
-                target: root
-                property: "contentOpacity"
-                from: 0
-                to: 1
-                duration: root.duration / 2
-                easing.type: Easing.InOutCubic
-            }
-
-            NumberAnimation {
-                target: root
-                property: "contentY"
-                from: root.enterOffset
-                to: 0
-                duration: root.duration / 2
-                easing.type: Easing.InOutCubic
-            }
+        NumberAnimation {
+            target: root
+            property: "contentY"
+            from: root.enterOffset
+            to: 0
+            duration: root.animationsEnabled ? root.duration : 0
+            easing.type: Easing.OutCubic
         }
     }
 
+    // 对应 HMCL:
+    // KeyFrame(0): previous opacity 1
+    // KeyFrame(duration * 0.5): previous opacity 0
     SequentialAnimation {
         id: exitAnimation
 
@@ -130,8 +125,8 @@ Item {
             property: "contentOpacity"
             from: 1
             to: 0
-            duration: root.duration / 2
-            easing.type: Easing.InOutCubic
+            duration: root.animationsEnabled ? root.duration / 2 : 0
+            easing.type: Easing.InCubic
         }
 
         ScriptAction {

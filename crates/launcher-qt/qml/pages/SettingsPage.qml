@@ -309,7 +309,9 @@ Item {
                         iconKind: "game"
                         section: "global"
                         currentSection: root.currentSection
-                        onClicked: root.currentSection = section
+                        onClicked: function(section) {
+                            root.currentSection = section
+                        }
                     }
 
                     NavItem {
@@ -318,7 +320,9 @@ Item {
                         iconKind: "java"
                         section: "java"
                         currentSection: root.currentSection
-                        onClicked: root.currentSection = section
+                        onClicked: function(section) {
+                            root.currentSection = section
+                        }
                     }
 
                     DrawerCategory {
@@ -332,7 +336,9 @@ Item {
                         iconKind: "tune"
                         section: "general"
                         currentSection: root.currentSection
-                        onClicked: root.currentSection = section
+                        onClicked: function(section) {
+                            root.currentSection = section
+                        }
                     }
 
                     NavItem {
@@ -341,7 +347,9 @@ Item {
                         iconKind: "style"
                         section: "appearance"
                         currentSection: root.currentSection
-                        onClicked: root.currentSection = section
+                        onClicked: function(section) {
+                            root.currentSection = section
+                        }
                     }
 
                     NavItem {
@@ -350,7 +358,9 @@ Item {
                         iconKind: "download"
                         section: "download"
                         currentSection: root.currentSection
-                        onClicked: root.currentSection = section
+                        onClicked: function(section) {
+                            root.currentSection = section
+                        }
                     }
 
                     DrawerCategory {
@@ -364,7 +374,9 @@ Item {
                         iconKind: "help"
                         section: "help"
                         currentSection: root.currentSection
-                        onClicked: root.currentSection = section
+                        onClicked: function(section) {
+                            root.currentSection = section
+                        }
                     }
 
                     NavItem {
@@ -373,7 +385,9 @@ Item {
                         iconKind: "feedback"
                         section: "feedback"
                         currentSection: root.currentSection
-                        onClicked: root.currentSection = section
+                        onClicked: function(section) {
+                            root.currentSection = section
+                        }
                     }
 
                     NavItem {
@@ -382,7 +396,9 @@ Item {
                         iconKind: "info"
                         section: "about"
                         currentSection: root.currentSection
-                        onClicked: root.currentSection = section
+                        onClicked: function(section) {
+                            root.currentSection = section
+                        }
                     }
                 }
             }
