@@ -42,6 +42,7 @@ Item {
     property bool launchDialogOpen: false
     property string launchWindowActionHandledId: ""
     property string launchReopenHandledId: ""
+    property bool launchActionArmed: false
 
     Component.onCompleted: {
         root.backend.refreshAccounts()
@@ -281,6 +282,7 @@ Item {
         root.launchDialogOpen = true
         root.launchWindowActionHandledId = ""
         root.launchReopenHandledId = ""
+        root.launchActionArmed = true
         root.backend.startLaunchSelectedVersion(root.launcherVisibility)
         root.pollLaunchTask()
     }
@@ -318,16 +320,34 @@ Item {
             return
         }
 
+        // 关键：启动器刚打开时会读取旧 launch-task.json。
+        // 旧状态不能再次触发 hide/close/reopen，否则会出现“重启后仍然隐藏”。
+        if (!root.launchActionArmed) {
+            return
+        }
+
         if (status.gameStarted && root.launchWindowActionHandledId !== id) {
             root.launchWindowActionHandledId = id
             root.launchDialogOpen = false
 
             if (status.shouldClose) {
+                root.launchActionArmed = false
                 root.appWindow.close()
+                Qt.quit()
                 return
             }
 
             if (status.shouldHide) {
+                // HMCL:
+                // HIDE_AND_REOPEN 才是真的隐藏并等待游戏退出后恢复。
+                // HIDE 不应该变成永远隐藏的僵尸启动器。
+                if (status.visibility === "hide") {
+                    root.launchActionArmed = false
+                    root.appWindow.close()
+                    Qt.quit()
+                    return
+                }
+
                 root.appWindow.hide()
                 return
             }
@@ -336,9 +356,17 @@ Item {
         if (status.shouldReopen && root.launchReopenHandledId !== id) {
             root.launchReopenHandledId = id
             root.launchDialogOpen = false
+            root.launchActionArmed = false
             root.appWindow.show()
             root.appWindow.raise()
             root.appWindow.requestActivate()
+        }
+
+        if ((status.status === "failed" || status.status === "cancelled")
+                && !status.shouldHide
+                && !status.shouldClose
+                && !status.shouldReopen) {
+            root.launchActionArmed = false
         }
     }
 

@@ -1302,8 +1302,12 @@ impl qobject::LauncherBackend {
                         result.script_path.display(),
                     );
 
-                    let should_close = visibility == "close";
-                    let should_hide = visibility == "hide" || visibility == "hide_and_reopen";
+                    // HMCL 语义：
+                    // CLOSE：游戏启动后结束启动器。
+                    // HIDE：游戏启动后隐藏/关闭启动器，不在游戏退出后重新打开。
+                    // HIDE_AND_REOPEN：隐藏启动器，并在游戏退出后重新打开。
+                    let should_close = visibility == "close" || visibility == "hide";
+                    let should_hide = visibility == "hide_and_reopen";
                     let wait_game = visibility == "hide_and_reopen" && pid != 0;
 
                     write_hmcl_launch_task_status(
