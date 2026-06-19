@@ -8,93 +8,60 @@ Item {
     required property var style
     required property var backend
 
-    Column {
-        anchors.left: parent.left
-        anchors.top: parent.top
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.margins: 24
-        anchors.bottomMargin: 96
-        spacing: 14
+    property bool showUpdateBubble: false
+    property string latestVersionText: ""
 
-        Rectangle {
-            width: Math.min(parent.width, 520)
-            height: 108
-            radius: root.style.radiusValue
-            color: root.style.cSurfaceContainerHigh
+    Rectangle {
+        id: updatePane
+
+        visible: root.showUpdateBubble
+        width: 260
+        height: 80
+        radius: 4
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: 24
+        color: root.style.cSurfaceContainerHigh
+        border.width: 1
+        border.color: root.style.cBorder
+
+        Row {
+            anchors.fill: parent
+            anchors.margins: 12
+            spacing: 10
+
+            Text {
+                width: 24
+                height: 24
+                text: "↻"
+                color: root.style.cTextOnSurface
+                font.pixelSize: 20
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+            }
 
             Column {
-                anchors.fill: parent
-                anchors.margins: 16
-                spacing: 8
+                width: parent.width - 44
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 3
 
                 Text {
-                    text: "Hello Minecraft! Launcher 风格首页"
+                    width: parent.width
+                    text: root.latestVersionText.length > 0
+                          ? "发现新版本 " + root.latestVersionText
+                          : "发现新版本"
                     color: root.style.cTextOnSurface
-                    font.pixelSize: 19
+                    font.pixelSize: 14
                     font.bold: true
+                    elide: Text.ElideRight
                 }
 
                 Text {
                     width: parent.width
-                    text: "这是 Qt/QML 主界面壳。后续可以把账号、版本、下载、设置等页面逐步接入 Rust 后端。"
+                    text: "点击查看更新内容"
                     color: root.style.cTextOnSurfaceVariant
                     font.pixelSize: 13
-                    wrapMode: Text.WordWrap
-                }
-            }
-        }
-
-        Row {
-            spacing: 10
-
-            Button {
-                text: "检测 Java"
-                onClicked: root.backend.detectJava()
-            }
-
-            Button {
-                text: "刷新版本"
-                onClicked: console.log("refresh versions")
-            }
-        }
-
-        Rectangle {
-            width: Math.min(parent.width, 620)
-            height: 230
-            radius: root.style.radiusValue
-            color: root.style.cSurfaceContainer
-
-            ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 12
-                spacing: 8
-
-                Text {
-                    text: "后端输出"
-                    color: root.style.cTextOnSurface
-                    font.bold: true
-                    font.pixelSize: 14
-                }
-
-                ScrollView {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    clip: true
-                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
-
-                    TextArea {
-                        width: parent.width
-                        readOnly: true
-                        wrapMode: TextEdit.Wrap
-                        selectByMouse: true
-                        text: root.backend.output
-                        placeholderText: "等待 Rust 后端输出..."
-                        color: root.style.cTextOnSurface
-                        placeholderTextColor: root.style.cTextOnSurfaceVariant
-                        background: Item {}
-                    }
+                    elide: Text.ElideRight
                 }
             }
         }

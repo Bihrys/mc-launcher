@@ -37,6 +37,6 @@ QtObject {
     readonly property color cButtonSelectedText: darkMode ? "#202452" : "#FFFFFF"
 
     property int titleBarHeightValue: 42
-    property int sidebarWidthValue: 245
-    property int radiusValue: 8
+    property int sidebarWidthValue: 200
+    property int radiusValue: 4
 }

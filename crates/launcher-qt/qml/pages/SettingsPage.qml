@@ -11,6 +11,7 @@ Item {
     property string themeMode: "light"
     property string launcherVisibility: "hide"
     property string currentSection: "global"
+    property string requestedSection: "global"
     property var settingsData: ({})
     property var loadedSections: ({ "global": true })
 
@@ -19,12 +20,22 @@ Item {
     signal backRequested()
 
     Component.onCompleted: {
+        if (root.requestedSection.length > 0) {
+            root.currentSection = root.requestedSection
+        }
         root.reloadSettings()
         root.ensureSectionLoaded(root.currentSection)
     }
 
     onCurrentSectionChanged: {
         root.ensureSectionLoaded(root.currentSection)
+    }
+
+    onRequestedSectionChanged: {
+        if (root.requestedSection.length > 0) {
+            root.currentSection = root.requestedSection
+            root.ensureSectionLoaded(root.currentSection)
+        }
     }
 
     ColumnLayout {

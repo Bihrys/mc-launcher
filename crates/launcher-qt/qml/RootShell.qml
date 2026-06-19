@@ -12,6 +12,7 @@ Item {
     required property var backend
 
     property string currentPage: "main"
+    property string requestedSettingsSection: "global"
     property bool settingsPageLoaded: false
     readonly property var appStyle: style
     readonly property real uiScale: Math.max(0.78, Math.min(1.18, Math.min(root.width / 1280, root.height / 720)))
@@ -137,7 +138,14 @@ Item {
                 onNavigate: function(page) {
                     root.currentPage = page
                 }
+                onNavigateSettingsSection: function(section) {
+                    root.requestedSettingsSection = section
+                    root.prepareSettingsPage()
+                    root.currentPage = "settings"
+                }
                 onPrepareSettings: root.prepareSettingsPage()
+                onPrepareDownload: root.prepareDownloadPage()
+                onPrepareVersion: root.prepareVersionPage()
             }
 
             Item {
@@ -191,6 +199,7 @@ Item {
                         backend: root.backend
                         themeMode: root.launcherTheme
                         launcherVisibility: root.launcherVisibility
+                        requestedSection: root.requestedSettingsSection
 
                         onThemeSelected: function(mode) {
                             root.launcherTheme = mode
@@ -228,15 +237,14 @@ Item {
                 SplitLaunchButton {
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
-                    anchors.margins: 24
                     visible: root.currentPage === "main"
                     enabled: visible
 
                     style: style
-                    title: "启动游戏"
+                    title: root.backend.selectedGameVersion.length > 0 ? "启动游戏" : "开始游戏"
                     subtitle: root.backend.selectedGameVersion.length > 0
                               ? root.backend.selectedGameVersion
-                              : "未选择版本"
+                              : ""
 
                     onLaunchClicked: {
                         root.startLaunch()
@@ -279,6 +287,11 @@ Item {
     }
 
     function startLaunch() {
+        if (root.backend.selectedGameVersion.length === 0) {
+            root.currentPage = "download"
+            return
+        }
+
         root.launchDialogOpen = true
         root.launchWindowActionHandledId = ""
         root.launchReopenHandledId = ""
@@ -385,6 +398,16 @@ Item {
         }
     }
 
+    function prepareDownloadPage() {
+        // HMCL 有 Controllers.prepareDownloadPage()。
+        // 当前 DownloadPage 仍是直接创建页面，这里保留接口，后续可改 Loader。
+    }
+
+    function prepareVersionPage() {
+        // HMCL 有 Controllers.prepareVersionPage()。
+        // 当前 VersionPage 仍是直接创建页面，这里保留接口，后续可改 Loader。
+    }
+
     function prepareSettingsPage() {
         // HMCL: prepareSettingsPage() 只在 settingsPage == null 时创建。
         // Qt/QML 对应：让 Loader active=true；创建后缓存，不再销毁。
@@ -412,6 +435,8 @@ Item {
             return "Java 管理"
         case "feedback":
             return "反馈"
+        case "terracotta":
+            return "Terracotta"
         default:
             return "页面"
         }
