@@ -130,7 +130,7 @@ Item {
 
         SequentialAnimation {
             PauseAnimation {
-                duration: root.style.motionShort4 / 2
+                duration: root.style.motionMedium4 / 2
             }
 
             ParallelAnimation {
@@ -139,7 +139,7 @@ Item {
                     property: "x"
                     from: -root.navigationOffset
                     to: 0
-                    duration: root.style.motionShort4 / 2
+                    duration: root.style.motionMedium4 / 2
                     easing.type: Easing.OutCubic
                 }
 
@@ -148,7 +148,7 @@ Item {
                     property: "opacity"
                     from: 0
                     to: 1
-                    duration: root.style.motionShort4 / 2
+                    duration: root.style.motionMedium4 / 2
                     easing.type: Easing.OutCubic
                 }
             }
@@ -156,7 +156,7 @@ Item {
 
         SequentialAnimation {
             PauseAnimation {
-                duration: root.style.motionShort4 / 2
+                duration: root.style.motionMedium4 / 2
             }
 
             ParallelAnimation {
@@ -165,7 +165,7 @@ Item {
                     property: "x"
                     from: root.navigationOffset
                     to: 0
-                    duration: root.style.motionShort4 / 2
+                    duration: root.style.motionMedium4 / 2
                     easing.type: Easing.OutCubic
                 }
 
@@ -174,7 +174,7 @@ Item {
                     property: "opacity"
                     from: 0
                     to: 1
-                    duration: root.style.motionShort4 / 2
+                    duration: root.style.motionMedium4 / 2
                     easing.type: Easing.OutCubic
                 }
             }
@@ -190,7 +190,7 @@ Item {
                 property: "x"
                 from: 0
                 to: -root.navigationOffset
-                duration: root.style.motionShort4 / 2
+                duration: root.style.motionMedium4 / 2
                 easing.type: Easing.InCubic
             }
 
@@ -199,7 +199,7 @@ Item {
                 property: "opacity"
                 from: 1
                 to: 0
-                duration: root.style.motionShort4 / 2
+                duration: root.style.motionMedium4 / 2
                 easing.type: Easing.InCubic
             }
 
@@ -208,7 +208,7 @@ Item {
                 property: "x"
                 from: 0
                 to: root.navigationOffset
-                duration: root.style.motionShort4 / 2
+                duration: root.style.motionMedium4 / 2
                 easing.type: Easing.InCubic
             }
 
@@ -217,7 +217,7 @@ Item {
                 property: "opacity"
                 from: 1
                 to: 0
-                duration: root.style.motionShort4 / 2
+                duration: root.style.motionMedium4 / 2
                 easing.type: Easing.InCubic
             }
         }

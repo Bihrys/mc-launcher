@@ -6,175 +6,219 @@ Item {
     required property var style
 
     property Component sourceComponent: null
+
+    // HMCL TabHeader.java:
+    // ContainerAnimations.SLIDE_UP_FADE_IN
+    // Motion.MEDIUM4 = 400ms
+    // Motion.EASE_IN_OUT_CUBIC_EMPHASIZED
     property int duration: 400
     property real containerHeight: height
     property bool animationsEnabled: style.animationsEnabled
 
     property bool initialized: false
-    property bool suppressCommit: false
+    property bool committing: false
 
-    property real currentOpacity: 1
-    property real incomingOpacity: 0
-    property real incomingY: 0
+    property real previousOpacity: 1
+    property real nextOpacity: 0
+    property real nextY: 0
 
-    readonly property real enterOffset: root.containerHeight > 0 ? root.containerHeight * 0.2 : 50
-    readonly property real currentContentHeight: currentLoader.item
-                                                 ? Math.max(currentLoader.item.implicitHeight, currentLoader.item.height)
-                                                 : 0
-    readonly property real incomingContentHeight: incomingLoader.item
-                                                  ? Math.max(incomingLoader.item.implicitHeight, incomingLoader.item.height)
+    // HMCL Motion.EASE_IN_OUT_CUBIC_EMPHASIZED:
+    // ThreePointCubic(
+    //   (0.05, 0),
+    //   (0.133333, 0.06),
+    //   (0.166666, 0.4),
+    //   (0.208333, 0.82),
+    //   (0.25, 1)
+    // )
+    readonly property var hmclEmphasizedCurve: [
+        0.05, 0.0,
+        0.133333, 0.06,
+        0.166666, 0.4,
+        0.208333, 0.82,
+        0.25, 1.0,
+        1.0, 1.0
+    ]
+
+    readonly property real enterOffset: root.containerHeight > 0
+                                        ? root.containerHeight * 0.2
+                                        : 50
+
+    readonly property real previousContentHeight: previousLoader.item
+                                                  ? Math.max(previousLoader.item.implicitHeight, previousLoader.item.height)
                                                   : 0
 
-    // 关键：动画期间给 incoming 的 y 偏移预留空间，避免“拦腰截断”。
+    readonly property real nextContentHeight: nextLoader.item
+                                              ? Math.max(nextLoader.item.implicitHeight, nextLoader.item.height)
+                                              : 0
+
+    // HMCL TransitionPane 是 StackPane，本身跟随父容器尺寸。
+    // 这里还要给 ScrollView 内容高度使用，所以取 old/new 的完整高度。
     readonly property real contentHeight: Math.max(
-                                             currentLoader.sourceComponent ? currentContentHeight : 0,
-                                             incomingLoader.sourceComponent ? incomingContentHeight + enterOffset : 0,
+                                             previousContentHeight,
+                                             nextContentHeight + (nextLoader.sourceComponent ? enterOffset : 0),
+                                             root.containerHeight,
                                              1
                                          )
 
     width: parent ? parent.width : 0
     height: contentHeight
     clip: false
+    enabled: !transition.running
 
     Component.onCompleted: {
         root.initialized = true
 
         if (root.sourceComponent !== null) {
-            currentLoader.sourceComponent = root.sourceComponent
-            root.currentOpacity = 1
-            root.incomingOpacity = 0
-            root.incomingY = 0
+            previousLoader.sourceComponent = root.sourceComponent
+            previousLoader.active = true
+            nextLoader.sourceComponent = null
+            nextLoader.active = false
+
+            root.previousOpacity = 1
+            root.nextOpacity = 0
+            root.nextY = 0
         }
     }
 
     onSourceComponentChanged: {
-        root.switchContent(root.sourceComponent)
+        root.setContent(root.sourceComponent)
     }
 
-    function stopTransitionWithoutCommit() {
-        root.suppressCommit = true
-        transitionAnimation.stop()
-        root.suppressCommit = false
-    }
-
-    function switchContent(component) {
+    function setContent(component) {
         if (!root.initialized) {
             return
         }
 
         if (component === null) {
-            root.stopTransitionWithoutCommit()
-            currentLoader.sourceComponent = null
-            incomingLoader.sourceComponent = null
+            transition.stop()
+            previousLoader.sourceComponent = null
+            previousLoader.active = false
+            nextLoader.sourceComponent = null
+            nextLoader.active = false
+            root.previousOpacity = 0
+            root.nextOpacity = 0
+            root.nextY = 0
             return
         }
 
-        if (currentLoader.sourceComponent === component && incomingLoader.sourceComponent === null) {
+        if (previousLoader.sourceComponent === component && nextLoader.sourceComponent === null) {
             return
         }
 
-        // 快速连续点击时，先把上一次 incoming 提交成 current，再开始下一次动画。
-        if (incomingLoader.sourceComponent !== null) {
-            root.stopTransitionWithoutCommit()
-            currentLoader.sourceComponent = incomingLoader.sourceComponent
-            currentLoader.active = true
-            incomingLoader.sourceComponent = null
-            incomingLoader.active = false
-            root.currentOpacity = 1
-            root.incomingOpacity = 0
-            root.incomingY = 0
-        } else {
-            transitionAnimation.stop()
+        // HMCL TransitionPane：新动画会替换 transition_pane 上一次动画。
+        // Qt 这里快速连续点击时，先把正在进入的新页面提交为 previous，再进入下一页。
+        if (transition.running) {
+            root.commitNextAsPrevious()
+            transition.stop()
         }
 
-        if (!root.animationsEnabled || currentLoader.sourceComponent === null) {
-            currentLoader.sourceComponent = component
-            currentLoader.active = true
-            incomingLoader.sourceComponent = null
-            incomingLoader.active = false
-            root.currentOpacity = 1
-            root.incomingOpacity = 0
-            root.incomingY = 0
+        if (!root.animationsEnabled || previousLoader.sourceComponent === null) {
+            previousLoader.sourceComponent = component
+            previousLoader.active = true
+            nextLoader.sourceComponent = null
+            nextLoader.active = false
+
+            root.previousOpacity = 1
+            root.nextOpacity = 0
+            root.nextY = 0
             return
         }
 
-        incomingLoader.sourceComponent = component
-        incomingLoader.active = true
+        nextLoader.sourceComponent = component
+        nextLoader.active = true
 
-        root.currentOpacity = 1
-        root.incomingOpacity = 0
-        root.incomingY = root.enterOffset
+        // HMCL KeyFrame(Duration.ZERO)
+        root.previousOpacity = 1
+        root.nextOpacity = 0
+        root.nextY = root.enterOffset
 
-        transitionAnimation.restart()
+        transition.restart()
+    }
+
+    function commitNextAsPrevious() {
+        if (nextLoader.sourceComponent !== null) {
+            previousLoader.sourceComponent = nextLoader.sourceComponent
+            previousLoader.active = true
+            nextLoader.sourceComponent = null
+            nextLoader.active = false
+        }
+
+        root.previousOpacity = 1
+        root.nextOpacity = 0
+        root.nextY = 0
     }
 
     Loader {
-        id: currentLoader
+        id: previousLoader
 
         active: sourceComponent !== null
         width: root.width
-        opacity: root.currentOpacity
+        opacity: root.previousOpacity
+        visible: active && root.previousOpacity > 0.001
         y: 0
         asynchronous: true
     }
 
     Loader {
-        id: incomingLoader
+        id: nextLoader
 
         active: sourceComponent !== null
         width: root.width
-        opacity: root.incomingOpacity
-        y: root.incomingY
+        opacity: root.nextOpacity
+        visible: active && root.nextOpacity > 0.001
+        y: root.nextY
         asynchronous: true
     }
 
-    // HMCL ContainerAnimations.SLIDE_UP_FADE_IN:
-    // previous: opacity 1 -> 0, duration * 0.5
-    // next: opacity 0 -> 1, translateY offset -> 0, duration
+    // 完整对应 HMCL ContainerAnimations.SLIDE_UP_FADE_IN:
+    //
+    // Duration.ZERO:
+    //   previous.opacity = 1
+    //   previous.translateY = 0
+    //   next.opacity = 0
+    //   next.translateY = offset
+    //
+    // duration * 0.5:
+    //   previous.opacity = 0
+    //
+    // duration:
+    //   next.opacity = 1
+    //   next.translateY = 0
     ParallelAnimation {
-        id: transitionAnimation
+        id: transition
 
         NumberAnimation {
             target: root
-            property: "currentOpacity"
+            property: "previousOpacity"
             from: 1
             to: 0
-            duration: root.animationsEnabled ? root.duration / 2 : 0
-            easing.type: Easing.InCubic
+            duration: root.animationsEnabled ? root.duration * 0.5 : 0
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: root.hmclEmphasizedCurve
         }
 
         NumberAnimation {
             target: root
-            property: "incomingOpacity"
+            property: "nextOpacity"
             from: 0
             to: 1
             duration: root.animationsEnabled ? root.duration : 0
-            easing.type: Easing.OutCubic
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: root.hmclEmphasizedCurve
         }
 
         NumberAnimation {
             target: root
-            property: "incomingY"
+            property: "nextY"
             from: root.enterOffset
             to: 0
             duration: root.animationsEnabled ? root.duration : 0
-            easing.type: Easing.OutCubic
+            easing.type: Easing.BezierSpline
+            easing.bezierCurve: root.hmclEmphasizedCurve
         }
 
-        onStopped: {
-            if (root.suppressCommit) {
-                return
-            }
-
-            if (incomingLoader.sourceComponent !== null) {
-                currentLoader.sourceComponent = incomingLoader.sourceComponent
-                currentLoader.active = true
-                incomingLoader.sourceComponent = null
-                incomingLoader.active = false
-                root.currentOpacity = 1
-                root.incomingOpacity = 0
-                root.incomingY = 0
-            }
+        onFinished: {
+            root.commitNextAsPrevious()
         }
     }
 }
