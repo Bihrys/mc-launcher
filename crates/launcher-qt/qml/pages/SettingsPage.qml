@@ -12,12 +12,20 @@ Item {
     property string launcherVisibility: "hide"
     property string currentSection: "global"
     property var settingsData: ({})
+    property var loadedSections: ({ "global": true })
 
     signal themeSelected(string mode)
     signal launcherVisibilitySelected(string mode)
     signal backRequested()
 
-    Component.onCompleted: root.reloadSettings()
+    Component.onCompleted: {
+        root.reloadSettings()
+        root.ensureSectionLoaded(root.currentSection)
+    }
+
+    onCurrentSectionChanged: {
+        root.ensureSectionLoaded(root.currentSection)
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -209,11 +217,107 @@ Item {
                 spacing: 10
                 padding: 10
 
-                // 全局游戏设置
-                Column {
+                                // 全局游戏设置
+                Loader {
+                    id: globalSectionLoader
                     width: parent.width - 20
-                    spacing: 10
+                    active: root.sectionLoaded("global")
                     visible: root.currentSection === "global"
+                    asynchronous: true
+                    sourceComponent: globalSectionComponent
+                    height: visible && item ? item.implicitHeight : 0
+                }
+
+                                // Java 管理
+                Loader {
+                    id: javaSectionLoader
+                    width: parent.width - 20
+                    active: root.sectionLoaded("java")
+                    visible: root.currentSection === "java"
+                    asynchronous: true
+                    sourceComponent: javaSectionComponent
+                    height: visible && item ? item.implicitHeight : 0
+                }
+
+                                // 通用
+                Loader {
+                    id: generalSectionLoader
+                    width: parent.width - 20
+                    active: root.sectionLoaded("general")
+                    visible: root.currentSection === "general"
+                    asynchronous: true
+                    sourceComponent: generalSectionComponent
+                    height: visible && item ? item.implicitHeight : 0
+                }
+
+                                // 外观
+                Loader {
+                    id: appearanceSectionLoader
+                    width: parent.width - 20
+                    active: root.sectionLoaded("appearance")
+                    visible: root.currentSection === "appearance"
+                    asynchronous: true
+                    sourceComponent: appearanceSectionComponent
+                    height: visible && item ? item.implicitHeight : 0
+                }
+
+                                // 下载
+                Loader {
+                    id: downloadSectionLoader
+                    width: parent.width - 20
+                    active: root.sectionLoaded("download")
+                    visible: root.currentSection === "download"
+                    asynchronous: true
+                    sourceComponent: downloadSectionComponent
+                    height: visible && item ? item.implicitHeight : 0
+                }
+
+                                // 帮助
+                Loader {
+                    id: helpSectionLoader
+                    width: parent.width - 20
+                    active: root.sectionLoaded("help")
+                    visible: root.currentSection === "help"
+                    asynchronous: true
+                    sourceComponent: helpSectionComponent
+                    height: visible && item ? item.implicitHeight : 0
+                }
+
+                                // 反馈
+                Loader {
+                    id: feedbackSectionLoader
+                    width: parent.width - 20
+                    active: root.sectionLoaded("feedback")
+                    visible: root.currentSection === "feedback"
+                    asynchronous: true
+                    sourceComponent: feedbackSectionComponent
+                    height: visible && item ? item.implicitHeight : 0
+                }
+
+                                // 关于
+                Loader {
+                    id: aboutSectionLoader
+                    width: parent.width - 20
+                    active: root.sectionLoaded("about")
+                    visible: root.currentSection === "about"
+                    asynchronous: true
+                    sourceComponent: aboutSectionComponent
+                    height: visible && item ? item.implicitHeight : 0
+                }
+            }
+        }
+    }
+    }
+
+
+
+    Component {
+        id: globalSectionComponent
+
+// 全局游戏设置
+                Column {
+                    width: parent ? parent.width : 0
+                    spacing: 10
 
                     SettingsTitle { style: root.style; label: "游戏" }
 
@@ -302,12 +406,15 @@ Item {
                         }
                     }
                 }
+    }
 
-                // Java 管理
+    Component {
+        id: javaSectionComponent
+
+// Java 管理
                 Column {
-                    width: parent.width - 20
+                    width: parent ? parent.width : 0
                     spacing: 10
-                    visible: root.currentSection === "java"
 
                     SettingsTitle { style: root.style; label: "Java" }
 
@@ -358,12 +465,15 @@ Item {
                         }
                     }
                 }
+    }
 
-                // 通用
+    Component {
+        id: generalSectionComponent
+
+// 通用
                 Column {
-                    width: parent.width - 20
+                    width: parent ? parent.width : 0
                     spacing: 10
-                    visible: root.currentSection === "general"
 
                     SettingsTitle { style: root.style; label: "更新" }
 
@@ -488,12 +598,15 @@ Item {
                         }
                     }
                 }
+    }
 
-                // 外观
+    Component {
+        id: appearanceSectionComponent
+
+// 外观
                 Column {
-                    width: parent.width - 20
+                    width: parent ? parent.width : 0
                     spacing: 10
-                    visible: root.currentSection === "appearance"
 
                     SettingsTitle { style: root.style; label: "外观" }
 
@@ -566,12 +679,15 @@ Item {
                         }
                     }
                 }
+    }
 
-                // 下载
+    Component {
+        id: downloadSectionComponent
+
+// 下载
                 Column {
-                    width: parent.width - 20
+                    width: parent ? parent.width : 0
                     spacing: 10
-                    visible: root.currentSection === "download"
 
                     SettingsTitle { style: root.style; label: "下载来源" }
 
@@ -688,12 +804,15 @@ Item {
                         TextRow { style: root.style; label: "密码"; description: "代理身份验证密码。"; valueText: root.settingText("proxyPassword"); password: true; suffix: "待开发"; onAccepted: function(v) { root.setSetting("proxyPassword", v) } }
                     }
                 }
+    }
 
-                // 帮助
+    Component {
+        id: helpSectionComponent
+
+// 帮助
                 Column {
-                    width: parent.width - 20
+                    width: parent ? parent.width : 0
                     spacing: 10
-                    visible: root.currentSection === "help"
 
                     SettingsTitle { style: root.style; label: "帮助" }
 
@@ -707,12 +826,15 @@ Item {
                         ActionRow { style: root.style; label: "导出游戏崩溃信息"; description: "用于反馈和求助。"; actionText: "待开发"; actionEnabled: false }
                     }
                 }
+    }
 
-                // 反馈
+    Component {
+        id: feedbackSectionComponent
+
+// 反馈
                 Column {
-                    width: parent.width - 20
+                    width: parent ? parent.width : 0
                     spacing: 10
-                    visible: root.currentSection === "feedback"
 
                     SettingsTitle { style: root.style; label: "反馈" }
 
@@ -725,12 +847,15 @@ Item {
                         ActionRow { style: root.style; label: "导出诊断信息"; description: "包含启动器日志、游戏日志、系统信息。"; actionText: "待开发"; actionEnabled: false }
                     }
                 }
+    }
 
-                // 关于
+    Component {
+        id: aboutSectionComponent
+
+// 关于
                 Column {
-                    width: parent.width - 20
+                    width: parent ? parent.width : 0
                     spacing: 10
-                    visible: root.currentSection === "about"
 
                     SettingsTitle { style: root.style; label: "关于" }
 
@@ -775,9 +900,29 @@ Item {
                         }
                     }
                 }
-            }
-        }
     }
+
+    function ensureSectionLoaded(section) {
+        if (!section || section.length === 0) {
+            return
+        }
+
+        if (root.loadedSections[section] === true) {
+            return
+        }
+
+        var next = {}
+        for (var key in root.loadedSections) {
+            next[key] = root.loadedSections[key]
+        }
+        next[section] = true
+
+        // QML var 对象要整体重新赋值，绑定才会刷新。
+        root.loadedSections = next
+    }
+
+    function sectionLoaded(section) {
+        return root.loadedSections[section] === true
     }
 
     function reloadSettings() {

@@ -11,6 +11,7 @@ Rectangle {
     property string currentPage: ""
 
     signal clicked(string page)
+    signal entered(string page)
 
     width: parent ? parent.width : 220
     height: subtitle.length > 0 ? 58 : 46
@@ -32,6 +33,7 @@ Rectangle {
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onClicked: root.clicked(root.page)
+        onEntered: root.entered(root.page)
     }
 
     Column {

@@ -9,6 +9,7 @@ Rectangle {
     property string currentPage: "main"
 
     signal navigate(string page)
+    signal prepareSettings()
 
     width: style.sidebarWidthValue
     color: style.cSurfaceTransparent
@@ -160,6 +161,9 @@ Rectangle {
                 subtitle: "全局 / Java / 通用 / 下载 / 帮助 / 关于"
                 page: "settings"
                 currentPage: root.currentPage
+                onEntered: function(page) {
+                    root.prepareSettings()
+                }
                 onClicked: function(page) {
                     root.navigate(page)
                 }

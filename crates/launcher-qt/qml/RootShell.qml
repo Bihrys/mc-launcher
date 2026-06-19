@@ -67,7 +67,7 @@ Item {
 
     onCurrentPageChanged: {
         if (root.currentPage === "settings") {
-            root.settingsPageLoaded = true
+            root.prepareSettingsPage()
         }
     }
 
@@ -136,6 +136,7 @@ Item {
                 onNavigate: function(page) {
                     root.currentPage = page
                 }
+                onPrepareSettings: root.prepareSettingsPage()
             }
 
             Item {
@@ -353,6 +354,14 @@ Item {
             return "隐藏启动器，并在游戏退出后重新打开"
         default:
             return "游戏启动后隐藏启动器"
+        }
+    }
+
+    function prepareSettingsPage() {
+        // HMCL: prepareSettingsPage() 只在 settingsPage == null 时创建。
+        // Qt/QML 对应：让 Loader active=true；创建后缓存，不再销毁。
+        if (!root.settingsPageLoaded) {
+            root.settingsPageLoaded = true
         }
     }
 
