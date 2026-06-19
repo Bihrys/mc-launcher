@@ -79,8 +79,8 @@ Item {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onPressed: function(mouse) {
-                mainRipple.press(mouse.x, mouse.y)
+            onPressed: function(event) {
+                mainRipple.press(event.x, event.y)
             }
             onClicked: root.launchClicked()
         }
@@ -138,8 +138,8 @@ Item {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onPressed: function(mouse) {
-                menuRipple.press(mouse.x, mouse.y)
+            onPressed: function(event) {
+                menuRipple.press(event.x, event.y)
             }
             onClicked: root.menuClicked()
         }

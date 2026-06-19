@@ -15,6 +15,7 @@ fn main() {
             "qml/components/HmclSvgIcon.qml",
             "qml/components/HmclRipple.qml",
             "qml/components/HmclImageContainer.qml",
+            "qml/components/HmclPageLayer.qml",
 
             "qml/pages/MainPage.qml",
             "qml/pages/PlaceholderPage.qml",

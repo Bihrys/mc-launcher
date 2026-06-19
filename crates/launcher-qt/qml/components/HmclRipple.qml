@@ -4,9 +4,9 @@ Item {
     id: root
 
     // HMCL RipplerContainer:
-    // - hover cover: onSurface * 0.04, Motion.SHORT4=200ms
-    // - JFXRippler fill: css -jfx-rippler-fill
-    // - position: BACK
+    // mouse entered: Motion.SHORT4 + Motion.EASE_IN, onSurface alpha 0 -> 0.04
+    // mouse exited : Motion.SHORT4 + Motion.EASE_OUT, onSurface alpha 0.04 -> 0
+    // click        : JFXRippler from cursor position, position BACK
     property color hoverColor: "#000000"
     property color rippleColor: "#000000"
     property real hoverOpacity: 0.04
@@ -23,7 +23,7 @@ Item {
     clip: true
 
     Rectangle {
-        id: cover
+        id: hoverCover
 
         anchors.fill: parent
         color: root.hoverColor
@@ -38,7 +38,7 @@ Item {
     }
 
     Rectangle {
-        id: circle
+        id: rippleCircle
 
         width: root.maxRadius * 2
         height: root.maxRadius * 2
@@ -56,7 +56,7 @@ Item {
 
         ParallelAnimation {
             NumberAnimation {
-                target: circle
+                target: rippleCircle
                 property: "scale"
                 from: 0
                 to: 1
@@ -65,7 +65,7 @@ Item {
             }
 
             NumberAnimation {
-                target: circle
+                target: rippleCircle
                 property: "opacity"
                 from: root.rippleOpacity
                 to: 0.07
@@ -75,7 +75,7 @@ Item {
         }
 
         NumberAnimation {
-            target: circle
+            target: rippleCircle
             property: "opacity"
             to: 0
             duration: root.animationsEnabled ? root.hoverDuration : 0
@@ -84,8 +84,8 @@ Item {
 
         ScriptAction {
             script: {
-                circle.scale = 0
-                circle.opacity = 0
+                rippleCircle.scale = 0
+                rippleCircle.opacity = 0
             }
         }
     }
@@ -98,8 +98,8 @@ Item {
         root.originX = x
         root.originY = y
         rippleAnimation.stop()
-        circle.scale = 0
-        circle.opacity = root.rippleOpacity
+        rippleCircle.scale = 0
+        rippleCircle.opacity = root.rippleOpacity
         rippleAnimation.restart()
     }
 }

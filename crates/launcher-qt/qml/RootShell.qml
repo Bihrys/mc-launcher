@@ -162,43 +162,87 @@ Item {
             Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                clip: true
 
-                MainPage {
+                HmclPageLayer {
                     anchors.fill: parent
-                    visible: root.currentPage === "main"
                     style: style
-                    backend: root.backend
+                    active: root.currentPage === "main"
+
+                    MainPage {
+                        anchors.fill: parent
+                        style: style
+                        backend: root.backend
+                    }
+
+                    SplitLaunchButton {
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        style: style
+                        title: root.backend.selectedGameVersion.length > 0 ? "启动游戏" : "开始游戏"
+                        subtitle: root.backend.selectedGameVersion.length > 0
+                                  ? root.backend.selectedGameVersion
+                                  : ""
+
+                        onLaunchClicked: {
+                            root.startLaunch()
+                        }
+
+                        onMenuClicked: {
+                            root.currentPage = "versions"
+                        }
+                    }
                 }
 
-                AccountPage {
+                HmclPageLayer {
                     anchors.fill: parent
-                    visible: root.currentPage === "account"
                     style: style
-                    backend: root.backend
+                    active: root.currentPage === "account"
+
+                    AccountPage {
+                        anchors.fill: parent
+                        style: style
+                        backend: root.backend
+                    }
                 }
 
-                DownloadPage {
+                HmclPageLayer {
                     anchors.fill: parent
-                    visible: root.currentPage === "download"
                     style: style
-                    backend: root.backend
+                    active: root.currentPage === "download"
+
+                    DownloadPage {
+                        anchors.fill: parent
+                        style: style
+                        backend: root.backend
+                    }
                 }
 
-                VersionPage {
+                HmclPageLayer {
                     anchors.fill: parent
-                    visible: root.currentPage === "versions"
                     style: style
-                    backend: root.backend
+                    active: root.currentPage === "versions"
+
+                    VersionPage {
+                        anchors.fill: parent
+                        style: style
+                        backend: root.backend
+                    }
                 }
 
-                Loader {
-                    id: settingsPageLoader
-
+                HmclPageLayer {
                     anchors.fill: parent
-                    active: root.settingsPageLoaded
-                    visible: root.currentPage === "settings"
-                    asynchronous: true
-                    sourceComponent: settingsPageComponent
+                    style: style
+                    active: root.currentPage === "settings"
+
+                    Loader {
+                        id: settingsPageLoader
+
+                        anchors.fill: parent
+                        active: root.settingsPageLoaded
+                        asynchronous: true
+                        sourceComponent: settingsPageComponent
+                    }
                 }
 
                 Component {
@@ -226,43 +270,27 @@ Item {
                     }
                 }
 
-                JavaPage {
+                HmclPageLayer {
                     anchors.fill: parent
-                    visible: root.currentPage === "java"
                     style: style
-                    backend: root.backend
-                }
+                    active: root.currentPage === "java"
 
-                PlaceholderPage {
-                    anchors.fill: parent
-                    visible: root.currentPage !== "main"
-                             && root.currentPage !== "account"
-                             && root.currentPage !== "download"
-                             && root.currentPage !== "versions"
-                             && root.currentPage !== "settings"
-                             && root.currentPage !== "java"
-                    style: style
-                    titleText: root.getPageTitle(root.currentPage)
-                }
-
-                SplitLaunchButton {
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    visible: root.currentPage === "main"
-                    enabled: visible
-
-                    style: style
-                    title: root.backend.selectedGameVersion.length > 0 ? "启动游戏" : "开始游戏"
-                    subtitle: root.backend.selectedGameVersion.length > 0
-                              ? root.backend.selectedGameVersion
-                              : ""
-
-                    onLaunchClicked: {
-                        root.startLaunch()
+                    JavaPage {
+                        anchors.fill: parent
+                        style: style
+                        backend: root.backend
                     }
+                }
 
-                    onMenuClicked: {
-                        root.currentPage = "versions"
+                HmclPageLayer {
+                    anchors.fill: parent
+                    style: style
+                    active: root.isPlaceholderPage(root.currentPage)
+
+                    PlaceholderPage {
+                        anchors.fill: parent
+                        style: style
+                        titleText: root.getPageTitle(root.currentPage)
                     }
                 }
             }
@@ -449,6 +477,15 @@ Item {
     function isSystemDark(colorValue) {
         var brightness = colorValue.r * 0.299 + colorValue.g * 0.587 + colorValue.b * 0.114
         return brightness < 0.5
+    }
+
+    function isPlaceholderPage(page) {
+        return page !== "main"
+                && page !== "account"
+                && page !== "download"
+                && page !== "versions"
+                && page !== "settings"
+                && page !== "java"
     }
 
     function getPageTitle(page) {

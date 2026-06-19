@@ -225,7 +225,7 @@ Rectangle {
         HmclRipple {
             id: accountRipple
             anchors.fill: parent
-            hovered: mouse.containsMouse
+            hovered: mouseArea.containsMouse
             hoverColor: item.style.cTextOnSurface
             hoverOpacity: 0.04
             rippleColor: item.active ? item.style.cTextOnSurface : item.style.cTextOnSurfaceVariant
@@ -235,12 +235,12 @@ Rectangle {
         }
 
         MouseArea {
-            id: mouse
+            id: mouseArea
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onPressed: function(mouse) {
-                accountRipple.press(mouse.x, mouse.y)
+            onPressed: function(event) {
+                accountRipple.press(event.x, event.y)
             }
             onClicked: item.clicked()
         }
@@ -336,7 +336,7 @@ Rectangle {
         HmclRipple {
             id: ripple
             anchors.fill: parent
-            hovered: mouse.containsMouse
+            hovered: mouseArea.containsMouse
             hoverColor: item.style.cTextOnSurface
             hoverOpacity: 0.04
             rippleColor: item.active ? item.style.cTextOnSurface : item.style.cTextOnSurfaceVariant
@@ -346,13 +346,13 @@ Rectangle {
         }
 
         MouseArea {
-            id: mouse
+            id: mouseArea
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onEntered: item.entered()
-            onPressed: function(mouse) {
-                ripple.press(mouse.x, mouse.y)
+            onPressed: function(event) {
+                ripple.press(event.x, event.y)
             }
             onClicked: item.clicked()
         }
