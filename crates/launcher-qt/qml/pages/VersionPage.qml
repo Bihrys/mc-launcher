@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import "../components"
 
 Item {
     id: root
@@ -147,6 +148,13 @@ Item {
                                 border.width: selected ? 1 : 0
                                 border.color: root.style.cBorder
 
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: root.style.animationsEnabled ? root.style.motionShort4 : 0
+                                        easing.type: Easing.OutCubic
+                                    }
+                                }
+
                                 MouseArea {
                                     id: mouse
                                     anchors.fill: parent
@@ -168,20 +176,34 @@ Item {
                                     anchors.margins: 10
                                     spacing: 10
 
-                                    Rectangle {
+                                    Item {
                                         Layout.preferredWidth: 46
                                         Layout.preferredHeight: 46
-                                        radius: 8
-                                        color: root.style.cButtonSurface
-                                        border.color: root.style.cBorder
-                                        border.width: 1
 
-                                        Text {
+                                        HmclImageContainer {
                                             anchors.centerIn: parent
-                                            text: selected ? "✓" : "▶"
-                                            color: root.style.cTextOnSurface
-                                            font.pixelSize: 20
-                                            font.bold: true
+                                            style: root.style
+                                            source: "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/" + iconName + ".png"
+                                            imageSize: 32
+                                            animationsEnabled: root.style.animationsEnabled
+                                        }
+
+                                        Rectangle {
+                                            anchors.right: parent.right
+                                            anchors.bottom: parent.bottom
+                                            width: 15
+                                            height: 15
+                                            radius: 7.5
+                                            visible: selected
+                                            color: root.style.cButtonSelected
+
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: "✓"
+                                                color: root.style.cButtonSelectedText
+                                                font.pixelSize: 9
+                                                font.bold: true
+                                            }
                                         }
                                     }
 
@@ -344,6 +366,7 @@ Item {
                 "hasClientJar": !!version.hasClientJar,
                 "hasVersionJson": !!version.hasVersionJson,
                 "selected": !!version.selected,
+                "iconName": version.iconName || "grass",
                 "path": version.path || ""
             })
         }

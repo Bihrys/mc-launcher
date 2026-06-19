@@ -22,7 +22,23 @@ Item {
         width: 207
         height: 55
         radius: 4
+        clip: true
         color: mainMouse.containsMouse ? root.style.cLaunchButtonHover : root.style.cPrimaryContainer
+
+        Behavior on color {
+            ColorAnimation {
+                duration: root.style.animationsEnabled ? root.style.motionShort4 : 0
+                easing.type: Easing.OutCubic
+            }
+        }
+
+        HmclRipple {
+            id: mainRipple
+            anchors.fill: parent
+            rippleColor: root.style.cTextOnPrimaryContainer
+            rippleOpacity: 0.13
+            animationsEnabled: root.style.animationsEnabled
+        }
 
         Rectangle {
             anchors.right: parent.right
@@ -30,7 +46,6 @@ Item {
             anchors.bottom: parent.bottom
             width: 3
             color: root.style.cTextOnSurfaceVariant
-            opacity: 0.9
         }
 
         Column {
@@ -41,7 +56,7 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: root.title
                 color: root.style.cTextOnPrimaryContainer
-                font.pixelSize: 16
+                font.pixelSize: 14
                 font.bold: true
             }
 
@@ -60,6 +75,7 @@ Item {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
+            onPressed: mainRipple.press(mouse.x, mouse.y)
             onClicked: root.launchClicked()
         }
     }
@@ -72,7 +88,23 @@ Item {
         width: 20
         height: 55
         radius: 4
+        clip: true
         color: menuMouse.containsMouse ? root.style.cLaunchButtonHover : root.style.cPrimaryContainer
+
+        Behavior on color {
+            ColorAnimation {
+                duration: root.style.animationsEnabled ? root.style.motionShort4 : 0
+                easing.type: Easing.OutCubic
+            }
+        }
+
+        HmclRipple {
+            id: menuRipple
+            anchors.fill: parent
+            rippleColor: root.style.cTextOnPrimaryContainer
+            rippleOpacity: 0.13
+            animationsEnabled: root.style.animationsEnabled
+        }
 
         Rectangle {
             anchors.left: parent.left
@@ -82,11 +114,13 @@ Item {
             color: menuButton.color
         }
 
-        Text {
+        HmclSvgIcon {
             anchors.centerIn: parent
-            text: "▲"
-            color: root.style.cTextOnPrimaryContainer
-            font.pixelSize: 15
+            icon: "ARROW_DROP_UP"
+            iconSize: 20
+            iconColor: root.style.cTextOnPrimaryContainer
+            animationsEnabled: root.style.animationsEnabled
+            animationDuration: root.style.motionShort4
         }
 
         MouseArea {
@@ -94,6 +128,7 @@ Item {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
+            onPressed: menuRipple.press(mouse.x, mouse.y)
             onClicked: root.menuClicked()
         }
     }

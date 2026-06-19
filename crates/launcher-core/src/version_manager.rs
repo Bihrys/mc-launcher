@@ -17,6 +17,7 @@ pub struct InstalledVersion {
     pub has_client_jar: bool,
     pub has_version_json: bool,
     pub selected: bool,
+    pub icon_name: String,
     pub path: PathBuf,
 }
 
@@ -78,6 +79,8 @@ pub fn installed_versions() -> Result<Vec<InstalledVersion>, VersionError> {
             .and_then(|text| serde_json::from_str::<Value>(&text).ok())
             .unwrap_or(Value::Null);
 
+        let icon_name = detect_version_icon(id, &json);
+
         out.push(InstalledVersion {
             id: id.to_string(),
             version_type: json
@@ -101,6 +104,7 @@ pub fn installed_versions() -> Result<Vec<InstalledVersion>, VersionError> {
             has_client_jar: jar_path.exists(),
             has_version_json: true,
             selected: false,
+            icon_name,
             path,
         });
     }
@@ -178,6 +182,76 @@ pub fn delete_version(version_id: &str) -> Result<(), VersionError> {
     }
 
     Ok(())
+}
+
+fn detect_version_icon(id: &str, json: &Value) -> String {
+    let mut haystack = String::new();
+    haystack.push_str(&id.to_ascii_lowercase());
+    haystack.push(' ');
+
+    for key in ["inheritsFrom", "mainClass", "minecraftArguments"] {
+        if let Some(value) = json.get(key).and_then(Value::as_str) {
+            haystack.push_str(&value.to_ascii_lowercase());
+            haystack.push(' ');
+        }
+    }
+
+    if let Some(arguments) = json.get("arguments") {
+        haystack.push_str(&arguments.to_string().to_ascii_lowercase());
+        haystack.push(' ');
+    }
+
+    if let Some(libraries) = json.get("libraries").and_then(Value::as_array) {
+        for library in libraries {
+            if let Some(name) = library.get("name").and_then(Value::as_str) {
+                haystack.push_str(&name.to_ascii_lowercase());
+                haystack.push(' ');
+            }
+        }
+    }
+
+    if is_april_fools_version(id) {
+        return "april_fools".to_string();
+    }
+
+    for (needle, icon) in [
+        ("cleanroom", "cleanroom"),
+        ("legacyfabric", "legacyfabric"),
+        ("legacy-fabric", "legacyfabric"),
+        ("neoforged", "neoforge"),
+        ("neoforge", "neoforge"),
+        ("quilt-loader", "quilt"),
+        ("org.quiltmc", "quilt"),
+        ("quilt", "quilt"),
+        ("fabric-loader", "fabric"),
+        ("net.fabricmc", "fabric"),
+        ("fabric", "fabric"),
+        ("optifine", "optifine"),
+        ("net.minecraftforge:forge", "forge"),
+        ("minecraftforge", "forge"),
+        ("forge", "forge"),
+        ("liteloader", "chicken"),
+        ("lite_loader", "chicken"),
+    ] {
+        if haystack.contains(needle) {
+            return icon.to_string();
+        }
+    }
+
+    "grass".to_string()
+}
+
+fn is_april_fools_version(id: &str) -> bool {
+    let lower = id.to_ascii_lowercase();
+
+    matches!(id, "2.0" | "15w14a" | "1.RV-Pre1")
+        || lower.contains("infinite")
+        || lower.contains("oneblockatatime")
+        || lower.contains("_or_b")
+        || lower.contains("potato")
+        || lower.contains("craftmine")
+        || lower.contains("shareware")
+        || lower.contains("3d shareware")
 }
 
 fn load_settings() -> Result<LauncherSettings, VersionError> {

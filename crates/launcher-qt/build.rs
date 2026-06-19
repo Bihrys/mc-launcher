@@ -11,6 +11,9 @@ fn main() {
             "qml/components/SectionTitle.qml",
             "qml/components/NavItem.qml",
             "qml/components/SplitLaunchButton.qml",
+            "qml/components/HmclSvgIcon.qml",
+            "qml/components/HmclRipple.qml",
+            "qml/components/HmclImageContainer.qml",
             "qml/pages/MainPage.qml",
             "qml/pages/PlaceholderPage.qml",
             "qml/pages/SettingsPage.qml",
@@ -18,9 +21,25 @@ fn main() {
             "qml/pages/AccountPage.qml",
             "qml/pages/DownloadPage.qml",
             "qml/pages/VersionPage.qml",
+            "qml/assets/img/grass.png",
+            "qml/assets/img/forge.png",
+            "qml/assets/img/fabric.png",
+            "qml/assets/img/quilt.png",
+            "qml/assets/img/neoforge.png",
+            "qml/assets/img/optifine.png",
+            "qml/assets/img/april_fools.png",
+            "qml/assets/img/chicken.png",
+            "qml/assets/img/command.png",
+            "qml/assets/img/craft_table.png",
+            "qml/assets/img/chest.png",
+            "qml/assets/img/furnace.png",
+            "qml/assets/img/cleanroom.png",
+            "qml/assets/img/legacyfabric.png",
+            "qml/assets/img/terracotta.png",
         ]),
     )
     .qt_module("Network")
+    .qt_module("QuickShapes")
     .files(["src/backend.rs"])
     .build();
 }

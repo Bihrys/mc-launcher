@@ -18,6 +18,7 @@ Item {
     readonly property real uiScale: Math.max(0.78, Math.min(1.18, Math.min(root.width / 1280, root.height / 720)))
     property string launcherTheme: appSettings.launcherTheme
     property string launcherVisibility: appSettings.launcherVisibility
+    property bool animationsEnabled: true
 
     property var launchTaskStatus: ({
         "id": "",
@@ -48,6 +49,7 @@ Item {
     Component.onCompleted: {
         root.backend.refreshAccounts()
         root.backend.refreshInstalledVersions()
+        root.applyLauncherSettings(root.backend.refreshLauncherSettings())
         root.pollLaunchTask()
     }
 
@@ -82,6 +84,15 @@ Item {
         id: style
         themeMode: root.launcherTheme
         systemDark: root.isSystemDark(systemPalette.window)
+        animationsEnabled: root.animationsEnabled
+    }
+
+    Connections {
+        target: root.backend
+
+        function onLauncherSettingsJsonChanged() {
+            root.applyLauncherSettings(root.backend.launcherSettingsJson)
+        }
     }
 
     Timer {
@@ -395,6 +406,25 @@ Item {
             return "隐藏启动器，并在游戏退出后重新打开"
         default:
             return "游戏启动后隐藏启动器"
+        }
+    }
+
+    function applyLauncherSettings(raw) {
+        if (!raw || raw.length === 0) {
+            return
+        }
+
+        try {
+            var data = JSON.parse(raw)
+            if (data.themeMode !== undefined && data.themeMode !== null) {
+                root.launcherTheme = String(data.themeMode)
+            }
+            if (data.launcherVisibility !== undefined && data.launcherVisibility !== null) {
+                root.launcherVisibility = String(data.launcherVisibility)
+            }
+            root.animationsEnabled = !(data.turnOffAnimations === true || String(data.turnOffAnimations) === "true")
+        } catch (e) {
+            console.log("Failed to parse launcher settings", e)
         }
     }
 
