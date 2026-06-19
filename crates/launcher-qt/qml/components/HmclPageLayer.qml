@@ -8,6 +8,7 @@ Item {
     required property var style
 
     property bool active: false
+    property string mode: "navigation"   // navigation | fade
     property int duration: style.motionShort4
     property int slideOffset: 30
     property bool animationsEnabled: style.animationsEnabled
@@ -22,8 +23,8 @@ Item {
 
         width: root.width
         height: root.height
-        x: root.active ? 0 : root.slideOffset
         opacity: root.active ? 1 : 0
+        x: 0
     }
 
     Component.onCompleted: {
@@ -36,7 +37,7 @@ Item {
         } else {
             root.visible = false
             content.opacity = 0
-            content.x = root.slideOffset
+            content.x = root.mode === "navigation" ? root.slideOffset : 0
         }
     }
 
@@ -51,14 +52,14 @@ Item {
         if (!root.animationsEnabled) {
             root.visible = root.active
             content.opacity = root.active ? 1 : 0
-            content.x = root.active ? 0 : root.slideOffset
+            content.x = 0
             return
         }
 
         if (root.active) {
             root.visible = true
             content.opacity = 0
-            content.x = root.slideOffset
+            content.x = root.mode === "navigation" ? root.slideOffset : 0
             enterAnimation.restart()
         } else {
             content.opacity = 1
@@ -87,7 +88,7 @@ Item {
             NumberAnimation {
                 target: content
                 property: "x"
-                from: root.slideOffset
+                from: root.mode === "navigation" ? root.slideOffset : 0
                 to: 0
                 duration: root.duration / 2
                 easing.type: Easing.OutCubic
@@ -112,7 +113,7 @@ Item {
                 target: content
                 property: "x"
                 from: 0
-                to: root.slideOffset
+                to: root.mode === "navigation" ? root.slideOffset : 0
                 duration: root.duration / 2
                 easing.type: Easing.InCubic
             }
@@ -123,7 +124,7 @@ Item {
                 if (!root.active) {
                     root.visible = false
                     content.opacity = 0
-                    content.x = root.slideOffset
+                    content.x = root.mode === "navigation" ? root.slideOffset : 0
                 }
             }
         }

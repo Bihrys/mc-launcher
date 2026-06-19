@@ -233,6 +233,7 @@ Item {
                 HmclPageLayer {
                     anchors.fill: parent
                     style: style
+                    mode: "fade"
                     active: root.currentPage === "settings"
 
                     Loader {
@@ -255,6 +256,7 @@ Item {
                         themeMode: root.launcherTheme
                         launcherVisibility: root.launcherVisibility
                         requestedSection: root.requestedSettingsSection
+                        pageActive: root.currentPage === "settings"
 
                         onThemeSelected: function(mode) {
                             root.launcherTheme = mode

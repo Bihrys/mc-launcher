@@ -15,6 +15,11 @@ Item {
     property var settingsData: ({})
     property var loadedSections: ({ "global": true })
 
+    // HMCL DecoratorAnimatedPage / ContainerAnimations.NAVIGATION 等价状态。
+    property bool pageActive: false
+    property bool pageAnimationReady: false
+    property int navigationOffset: 30
+
     signal themeSelected(string mode)
     signal launcherVisibilitySelected(string mode)
     signal backRequested()
@@ -25,6 +30,23 @@ Item {
         }
         root.reloadSettings()
         root.ensureSectionLoaded(root.currentSection)
+        root.pageAnimationReady = true
+
+        if (root.pageActive) {
+            root.playDecoratorEnter()
+        }
+    }
+
+    onPageActiveChanged: {
+        if (!root.pageAnimationReady) {
+            return
+        }
+
+        if (root.pageActive) {
+            root.playDecoratorEnter()
+        } else {
+            root.playDecoratorExit()
+        }
     }
 
     onCurrentSectionChanged: {
@@ -35,6 +57,144 @@ Item {
         if (root.requestedSection.length > 0) {
             root.currentSection = root.requestedSection
             root.ensureSectionLoaded(root.currentSection)
+        }
+    }
+
+    function playDecoratorEnter() {
+        decoratorEnter.stop()
+        decoratorExit.stop()
+
+        if (!root.style.animationsEnabled) {
+            settingsLeftPane.x = 0
+            settingsLeftPane.opacity = 1
+            settingsScroll.x = 0
+            settingsScroll.opacity = 1
+            return
+        }
+
+        settingsLeftPane.x = -root.navigationOffset
+        settingsLeftPane.opacity = 0
+        settingsScroll.x = root.navigationOffset
+        settingsScroll.opacity = 0
+
+        decoratorEnter.restart()
+    }
+
+    function playDecoratorExit() {
+        decoratorEnter.stop()
+        decoratorExit.stop()
+
+        if (!root.style.animationsEnabled) {
+            settingsLeftPane.x = 0
+            settingsLeftPane.opacity = 1
+            settingsScroll.x = 0
+            settingsScroll.opacity = 1
+            return
+        }
+
+        settingsLeftPane.x = 0
+        settingsLeftPane.opacity = 1
+        settingsScroll.x = 0
+        settingsScroll.opacity = 1
+
+        decoratorExit.restart()
+    }
+
+    ParallelAnimation {
+        id: decoratorEnter
+
+        SequentialAnimation {
+            PauseAnimation {
+                duration: root.style.motionShort4 / 2
+            }
+
+            ParallelAnimation {
+                NumberAnimation {
+                    target: settingsLeftPane
+                    property: "x"
+                    from: -root.navigationOffset
+                    to: 0
+                    duration: root.style.motionShort4 / 2
+                    easing.type: Easing.OutCubic
+                }
+
+                NumberAnimation {
+                    target: settingsLeftPane
+                    property: "opacity"
+                    from: 0
+                    to: 1
+                    duration: root.style.motionShort4 / 2
+                    easing.type: Easing.OutCubic
+                }
+            }
+        }
+
+        SequentialAnimation {
+            PauseAnimation {
+                duration: root.style.motionShort4 / 2
+            }
+
+            ParallelAnimation {
+                NumberAnimation {
+                    target: settingsScroll
+                    property: "x"
+                    from: root.navigationOffset
+                    to: 0
+                    duration: root.style.motionShort4 / 2
+                    easing.type: Easing.OutCubic
+                }
+
+                NumberAnimation {
+                    target: settingsScroll
+                    property: "opacity"
+                    from: 0
+                    to: 1
+                    duration: root.style.motionShort4 / 2
+                    easing.type: Easing.OutCubic
+                }
+            }
+        }
+    }
+
+    ParallelAnimation {
+        id: decoratorExit
+
+        ParallelAnimation {
+            NumberAnimation {
+                target: settingsLeftPane
+                property: "x"
+                from: 0
+                to: -root.navigationOffset
+                duration: root.style.motionShort4 / 2
+                easing.type: Easing.InCubic
+            }
+
+            NumberAnimation {
+                target: settingsLeftPane
+                property: "opacity"
+                from: 1
+                to: 0
+                duration: root.style.motionShort4 / 2
+                easing.type: Easing.InCubic
+            }
+
+            NumberAnimation {
+                target: settingsScroll
+                property: "x"
+                from: 0
+                to: root.navigationOffset
+                duration: root.style.motionShort4 / 2
+                easing.type: Easing.InCubic
+            }
+
+            NumberAnimation {
+                target: settingsScroll
+                property: "opacity"
+                from: 1
+                to: 0
+                duration: root.style.motionShort4 / 2
+                easing.type: Easing.InCubic
+            }
         }
     }
 
@@ -111,6 +271,8 @@ Item {
 
         // HMCL AdvancedListBox: limit width 200, transparent, content padding top 12.
         Rectangle {
+            id: settingsLeftPane
+
             Layout.preferredWidth: 200
             Layout.fillHeight: true
             color: "transparent"
