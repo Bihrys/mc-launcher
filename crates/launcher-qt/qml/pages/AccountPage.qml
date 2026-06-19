@@ -20,6 +20,8 @@ Item {
     property string addServerUrl: ""
 
     property int deleteIndex: -1
+    property int refreshingAccountIndex: -1
+    property var accountRefreshStatus: ({ "active": false })
 
     property bool yggdrasilProfileDialogOpen: false
     property string yggdrasilProfileServer: ""
@@ -58,6 +60,16 @@ Item {
         function onPendingYggdrasilProfilesJsonChanged() {
             root.loadPendingYggdrasilProfiles()
         }
+    }
+
+    Timer {
+        id: accountRefreshPoller
+
+        interval: 80
+        repeat: true
+        running: false
+
+        onTriggered: root.pollAccountRefresh()
     }
 
     RowLayout {
@@ -222,6 +234,7 @@ Item {
                             serverUrl: parent.serverUrl
                             avatarUrl: parent.avatarUrl
                             selected: parent.selected
+                            refreshing: root.refreshingAccountIndex === parent.index
 
                             onSelectRequested: {
                                 root.backend.switchAccount(String(accountCard.accountIndex))
@@ -233,8 +246,7 @@ Item {
                             }
 
                             onRefreshRequested: {
-                                root.backend.switchAccount(String(accountCard.accountIndex))
-                                root.reloadAccounts()
+                                root.startAccountRefresh(accountCard.accountIndex)
                             }
 
                             onCopyUuidRequested: {
@@ -796,6 +808,44 @@ Item {
         }
     }
 
+    function startAccountRefresh(index) {
+        if (root.refreshingAccountIndex >= 0) {
+            return
+        }
+
+        root.refreshingAccountIndex = index
+        root.accountRefreshStatus = {
+            "active": true,
+            "index": index,
+            "title": "正在刷新账户"
+        }
+
+        root.backend.startRefreshAccount(String(index))
+        accountRefreshPoller.restart()
+    }
+
+    function pollAccountRefresh() {
+        var raw = root.backend.pollRefreshAccountTask()
+
+        try {
+            var status = JSON.parse(raw)
+            root.accountRefreshStatus = status
+
+            if (status.accountsJson && status.accountsJson.length > 0) {
+                root.reloadAccountsFromJson(status.accountsJson)
+            }
+
+            if (!status.active) {
+                accountRefreshPoller.stop()
+                root.refreshingAccountIndex = -1
+            }
+        } catch (e) {
+            accountRefreshPoller.stop()
+            root.refreshingAccountIndex = -1
+            console.log("Failed to parse account refresh task", e)
+        }
+    }
+
     function reloadAccounts() {
         var raw = root.backend.refreshAccounts()
         root.reloadAccountsFromJson(raw)
@@ -1043,6 +1093,7 @@ Item {
         property string serverUrl: ""
         property string avatarUrl: ""
         property bool selected: false
+        property bool refreshing: false
 
         signal selectRequested()
         signal deleteRequested()
@@ -1138,7 +1189,9 @@ Item {
                 IconButton {
                     style: card.style
                     iconKind: "REFRESH"
-                    tooltip: "刷新"
+                    tooltip: card.refreshing ? "刷新中" : "刷新"
+                    spinning: card.refreshing
+                    enabled: !card.refreshing
                     onClicked: card.refreshRequested()
                 }
 
@@ -1210,6 +1263,7 @@ Item {
         required property var style
         property string iconKind: ""
         property string tooltip: ""
+        property bool spinning: false
 
         signal clicked()
 
@@ -1219,7 +1273,7 @@ Item {
         Rectangle {
             anchors.fill: parent
             radius: 16
-            color: mouse.containsMouse
+            color: button.enabled && mouse.containsMouse
                    ? Qt.rgba(button.style.cTextOnSurface.r,
                              button.style.cTextOnSurface.g,
                              button.style.cTextOnSurface.b,
@@ -1228,11 +1282,30 @@ Item {
         }
 
         HmclSvgIcon {
+            id: iconGlyph
+
             anchors.centerIn: parent
             icon: button.iconKind
             iconSize: 18
             iconColor: button.style.cTextOnSurfaceVariant
             animationsEnabled: button.style.animationsEnabled
+            opacity: button.enabled || button.spinning ? 1 : 0.45
+            transformOrigin: Item.Center
+        }
+
+        RotationAnimator {
+            target: iconGlyph
+            running: button.spinning && button.visible && button.style.animationsEnabled
+            loops: Animation.Infinite
+            from: 0
+            to: 360
+            duration: 650
+        }
+
+        onSpinningChanged: {
+            if (!button.spinning) {
+                iconGlyph.rotation = 0
+            }
         }
 
         MouseArea {
@@ -1240,7 +1313,8 @@ Item {
 
             anchors.fill: parent
             hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
+            enabled: button.enabled
+            cursorShape: button.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
 
             onClicked: button.clicked()
         }

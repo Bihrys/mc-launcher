@@ -71,6 +71,14 @@ pub mod qobject {
         fn delete_account(self: Pin<&mut LauncherBackend>, index: QString);
 
         #[qinvokable]
+        #[cxx_name = "startRefreshAccount"]
+        fn start_refresh_account(self: Pin<&mut LauncherBackend>, index: QString);
+
+        #[qinvokable]
+        #[cxx_name = "pollRefreshAccountTask"]
+        fn poll_refresh_account_task(self: Pin<&mut LauncherBackend>) -> QString;
+
+        #[qinvokable]
         #[cxx_name = "refreshDownloadCatalog"]
         fn refresh_download_catalog(self: Pin<&mut LauncherBackend>, source: QString) -> QString;
 
@@ -594,6 +602,186 @@ impl qobject::LauncherBackend {
             }
         }
     }
+
+    pub fn start_refresh_account(mut self: Pin<&mut Self>, index: QString) {
+        let index_text = index.to_string();
+        let status_path = account_refresh_task_status_path();
+
+        if download_task_is_active(&status_path) {
+            self.as_mut()
+                .set_output(QString::from("账户正在刷新中。请等待当前刷新任务完成。"));
+            return;
+        }
+
+        write_account_refresh_task_status(
+            &status_path,
+            true,
+            -1,
+            "正在刷新账户",
+            "正在后台刷新账户信息和头像缓存，界面不会卡死。",
+            false,
+            "",
+            "",
+            "",
+            "",
+            "",
+        );
+
+        self.as_mut().set_output(QString::from(
+            "正在后台刷新账户信息和头像缓存。",
+        ));
+
+        thread::spawn(move || {
+            let parsed_index = match index_text.parse::<usize>() {
+                Ok(value) => value,
+                Err(err) => {
+                    write_account_refresh_task_status(
+                        &status_path,
+                        false,
+                        -1,
+                        "账户刷新失败",
+                        &format!("无效账户索引：{err}"),
+                        false,
+                        "",
+                        "",
+                        "",
+                        "",
+                        &err.to_string(),
+                    );
+                    return;
+                }
+            };
+
+            let accounts = match launcher_core::load_accounts() {
+                Ok(accounts) => accounts,
+                Err(err) => {
+                    write_account_refresh_task_status(
+                        &status_path,
+                        false,
+                        parsed_index as i64,
+                        "账户刷新失败",
+                        &err.to_string(),
+                        false,
+                        "",
+                        "",
+                        "",
+                        "",
+                        &err.to_string(),
+                    );
+                    return;
+                }
+            };
+
+            let Some(account) = accounts.get(parsed_index).cloned() else {
+                write_account_refresh_task_status(
+                    &status_path,
+                    false,
+                    parsed_index as i64,
+                    "账户刷新失败",
+                    "账户索引不存在。",
+                    false,
+                    "",
+                    "",
+                    "",
+                    "",
+                    "账户索引不存在。",
+                );
+                return;
+            };
+
+            if let Err(err) = launcher_core::select_account(&account) {
+                write_account_refresh_task_status(
+                    &status_path,
+                    false,
+                    parsed_index as i64,
+                    "账户刷新失败",
+                    &format!("无法保存当前账户选择：{err}"),
+                    false,
+                    "",
+                    "",
+                    "",
+                    "",
+                    &err.to_string(),
+                );
+                return;
+            }
+
+            // 这些可能触发网络头像获取、皮肤裁剪、缓存写入，所以必须在后台线程。
+            let avatar = avatar_url_for_account(&account);
+            let accounts_json = accounts_public_json(&accounts);
+            let kind = display_account_kind(&account.kind);
+
+            write_account_refresh_task_status(
+                &status_path,
+                false,
+                parsed_index as i64,
+                "账户刷新完成",
+                "账户信息和头像缓存已刷新。",
+                true,
+                &accounts_json,
+                &account.username,
+                &kind,
+                &avatar,
+                "",
+            );
+        });
+    }
+
+    pub fn poll_refresh_account_task(mut self: Pin<&mut Self>) -> QString {
+        let path = account_refresh_task_status_path();
+        let text = read_account_refresh_task_status_text(&path);
+
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) {
+            let active = value
+                .get("active")
+                .and_then(|value| value.as_bool())
+                .unwrap_or(false);
+
+            let title = value
+                .get("title")
+                .and_then(|value| value.as_str())
+                .unwrap_or("账户刷新");
+
+            let message = value
+                .get("message")
+                .and_then(|value| value.as_str())
+                .unwrap_or_default();
+
+            if let Some(accounts_json) = value.get("accountsJson").and_then(|value| value.as_str()) {
+                if !accounts_json.is_empty() {
+                    self.as_mut()
+                        .set_accounts_json(QString::from(accounts_json));
+                }
+            }
+
+            if let Some(name) = value.get("currentAccountName").and_then(|value| value.as_str()) {
+                if !name.is_empty() {
+                    self.as_mut()
+                        .set_current_account_name(QString::from(name));
+                }
+            }
+
+            if let Some(kind) = value.get("currentAccountKind").and_then(|value| value.as_str()) {
+                if !kind.is_empty() {
+                    self.as_mut()
+                        .set_current_account_kind(QString::from(kind));
+                }
+            }
+
+            if let Some(avatar) = value.get("currentAccountAvatarUrl").and_then(|value| value.as_str()) {
+                self.as_mut()
+                    .set_current_account_avatar_url(QString::from(avatar));
+            }
+
+            if active || value.get("success").and_then(|value| value.as_bool()).unwrap_or(false) {
+                self.as_mut()
+                    .set_output(QString::from(&format!("{title}\n\n{message}")));
+            }
+        }
+
+        QString::from(&text)
+    }
+
 
     pub fn refresh_download_catalog(
         mut self: Pin<&mut Self>,
@@ -2142,6 +2330,84 @@ fn download_task_is_active(path: &Path) -> bool {
         .ok()
         .and_then(|value| value.get("active").and_then(|value| value.as_bool()).map(bool::from))
         .unwrap_or(false)
+}
+
+
+fn account_refresh_task_status_path() -> PathBuf {
+    if let Some(value) = std::env::var_os("XDG_CACHE_HOME") {
+        if !value.is_empty() {
+            return PathBuf::from(value)
+                .join("mc-launcher")
+                .join("account-refresh-task.json");
+        }
+    }
+
+    if let Some(home) = std::env::var_os("HOME") {
+        return PathBuf::from(home)
+            .join(".cache")
+            .join("mc-launcher")
+            .join("account-refresh-task.json");
+    }
+
+    std::env::temp_dir()
+        .join("mc-launcher")
+        .join("account-refresh-task.json")
+}
+
+#[allow(clippy::too_many_arguments)]
+fn write_account_refresh_task_status(
+    path: &Path,
+    active: bool,
+    index: i64,
+    title: &str,
+    message: &str,
+    success: bool,
+    accounts_json: &str,
+    current_account_name: &str,
+    current_account_kind: &str,
+    current_account_avatar_url: &str,
+    error: &str,
+) {
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+
+    let payload = serde_json::json!({
+        "active": active,
+        "index": index,
+        "title": title,
+        "message": message,
+        "success": success,
+        "accountsJson": accounts_json,
+        "currentAccountName": current_account_name,
+        "currentAccountKind": current_account_kind,
+        "currentAccountAvatarUrl": current_account_avatar_url,
+        "error": error,
+        "updatedAt": SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|duration| duration.as_millis())
+            .unwrap_or(0),
+    });
+
+    let _ = fs::write(path, payload.to_string());
+}
+
+fn read_account_refresh_task_status_text(path: &Path) -> String {
+    fs::read_to_string(path).unwrap_or_else(|_| {
+        serde_json::json!({
+            "active": false,
+            "index": -1,
+            "title": "账户刷新",
+            "message": "还没有账户刷新任务。",
+            "success": false,
+            "accountsJson": "",
+            "currentAccountName": "",
+            "currentAccountKind": "",
+            "currentAccountAvatarUrl": "",
+            "error": "",
+        })
+        .to_string()
+    })
 }
 
 fn refresh_accounts_property(mut qobject: Pin<&mut qobject::LauncherBackend>) {
