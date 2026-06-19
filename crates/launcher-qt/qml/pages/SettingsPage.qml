@@ -270,15 +270,25 @@ Item {
         spacing: 0
 
         // HMCL AdvancedListBox: limit width 200, transparent, content padding top 12.
-        Rectangle {
-            id: settingsLeftPane
+        // 关键：RowLayout 只管理 settingsLeftSlot，不直接动画 Layout 子项。
+        // settingsLeftPane 在 slot 内部滑动，避免平铺窗口尺寸变化时位置错乱。
+        Item {
+            id: settingsLeftSlot
 
             Layout.preferredWidth: 200
             Layout.fillHeight: true
-            color: "transparent"
+            clip: true
 
-            Flickable {
-                anchors.fill: parent
+            Rectangle {
+                id: settingsLeftPane
+
+                width: settingsLeftSlot.width
+                height: settingsLeftSlot.height
+                y: 0
+                color: "transparent"
+
+                Flickable {
+                    anchors.fill: parent
                 clip: true
                 contentWidth: width
                 contentHeight: drawerColumn.height
@@ -376,14 +386,26 @@ Item {
             }
         }
 
+        }
+
         // HMCL transitionPane center.
-        ScrollView {
-            id: settingsScroll
+        // 关键：RowLayout 只管理 settingsCenterSlot。
+        // settingsScroll 在 slot 内部从右侧 +30px 滑入，并被 settingsCenterSlot 裁剪。
+        Item {
+            id: settingsCenterSlot
 
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
-            contentWidth: availableWidth
+
+            ScrollView {
+                id: settingsScroll
+
+                width: settingsCenterSlot.width
+                height: settingsCenterSlot.height
+                y: 0
+                clip: true
+                contentWidth: availableWidth
 
             Column {
                 width: settingsScroll.availableWidth
@@ -477,6 +499,7 @@ Item {
                     sourceComponent: aboutSectionComponent
                     height: visible && item ? item.implicitHeight : 0
                 }
+            }
             }
         }
     }
