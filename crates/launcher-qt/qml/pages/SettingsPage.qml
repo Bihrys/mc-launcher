@@ -19,6 +19,7 @@ Item {
     property bool pageActive: false
     property bool pageAnimationReady: false
     property int navigationOffset: 30
+    property real sectionContentHeight: 1
 
     signal themeSelected(string mode)
     signal launcherVisibilitySelected(string mode)
@@ -407,97 +408,107 @@ Item {
                 clip: true
                 contentWidth: availableWidth
 
-            Column {
+            Item {
+                id: sectionHost
+
                 width: settingsScroll.availableWidth
-                spacing: 10
-                padding: 10
+                height: Math.max(1, root.sectionContentHeight + 20)
+                clip: true
 
-                                // 全局游戏设置
-                Loader {
+                HmclSectionTransition {
                     id: globalSectionLoader
+                    x: 10
+                    y: 10
                     width: parent.width - 20
-                    active: root.sectionLoaded("global")
-                    visible: root.currentSection === "global"
-                    asynchronous: true
+                    style: root.style
+                    active: root.currentSection === "global"
                     sourceComponent: globalSectionComponent
-                    height: visible && item ? item.implicitHeight : 0
+                    duration: root.style.motionMedium4
+                    onContentHeightChanged: if (active && contentHeight > 0) root.sectionContentHeight = contentHeight
                 }
 
-                                // Java 管理
-                Loader {
+                HmclSectionTransition {
                     id: javaSectionLoader
+                    x: 10
+                    y: 10
                     width: parent.width - 20
-                    active: root.sectionLoaded("java")
-                    visible: root.currentSection === "java"
-                    asynchronous: true
+                    style: root.style
+                    active: root.currentSection === "java"
                     sourceComponent: javaSectionComponent
-                    height: visible && item ? item.implicitHeight : 0
+                    duration: root.style.motionMedium4
+                    onContentHeightChanged: if (active && contentHeight > 0) root.sectionContentHeight = contentHeight
                 }
 
-                                // 通用
-                Loader {
+                HmclSectionTransition {
                     id: generalSectionLoader
+                    x: 10
+                    y: 10
                     width: parent.width - 20
-                    active: root.sectionLoaded("general")
-                    visible: root.currentSection === "general"
-                    asynchronous: true
+                    style: root.style
+                    active: root.currentSection === "general"
                     sourceComponent: generalSectionComponent
-                    height: visible && item ? item.implicitHeight : 0
+                    duration: root.style.motionMedium4
+                    onContentHeightChanged: if (active && contentHeight > 0) root.sectionContentHeight = contentHeight
                 }
 
-                                // 外观
-                Loader {
+                HmclSectionTransition {
                     id: appearanceSectionLoader
+                    x: 10
+                    y: 10
                     width: parent.width - 20
-                    active: root.sectionLoaded("appearance")
-                    visible: root.currentSection === "appearance"
-                    asynchronous: true
+                    style: root.style
+                    active: root.currentSection === "appearance"
                     sourceComponent: appearanceSectionComponent
-                    height: visible && item ? item.implicitHeight : 0
+                    duration: root.style.motionMedium4
+                    onContentHeightChanged: if (active && contentHeight > 0) root.sectionContentHeight = contentHeight
                 }
 
-                                // 下载
-                Loader {
+                HmclSectionTransition {
                     id: downloadSectionLoader
+                    x: 10
+                    y: 10
                     width: parent.width - 20
-                    active: root.sectionLoaded("download")
-                    visible: root.currentSection === "download"
-                    asynchronous: true
+                    style: root.style
+                    active: root.currentSection === "download"
                     sourceComponent: downloadSectionComponent
-                    height: visible && item ? item.implicitHeight : 0
+                    duration: root.style.motionMedium4
+                    onContentHeightChanged: if (active && contentHeight > 0) root.sectionContentHeight = contentHeight
                 }
 
-                                // 帮助
-                Loader {
+                HmclSectionTransition {
                     id: helpSectionLoader
+                    x: 10
+                    y: 10
                     width: parent.width - 20
-                    active: root.sectionLoaded("help")
-                    visible: root.currentSection === "help"
-                    asynchronous: true
+                    style: root.style
+                    active: root.currentSection === "help"
                     sourceComponent: helpSectionComponent
-                    height: visible && item ? item.implicitHeight : 0
+                    duration: root.style.motionMedium4
+                    onContentHeightChanged: if (active && contentHeight > 0) root.sectionContentHeight = contentHeight
                 }
 
-                                // 反馈
-                Loader {
+                HmclSectionTransition {
                     id: feedbackSectionLoader
+                    x: 10
+                    y: 10
                     width: parent.width - 20
-                    active: root.sectionLoaded("feedback")
-                    visible: root.currentSection === "feedback"
-                    asynchronous: true
+                    style: root.style
+                    active: root.currentSection === "feedback"
                     sourceComponent: feedbackSectionComponent
-                    height: visible && item ? item.implicitHeight : 0
+                    duration: root.style.motionMedium4
+                    onContentHeightChanged: if (active && contentHeight > 0) root.sectionContentHeight = contentHeight
                 }
 
-                                // 关于
-                Loader {
+                HmclSectionTransition {
                     id: aboutSectionLoader
+                    x: 10
+                    y: 10
                     width: parent.width - 20
-                    active: root.sectionLoaded("about")
-                    visible: root.currentSection === "about"
-                    asynchronous: true
+                    style: root.style
+                    active: root.currentSection === "about"
                     sourceComponent: aboutSectionComponent
-                    height: visible && item ? item.implicitHeight : 0
+                    duration: root.style.motionMedium4
+                    onContentHeightChanged: if (active && contentHeight > 0) root.sectionContentHeight = contentHeight
                 }
             }
             }

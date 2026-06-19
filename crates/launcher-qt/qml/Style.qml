@@ -14,6 +14,8 @@ QtObject {
     readonly property int motionShort3: 150
     readonly property int motionShort4: 200
     readonly property int motionMedium2: 300
+    readonly property int motionMedium3: 350
+    readonly property int motionMedium4: 400
 
     readonly property color cPrimary: darkMode ? "#BFC2FF" : "#4352A5"
     readonly property color cPrimaryContainer: darkMode ? "#303B85" : "#5C6BC0"
