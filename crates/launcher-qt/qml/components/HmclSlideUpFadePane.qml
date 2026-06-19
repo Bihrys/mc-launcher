@@ -7,7 +7,7 @@ Item {
 
     property Component sourceComponent: null
 
-    // HMCL TabHeader.java:
+    // HMCL:
     // ContainerAnimations.SLIDE_UP_FADE_IN
     // Motion.MEDIUM4 = 400ms
     // Motion.EASE_IN_OUT_CUBIC_EMPHASIZED
@@ -16,20 +16,18 @@ Item {
     property bool animationsEnabled: style.animationsEnabled
 
     property bool initialized: false
-    property bool committing: false
+
+    property Component sourceA: null
+    property Component sourceB: null
+
+    property int currentLayer: -1
+    property int previousLayer: -1
+    property int nextLayer: -1
 
     property real previousOpacity: 1
     property real nextOpacity: 0
     property real nextY: 0
 
-    // HMCL Motion.EASE_IN_OUT_CUBIC_EMPHASIZED:
-    // ThreePointCubic(
-    //   (0.05, 0),
-    //   (0.133333, 0.06),
-    //   (0.166666, 0.4),
-    //   (0.208333, 0.82),
-    //   (0.25, 1)
-    // )
     readonly property var hmclEmphasizedCurve: [
         0.05, 0.0,
         0.133333, 0.06,
@@ -43,19 +41,17 @@ Item {
                                         ? root.containerHeight * 0.2
                                         : 50
 
-    readonly property real previousContentHeight: previousLoader.item
-                                                  ? Math.max(previousLoader.item.implicitHeight, previousLoader.item.height)
-                                                  : 0
+    readonly property real aContentHeight: loaderA.item
+                                           ? Math.max(loaderA.item.implicitHeight, loaderA.item.height)
+                                           : 0
 
-    readonly property real nextContentHeight: nextLoader.item
-                                              ? Math.max(nextLoader.item.implicitHeight, nextLoader.item.height)
-                                              : 0
+    readonly property real bContentHeight: loaderB.item
+                                           ? Math.max(loaderB.item.implicitHeight, loaderB.item.height)
+                                           : 0
 
-    // HMCL TransitionPane 是 StackPane，本身跟随父容器尺寸。
-    // 这里还要给 ScrollView 内容高度使用，所以取 old/new 的完整高度。
     readonly property real contentHeight: Math.max(
-                                             previousContentHeight,
-                                             nextContentHeight + (nextLoader.sourceComponent ? enterOffset : 0),
+                                             aContentHeight + Math.max(0, root.layerY(0)),
+                                             bContentHeight + Math.max(0, root.layerY(1)),
                                              root.containerHeight,
                                              1
                                          )
@@ -69,11 +65,11 @@ Item {
         root.initialized = true
 
         if (root.sourceComponent !== null) {
-            previousLoader.sourceComponent = root.sourceComponent
-            previousLoader.active = true
-            nextLoader.sourceComponent = null
-            nextLoader.active = false
-
+            root.sourceA = root.sourceComponent
+            root.sourceB = null
+            root.currentLayer = 0
+            root.previousLayer = -1
+            root.nextLayer = -1
             root.previousOpacity = 1
             root.nextOpacity = 0
             root.nextY = 0
@@ -84,6 +80,66 @@ Item {
         root.setContent(root.sourceComponent)
     }
 
+    function layerOpacity(layer) {
+        if (transition.running) {
+            if (layer === root.previousLayer) {
+                return root.previousOpacity
+            }
+
+            if (layer === root.nextLayer) {
+                return root.nextOpacity
+            }
+        }
+
+        return layer === root.currentLayer ? 1 : 0
+    }
+
+    function layerY(layer) {
+        if (transition.running && layer === root.nextLayer) {
+            return root.nextY
+        }
+
+        return 0
+    }
+
+    function layerActive(layer) {
+        if (layer === 0) {
+            return root.sourceA !== null
+        }
+
+        return root.sourceB !== null
+    }
+
+    function setLayerSource(layer, component) {
+        if (layer === 0) {
+            root.sourceA = component
+        } else {
+            root.sourceB = component
+        }
+    }
+
+    function clearInactiveLayer() {
+        if (root.currentLayer === 0) {
+            root.sourceB = null
+        } else if (root.currentLayer === 1) {
+            root.sourceA = null
+        }
+    }
+
+    function commitIncomingAsCurrent() {
+        if (root.nextLayer !== -1) {
+            root.currentLayer = root.nextLayer
+        }
+
+        root.previousLayer = -1
+        root.nextLayer = -1
+        root.previousOpacity = 1
+        root.nextOpacity = 0
+        root.nextY = 0
+
+        root.clearInactiveLayer()
+    }
+
     function setContent(component) {
         if (!root.initialized) {
             return
@@ -91,41 +147,50 @@ Item {
 
         if (component === null) {
             transition.stop()
-            previousLoader.sourceComponent = null
-            previousLoader.active = false
-            nextLoader.sourceComponent = null
-            nextLoader.active = false
+            root.sourceA = null
+            root.sourceB = null
+            root.currentLayer = -1
+            root.previousLayer = -1
+            root.nextLayer = -1
             root.previousOpacity = 0
             root.nextOpacity = 0
             root.nextY = 0
             return
         }
 
-        if (previousLoader.sourceComponent === component && nextLoader.sourceComponent === null) {
+        if (root.currentLayer === 0 && root.sourceA === component && !transition.running) {
             return
         }
 
-        // HMCL TransitionPane：新动画会替换 transition_pane 上一次动画。
-        // Qt 这里快速连续点击时，先把正在进入的新页面提交为 previous，再进入下一页。
-        if (transition.running) {
-            root.commitNextAsPrevious()
-            transition.stop()
+        if (root.currentLayer === 1 && root.sourceB === component && !transition.running) {
+            return
         }
 
-        if (!root.animationsEnabled || previousLoader.sourceComponent === null) {
-            previousLoader.sourceComponent = component
-            previousLoader.active = true
-            nextLoader.sourceComponent = null
-            nextLoader.active = false
+        // 快速连续点击时，先把正在进入的新页面作为当前页面。
+        // 这里不重新加载页面，只切换层角色，避免闪烁。
+        if (transition.running) {
+            transition.stop()
+            root.commitIncomingAsCurrent()
+        }
 
+        if (root.currentLayer === -1 || !root.animationsEnabled) {
+            root.sourceA = component
+            root.sourceB = null
+            root.currentLayer = 0
+            root.previousLayer = -1
+            root.nextLayer = -1
             root.previousOpacity = 1
             root.nextOpacity = 0
             root.nextY = 0
             return
         }
 
-        nextLoader.sourceComponent = component
-        nextLoader.active = true
+        var targetLayer = root.currentLayer === 0 ? 1 : 0
+
+        root.setLayerSource(targetLayer, component)
+
+        root.previousLayer = root.currentLayer
+        root.nextLayer = targetLayer
 
         // HMCL KeyFrame(Duration.ZERO)
         root.previousOpacity = 1
@@ -135,55 +200,37 @@ Item {
         transition.restart()
     }
 
-    function commitNextAsPrevious() {
-        if (nextLoader.sourceComponent !== null) {
-            previousLoader.sourceComponent = nextLoader.sourceComponent
-            previousLoader.active = true
-            nextLoader.sourceComponent = null
-            nextLoader.active = false
-        }
+    Loader {
+        id: loaderA
 
-        root.previousOpacity = 1
-        root.nextOpacity = 0
-        root.nextY = 0
+        active: root.sourceA !== null
+        sourceComponent: root.sourceA
+        width: root.width
+        opacity: root.layerOpacity(0)
+        visible: active && opacity > 0.001
+        y: root.layerY(0)
+
+        // 关键：动画结束时不能异步重建，否则会闪。
+        asynchronous: false
     }
 
     Loader {
-        id: previousLoader
+        id: loaderB
 
-        active: sourceComponent !== null
+        active: root.sourceB !== null
+        sourceComponent: root.sourceB
         width: root.width
-        opacity: root.previousOpacity
-        visible: active && root.previousOpacity > 0.001
-        y: 0
-        asynchronous: true
+        opacity: root.layerOpacity(1)
+        visible: active && opacity > 0.001
+        y: root.layerY(1)
+
+        // 关键：动画结束时不能异步重建，否则会闪。
+        asynchronous: false
     }
 
-    Loader {
-        id: nextLoader
-
-        active: sourceComponent !== null
-        width: root.width
-        opacity: root.nextOpacity
-        visible: active && root.nextOpacity > 0.001
-        y: root.nextY
-        asynchronous: true
-    }
-
-    // 完整对应 HMCL ContainerAnimations.SLIDE_UP_FADE_IN:
-    //
-    // Duration.ZERO:
-    //   previous.opacity = 1
-    //   previous.translateY = 0
-    //   next.opacity = 0
-    //   next.translateY = offset
-    //
-    // duration * 0.5:
-    //   previous.opacity = 0
-    //
-    // duration:
-    //   next.opacity = 1
-    //   next.translateY = 0
+    // HMCL ContainerAnimations.SLIDE_UP_FADE_IN：
+    // previous: 0ms opacity=1 -> 200ms opacity=0
+    // next:     0ms opacity=0, translateY=height*0.2 -> 400ms opacity=1, translateY=0
     ParallelAnimation {
         id: transition
 
@@ -218,7 +265,7 @@ Item {
         }
 
         onFinished: {
-            root.commitNextAsPrevious()
+            root.commitIncomingAsCurrent()
         }
     }
 }

@@ -245,18 +245,31 @@ Item {
                 Rectangle {
                     anchors.fill: parent
                     radius: 22
-                    color: backMouse.containsMouse ? Qt.rgba(0, 0, 0, 0.06) : "transparent"
+                    color: backMouse.containsMouse
+                           ? Qt.rgba(root.style.cTextOnSurface.r,
+                                     root.style.cTextOnSurface.g,
+                                     root.style.cTextOnSurface.b,
+                                     0.06)
+                           : "transparent"
                 }
 
                 Canvas {
+                    id: backArrowCanvas
+
                     anchors.centerIn: parent
                     width: 22
                     height: 22
 
+                    property color arrowColor: root.style.cTextOnSurface
+
+                    onArrowColorChanged: requestPaint()
+                    onVisibleChanged: requestPaint()
+                    Component.onCompleted: requestPaint()
+
                     onPaint: {
                         var ctx = getContext("2d")
                         ctx.clearRect(0, 0, width, height)
-                        ctx.strokeStyle = root.style.cTextOnSurface
+                        ctx.strokeStyle = arrowColor
                         ctx.lineWidth = 1.8
                         ctx.lineCap = "round"
                         ctx.lineJoin = "round"
