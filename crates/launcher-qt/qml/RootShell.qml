@@ -132,6 +132,8 @@ Item {
             Layout.fillWidth: true
             appWindow: root.appWindow
             style: style
+            showBrand: root.currentPage === "main"
+            titleText: "Hello Minecraft! Launcher"
         }
 
         Item {

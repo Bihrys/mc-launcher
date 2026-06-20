@@ -8,6 +8,11 @@ Rectangle {
     required property var appWindow
     required property var style
 
+    // HMCL 的标题不是全局常驻，而是由当前 DecoratorPage.State 决定。
+    // 这里先按当前项目结构：只有主页显示启动器标题。
+    property bool showBrand: true
+    property string titleText: "Hello Minecraft! Launcher"
+
     height: style.titleBarHeightValue
     color: style.cPrimaryContainer
 
@@ -24,27 +29,43 @@ Rectangle {
         anchors.leftMargin: 14
         spacing: 8
 
-        Rectangle {
-            width: 22
-            height: 22
-            radius: 5
-            color: root.style.cPrimary
-
-            Text {
-                anchors.centerIn: parent
-                text: "M"
-                color: root.style.cLaunchButtonText
-                font.bold: true
-                font.pixelSize: 13
-            }
-        }
-
-        Text {
-            text: "MC Launcher"
-            color: root.style.cTextOnPrimaryContainer
-            font.bold: true
-            font.pixelSize: 14
+        Item {
             Layout.fillWidth: true
+            Layout.fillHeight: true
+
+            Row {
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 8
+                visible: root.showBrand
+                opacity: root.showBrand ? 1 : 0
+
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: root.style.animationsEnabled ? root.style.motionShort4 : 0
+                        easing.type: Easing.OutCubic
+                    }
+                }
+
+                Image {
+                    width: 24
+                    height: 24
+                    source: "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/icon-title.png"
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
+                    mipmap: true
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                Text {
+                    text: root.titleText
+                    color: root.style.cTextOnPrimaryContainer
+                    font.bold: true
+                    font.pixelSize: 14
+                    anchors.verticalCenter: parent.verticalCenter
+                    elide: Text.ElideRight
+                }
+            }
         }
 
         Rectangle {
@@ -85,6 +106,7 @@ Rectangle {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
+
                 onClicked: {
                     if (root.appWindow.visibility === Window.Maximized) {
                         root.appWindow.showNormal()

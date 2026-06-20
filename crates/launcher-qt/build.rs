@@ -31,6 +31,7 @@ fn main() {
         ]),
     )
     .qrc_resources([
+        "qml/assets/img/icon-title.png",
         "qml/assets/img/grass.png",
         "qml/assets/img/forge.png",
         "qml/assets/img/fabric.png",
