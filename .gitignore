@@ -10,6 +10,9 @@
 # Local HMCL source reference, do not upload
 HMCL-main/
 
+# Claude Code local configuration
+.claude/
+
 # Local assistant patch backups
 *.bak
 *.bak-*
