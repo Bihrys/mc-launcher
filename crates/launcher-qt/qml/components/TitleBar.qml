@@ -67,7 +67,15 @@ Rectangle {
     }
 
     function stateBack() {
-        return root.pageState && root.pageState.backable === true && root.navigatorCanBack
+        if (!root.pageState || root.pageState.backable !== true) {
+            return false
+        }
+
+        if (root.pageState.key === "main") {
+            return false
+        }
+
+        return true
     }
 
     function stateClose() {
@@ -278,7 +286,7 @@ Rectangle {
             id: navLeft
 
             anchors.left: parent.left
-            anchors.leftMargin: 5
+            anchors.leftMargin: 0
             anchors.verticalCenter: parent.verticalCenter
             height: parent.height
             spacing: 0

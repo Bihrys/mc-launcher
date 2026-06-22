@@ -101,11 +101,6 @@ Item {
         root.previousLayer = root.currentLayer
         root.nextLayer = targetLayer
 
-        root.navigationDirection = "next"
-        root.currentPageKey = key
-        root.currentState = state
-        root.stateSerial += 1
-
         var keys = root.stackKeys.slice()
         var comps = root.stackComponents.slice()
         var states = root.stackStates.slice()
@@ -116,6 +111,11 @@ Item {
         root.stackComponents = comps
         root.stackStates = states
         root.canGoBack = root.stackKeys.length > 1
+
+        root.navigationDirection = "next"
+        root.currentPageKey = key
+        root.currentState = state
+        root.stateSerial += 1
 
         root.startNavigationAnimation("next")
     }
