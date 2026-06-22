@@ -222,6 +222,7 @@ Item {
 
         TitleBar {
             Layout.fillWidth: true
+            Layout.preferredHeight: style.titleBarHeightValue
             appWindow: root.appWindow
             style: style
             pageState: decoratorNavigator.currentState

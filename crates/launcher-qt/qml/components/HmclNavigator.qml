@@ -44,7 +44,6 @@ Item {
         1.0, 1.0
     ]
 
-    anchors.fill: parent
     clip: true
     focus: true
 

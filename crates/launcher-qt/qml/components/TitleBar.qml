@@ -38,6 +38,7 @@ Rectangle {
     property real newX: 0
 
     height: style.titleBarHeightValue
+    implicitHeight: style.titleBarHeightValue
     color: style.cPrimaryContainer
     clip: true
 
