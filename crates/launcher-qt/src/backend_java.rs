@@ -1,7 +1,6 @@
 use crate::backend::qobject;
 use core::pin::Pin;
 use cxx_qt_lib::QString;
-use std::thread;
 
 impl qobject::LauncherBackend {
     pub fn detect_java(mut self: Pin<&mut Self>) {

@@ -12,6 +12,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::thread;
 
+static DOWNLOAD_CANCEL_FLAG: OnceLock<Arc<AtomicBool>> = OnceLock::new();
+
 impl qobject::LauncherBackend {
     pub fn refresh_download_catalog(mut self: Pin<&mut Self>, source: QString) -> QString {
         let source = source.to_string();

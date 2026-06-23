@@ -12,6 +12,8 @@ use std::sync::{Arc, OnceLock};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+static LAUNCH_CANCEL_FLAG: OnceLock<Arc<AtomicBool>> = OnceLock::new();
+
 impl qobject::LauncherBackend {
     pub fn launch_selected_version(mut self: Pin<&mut Self>) {
         self.as_mut()

@@ -214,7 +214,6 @@ pub mod qobject {
     }
 }
 
-use core::pin::Pin;
 use cxx_qt_lib::QString;
 
 #[derive(Default)]
