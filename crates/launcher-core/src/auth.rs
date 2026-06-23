@@ -27,6 +27,13 @@ pub struct AuthAccount {
     pub note: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthServer {
+    pub name: String,
+    pub url: String,
+    pub host: String,
+}
+
 #[derive(Debug, Deserialize)]
 struct MicrosoftTokenResponse {
     access_token: Option<String>,
@@ -107,6 +114,100 @@ pub struct YggdrasilPendingLogin {
     pub access_token: String,
     pub client_token: String,
     pub profiles: Vec<YggdrasilProfileChoice>,
+}
+
+pub fn load_auth_servers() -> Result<Vec<AuthServer>, AuthError> {
+    let path = auth_servers_path()?;
+
+    let mut servers = match fs::read_to_string(&path) {
+        Ok(text) if !text.trim().is_empty() => serde_json::from_str::<Vec<AuthServer>>(&text)?,
+        Ok(_) => Vec::new(),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Vec::new(),
+        Err(err) => return Err(Box::new(err)),
+    };
+
+    if servers.is_empty() {
+        servers = default_auth_servers();
+        save_auth_servers(&servers)?;
+    }
+
+    Ok(servers)
+}
+
+pub fn save_auth_servers(servers: &[AuthServer]) -> Result<(), AuthError> {
+    let path = auth_servers_path()?;
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    fs::write(path, serde_json::to_string_pretty(servers)?)?;
+    Ok(())
+}
+
+pub fn add_auth_server(name: &str, url: &str) -> Result<Vec<AuthServer>, AuthError> {
+    let url = normalize_server_url(url)?;
+    let host = auth_server_host(&url);
+    let name = name.trim();
+    let name = if name.is_empty() { host.as_str() } else { name };
+
+    let mut servers = load_auth_servers()?;
+    servers.retain(|server| server.url != url);
+    servers.push(AuthServer {
+        name: name.to_string(),
+        url,
+        host,
+    });
+    save_auth_servers(&servers)?;
+    Ok(servers)
+}
+
+pub fn delete_auth_server(index: usize) -> Result<Vec<AuthServer>, AuthError> {
+    let mut servers = load_auth_servers()?;
+
+    if index >= servers.len() {
+        return Err(simple_error("认证服务器索引不存在。"));
+    }
+
+    servers.remove(index);
+
+    if servers.is_empty() {
+        servers = default_auth_servers();
+    }
+
+    save_auth_servers(&servers)?;
+    Ok(servers)
+}
+
+fn default_auth_servers() -> Vec<AuthServer> {
+    vec![AuthServer {
+        name: "LittleSkin".to_string(),
+        url: "https://littleskin.cn/api/yggdrasil".to_string(),
+        host: "littleskin.cn".to_string(),
+    }]
+}
+
+fn auth_server_host(url: &str) -> String {
+    let rest = url
+        .trim()
+        .trim_start_matches("https://")
+        .trim_start_matches("http://");
+
+    rest.split('/').next().unwrap_or(rest).to_string()
+}
+
+fn auth_servers_path() -> Result<PathBuf, AuthError> {
+    let config_home = if let Some(value) = std::env::var_os("XDG_CONFIG_HOME") {
+        if !value.is_empty() {
+            PathBuf::from(value)
+        } else {
+            home_dir()?.join(".config")
+        }
+    } else {
+        home_dir()?.join(".config")
+    };
+
+    Ok(config_home.join("mc-launcher").join("auth-servers.json"))
 }
 
 pub fn offline_player_uuid(username: &str) -> Uuid {

@@ -15,6 +15,7 @@ pub mod qobject {
         #[qproperty(QString, current_account_avatar_url, cxx_name = "currentAccountAvatarUrl")]
         #[qproperty(QString, accounts_json, cxx_name = "accountsJson")]
         #[qproperty(QString, pending_yggdrasil_profiles_json, cxx_name = "pendingYggdrasilProfilesJson")]
+        #[qproperty(QString, auth_servers_json, cxx_name = "authServersJson")]
         #[qproperty(QString, download_catalog_json, cxx_name = "downloadCatalogJson")]
         #[qproperty(QString, download_task_json, cxx_name = "downloadTaskJson")]
         #[qproperty(QString, installed_versions_json, cxx_name = "installedVersionsJson")]
@@ -61,6 +62,22 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "refreshAccounts"]
         fn refresh_accounts(self: Pin<&mut LauncherBackend>) -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "refreshAuthServers"]
+        fn refresh_auth_servers(self: Pin<&mut LauncherBackend>) -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "addAuthServer"]
+        fn add_auth_server(self: Pin<&mut LauncherBackend>, name: QString, url: QString) -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "deleteAuthServer"]
+        fn delete_auth_server(self: Pin<&mut LauncherBackend>, index: QString) -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "offlineAvatarPreview"]
+        fn offline_avatar_preview(self: Pin<&mut LauncherBackend>, username: QString) -> QString;
 
         #[qinvokable]
         #[cxx_name = "switchAccount"]
@@ -188,6 +205,7 @@ pub struct LauncherBackendRust {
     current_account_avatar_url: QString,
     accounts_json: QString,
     pending_yggdrasil_profiles_json: QString,
+    auth_servers_json: QString,
     download_catalog_json: QString,
     download_task_json: QString,
     installed_versions_json: QString,
@@ -525,6 +543,70 @@ impl qobject::LauncherBackend {
 
                 QString::from(&json)
             }
+        }
+    }
+
+
+    pub fn refresh_auth_servers(mut self: Pin<&mut Self>) -> QString {
+        match launcher_core::load_auth_servers() {
+            Ok(servers) => {
+                let json = serde_json::json!({ "servers": servers }).to_string();
+                self.as_mut().set_auth_servers_json(QString::from(&json));
+                QString::from(&json)
+            }
+            Err(err) => {
+                let json = serde_json::json!({ "servers": [], "error": err.to_string() }).to_string();
+                self.as_mut().set_auth_servers_json(QString::from(&json));
+                self.as_mut()
+                    .set_output(QString::from(&format!("读取第三方认证服务器失败。\n\n{err}")));
+                QString::from(&json)
+            }
+        }
+    }
+
+    pub fn add_auth_server(mut self: Pin<&mut Self>, name: QString, url: QString) -> QString {
+        match launcher_core::add_auth_server(&name.to_string(), &url.to_string()) {
+            Ok(servers) => {
+                let json = serde_json::json!({ "servers": servers }).to_string();
+                self.as_mut().set_auth_servers_json(QString::from(&json));
+                QString::from(&json)
+            }
+            Err(err) => {
+                self.as_mut()
+                    .set_output(QString::from(&format!("添加认证服务器失败。\n\n{err}")));
+                self.as_mut().refresh_auth_servers()
+            }
+        }
+    }
+
+    pub fn delete_auth_server(mut self: Pin<&mut Self>, index: QString) -> QString {
+        let index = match index.to_string().parse::<usize>() {
+            Ok(value) => value,
+            Err(err) => {
+                self.as_mut()
+                    .set_output(QString::from(&format!("删除认证服务器失败：无效索引。\n\n{err}")));
+                return self.as_mut().refresh_auth_servers();
+            }
+        };
+
+        match launcher_core::delete_auth_server(index) {
+            Ok(servers) => {
+                let json = serde_json::json!({ "servers": servers }).to_string();
+                self.as_mut().set_auth_servers_json(QString::from(&json));
+                QString::from(&json)
+            }
+            Err(err) => {
+                self.as_mut()
+                    .set_output(QString::from(&format!("删除认证服务器失败。\n\n{err}")));
+                self.as_mut().refresh_auth_servers()
+            }
+        }
+    }
+
+    pub fn offline_avatar_preview(self: Pin<&mut Self>, username: QString) -> QString {
+        match launcher_core::offline_default_avatar_url(&username.to_string(), 96) {
+            Ok(url) => QString::from(&url),
+            Err(_) => QString::from(""),
         }
     }
 

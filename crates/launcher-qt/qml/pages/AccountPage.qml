@@ -11,6 +11,7 @@ Item {
 
     property string dialogMode: ""
     property string offlineName: "Steve"
+    property string offlineAvatarUrl: ""
     property string microsoftClientId: ""
     property string yggdrasilServer: ""
     property string yggdrasilUsername: ""
@@ -20,6 +21,16 @@ Item {
     property string addServerUrl: ""
 
     property int deleteIndex: -1
+    property bool accountMenuOpen: false
+    property int accountMenuIndex: -1
+    property string accountMenuUsername: ""
+    property string accountMenuUuid: ""
+    property string accountMenuIdentifier: ""
+    property string accountMenuAvatarUrl: ""
+    property string accountMenuDisplayKind: ""
+    property real accountMenuX: 0
+    property real accountMenuY: 0
+    property string accountErrorText: ""
     property int refreshingAccountIndex: -1
     property var accountRefreshStatus: ({ "active": false })
 
@@ -47,6 +58,9 @@ Item {
     }
 
     Component.onCompleted: {
+        root.reloadAuthServers()
+        root.updateOfflinePreview()
+
         if (root.backend.accountsJson && root.backend.accountsJson.length > 0) {
             root.reloadAccountsFromJson(root.backend.accountsJson)
         } else {
@@ -63,6 +77,10 @@ Item {
 
         function onPendingYggdrasilProfilesJsonChanged() {
             root.loadPendingYggdrasilProfiles()
+        }
+
+        function onAuthServersJsonChanged() {
+            root.reloadAuthServersFromJson(root.backend.authServersJson)
         }
     }
 
@@ -142,26 +160,29 @@ Item {
                                 required property string name
                                 required property string url
                                 required property string host
+                                property var pageRoot: root
 
                                 width: 200
                                 height: host.length > 0 ? 58 : 52
 
                                 HmclNavMethodItem {
                                     anchors.fill: parent
-                                    style: root.style
+                                    style: parent.pageRoot.style
                                     title: parent.name
                                     subtitle: parent.host
                                     iconKind: "DRESSER"
                                     rightIconKind: "CLOSE"
 
                                     onClicked: {
-                                        root.yggdrasilServer = parent.url
-                                        root.openDialog("yggdrasil")
+                                        parent.pageRoot.yggdrasilServer = parent.url
+                                        parent.pageRoot.openDialog("yggdrasil")
                                     }
 
                                     onRightClicked: {
                                         if (parent.index >= 0) {
-                                            authServersModel.remove(parent.index)
+                                            parent.pageRoot.reloadAuthServersFromJson(
+                                                parent.pageRoot.backend.deleteAuthServer(String(parent.index))
+                                            )
                                         }
                                     }
                                 }
@@ -265,6 +286,20 @@ Item {
                                 )
                             }
 
+                            onContextMenuRequested: function(localX, localY) {
+                                var point = accountCard.mapToItem(accountDelegate.pageRoot, localX, localY)
+                                accountDelegate.pageRoot.openAccountMenu(
+                                    accountCard.accountIndex,
+                                    accountCard.username,
+                                    accountCard.uuid,
+                                    accountCard.identifier,
+                                    accountCard.avatarUrl,
+                                    accountCard.displayKind,
+                                    point.x,
+                                    point.y
+                                )
+                            }
+
                             onDeleteRequested: {
                                 accountDelegate.pageRoot.deleteIndex = accountCard.accountIndex
                             }
@@ -291,6 +326,115 @@ Item {
                 Item {
                     width: 1
                     height: 24
+                }
+            }
+        }
+    }
+
+    Item {
+        id: accountContextMenuLayer
+
+        anchors.fill: parent
+        z: 900
+        visible: root.accountMenuOpen
+
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onClicked: root.closeAccountMenu()
+        }
+
+        Rectangle {
+            id: accountContextMenu
+
+            x: Math.max(8, Math.min(root.accountMenuX, root.width - width - 8))
+            y: Math.max(8, Math.min(root.accountMenuY, root.height - height - 8))
+            width: 210
+            height: menuColumn.implicitHeight + 8
+            radius: 4
+            color: root.style.cSurfaceContainerHigh
+            border.color: root.style.cBorder
+            border.width: 1
+
+            Column {
+                id: menuColumn
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: 4
+                spacing: 0
+
+                AccountMenuItem {
+                    style: root.style
+                    text: "设为当前账户"
+                    iconKind: "CHECK"
+                    onClicked: {
+                        root.markSelectedAccount(root.accountMenuIndex)
+                        root.backend.switchAccountByIdentifier(
+                            root.accountMenuIdentifier,
+                            root.accountMenuUsername,
+                            root.accountMenuDisplayKind,
+                            root.accountMenuAvatarUrl
+                        )
+                        root.closeAccountMenu()
+                    }
+                }
+
+                AccountMenuItem {
+                    style: root.style
+                    text: "刷新账户"
+                    iconKind: "REFRESH"
+                    onClicked: {
+                        root.startAccountRefresh(root.accountMenuIndex)
+                        root.closeAccountMenu()
+                    }
+                }
+
+                AccountMenuItem {
+                    style: root.style
+                    text: "复制 UUID"
+                    iconKind: "CONTENT_COPY"
+                    onClicked: {
+                        root.copyText(root.accountMenuUuid)
+                        root.closeAccountMenu()
+                    }
+                }
+
+                AccountMenuItem {
+                    style: root.style
+                    text: "上传皮肤"
+                    iconKind: "CHECKROOM"
+                    onClicked: {
+                        root.showUnsupportedHint("上传皮肤")
+                        root.closeAccountMenu()
+                    }
+                }
+
+                AccountMenuItem {
+                    style: root.style
+                    text: "账户存储迁移"
+                    iconKind: "OUTPUT"
+                    onClicked: {
+                        root.showUnsupportedHint("账户本地/全局迁移")
+                        root.closeAccountMenu()
+                    }
+                }
+
+                Rectangle {
+                    width: parent.width
+                    height: 1
+                    color: root.style.cBorder
+                }
+
+                AccountMenuItem {
+                    style: root.style
+                    text: "删除账户"
+                    iconKind: "DELETE_FOREVER"
+                    danger: true
+                    onClicked: {
+                        root.deleteIndex = root.accountMenuIndex
+                        root.closeAccountMenu()
+                    }
                 }
             }
         }
@@ -344,6 +488,43 @@ Item {
                     wrapMode: Text.WordWrap
                 }
 
+                RowLayout {
+                    id: offlineSkinPreview
+                    visible: root.dialogMode === "offline"
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 54
+                    spacing: 10
+
+                    AvatarBox {
+                        style: root.style
+                        source: root.offlineAvatarUrl
+                        fallbackText: root.offlineName.length > 0 ? root.offlineName.substring(0, 1).toUpperCase() : "?"
+                        size: 44
+                    }
+
+                    Column {
+                        Layout.fillWidth: true
+                        spacing: 3
+
+                        Text {
+                            width: parent.width
+                            text: "离线默认头像"
+                            color: root.style.cTextOnSurface
+                            font.pixelSize: 13
+                            font.bold: true
+                            elide: Text.ElideRight
+                        }
+
+                        Text {
+                            width: parent.width
+                            text: "按 HMCL/Minecraft 离线 UUID 从默认皮肤中选择，并裁剪头像。"
+                            color: root.style.cTextOnSurfaceVariant
+                            font.pixelSize: 11
+                            wrapMode: Text.WordWrap
+                        }
+                    }
+                }
+
                 AccountField {
                     visible: root.dialogMode === "offline"
                     Layout.fillWidth: true
@@ -353,6 +534,7 @@ Item {
                     placeholderText: "Steve"
                     onEdited: function(value) {
                         root.offlineName = value
+                        root.updateOfflinePreview()
                     }
                 }
 
@@ -756,8 +938,66 @@ Item {
         }
     }
 
+    function reloadAuthServers() {
+        root.reloadAuthServersFromJson(root.backend.refreshAuthServers())
+    }
+
+    function reloadAuthServersFromJson(raw) {
+        if (!raw || raw.length === 0) {
+            return
+        }
+
+        try {
+            var payload = JSON.parse(raw)
+            authServersModel.clear()
+
+            if (!payload.servers) {
+                return
+            }
+
+            for (var i = 0; i < payload.servers.length; i++) {
+                var server = payload.servers[i]
+                authServersModel.append({
+                    "name": server.name || "",
+                    "url": server.url || "",
+                    "host": server.host || root.hostFromUrl(server.url || "")
+                })
+            }
+        } catch (e) {
+            console.log("Failed to parse auth servers JSON", e)
+        }
+    }
+
+    function updateOfflinePreview() {
+        if (root.offlineName.length > 0) {
+            root.offlineAvatarUrl = root.backend.offlineAvatarPreview(root.offlineName)
+        } else {
+            root.offlineAvatarUrl = ""
+        }
+    }
+
+    function openAccountMenu(index, username, uuid, identifier, avatarUrl, displayKind, x, y) {
+        root.accountMenuIndex = index
+        root.accountMenuUsername = username
+        root.accountMenuUuid = uuid
+        root.accountMenuIdentifier = identifier
+        root.accountMenuAvatarUrl = avatarUrl
+        root.accountMenuDisplayKind = displayKind
+        root.accountMenuX = x
+        root.accountMenuY = y
+        root.accountMenuOpen = true
+    }
+
+    function closeAccountMenu() {
+        root.accountMenuOpen = false
+        root.accountMenuIndex = -1
+    }
+
     function openDialog(mode) {
         root.dialogMode = mode
+        if (mode === "offline") {
+            root.updateOfflinePreview()
+        }
     }
 
     function closeDialog() {
@@ -819,11 +1059,7 @@ Item {
             }
 
             if (url.length > 0) {
-                authServersModel.append({
-                    "name": name,
-                    "url": url,
-                    "host": root.hostFromUrl(url)
-                })
+                root.reloadAuthServersFromJson(root.backend.addAuthServer(name, url))
                 root.yggdrasilServer = url
                 root.closeDialog()
             }
@@ -970,6 +1206,61 @@ Item {
 
     function showUnsupportedHint(name) {
         console.log(name + " 当前后端还没有实现。")
+    }
+
+    component AccountMenuItem: Item {
+        id: menuItem
+
+        required property var style
+        property string text: ""
+        property string iconKind: ""
+        property bool danger: false
+
+        signal clicked()
+
+        width: parent ? parent.width : 210
+        height: 34
+
+        Rectangle {
+            anchors.fill: parent
+            radius: 3
+            color: mouse.containsMouse
+                   ? Qt.rgba(menuItem.style.cTextOnSurface.r,
+                             menuItem.style.cTextOnSurface.g,
+                             menuItem.style.cTextOnSurface.b,
+                             0.06)
+                   : "transparent"
+        }
+
+        HmclSvgIcon {
+            anchors.left: parent.left
+            anchors.leftMargin: 10
+            anchors.verticalCenter: parent.verticalCenter
+            icon: menuItem.iconKind
+            iconSize: 18
+            iconColor: menuItem.danger ? "#d32f2f" : menuItem.style.cTextOnSurfaceVariant
+            animationsEnabled: menuItem.style.animationsEnabled
+        }
+
+        Text {
+            anchors.left: parent.left
+            anchors.leftMargin: 38
+            anchors.right: parent.right
+            anchors.rightMargin: 10
+            anchors.verticalCenter: parent.verticalCenter
+            text: menuItem.text
+            color: menuItem.danger ? "#d32f2f" : menuItem.style.cTextOnSurface
+            font.pixelSize: 12
+            elide: Text.ElideRight
+        }
+
+        MouseArea {
+            id: mouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: menuItem.clicked()
+        }
     }
 
     component HmclClassTitle: Item {
@@ -1128,6 +1419,7 @@ Item {
         property bool refreshing: false
 
         signal selectRequested()
+        signal contextMenuRequested(real localX, real localY)
         signal deleteRequested()
         signal refreshRequested()
         signal copyUuidRequested()
@@ -1144,8 +1436,15 @@ Item {
             id: cardMouse
             anchors.fill: parent
             hoverEnabled: true
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
             cursorShape: Qt.PointingHandCursor
-            onClicked: card.selectRequested()
+            onClicked: function(mouse) {
+                if (mouse.button === Qt.RightButton) {
+                    card.contextMenuRequested(mouse.x, mouse.y)
+                } else {
+                    card.selectRequested()
+                }
+            }
         }
 
         RowLayout {

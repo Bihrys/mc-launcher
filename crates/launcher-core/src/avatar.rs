@@ -32,6 +32,12 @@ enum DefaultSkinModel {
     Wide,
 }
 
+pub fn offline_default_avatar_url(username: &str, size: u32) -> Result<String, AvatarError> {
+    let uuid = crate::auth::offline_player_uuid(username.trim());
+    let avatar_path = make_offline_default_avatar(&uuid.to_string(), size.clamp(16, 256))?;
+    Ok(path_to_qml_url(&avatar_path))
+}
+
 pub fn account_avatar_url(account: &AuthAccount, size: u32) -> Result<Option<String>, AvatarError> {
     let size = size.clamp(16, 256);
 

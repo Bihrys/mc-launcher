@@ -10,6 +10,7 @@ pub mod version_manager;
 
 pub use auth::{
     AuthAccount,
+    AuthServer,
     YggdrasilLoginResult,
     YggdrasilPendingLogin,
     YggdrasilProfileChoice,
@@ -25,6 +26,10 @@ pub use auth::{
     selected_account,
     account_identifier,
     save_account,
+    delete_auth_server,
+    add_auth_server,
+    save_auth_servers,
+    load_auth_servers,
 };
 pub use game_download::{
     InstallResult,
@@ -69,5 +74,6 @@ pub use version_manager::{
 
 pub use avatar::{
     account_avatar_url,
+    offline_default_avatar_url,
     yggdrasil_profile_avatar_url,
 };
