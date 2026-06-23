@@ -3,42 +3,21 @@ pub mod avatar;
 pub mod download;
 pub mod game_download;
 pub mod java;
+pub mod java_download;
 pub mod launch;
 pub mod task;
-pub mod java_download;
 pub mod version_manager;
 
 pub use auth::{
-    AuthAccount,
-    AuthServer,
-    YggdrasilLoginResult,
-    YggdrasilPendingLogin,
-    YggdrasilProfileChoice,
-    delete_account,
-    load_accounts,
-    login_microsoft_browser,
-    login_offline,
-    login_yggdrasil,
-    login_yggdrasil_start,
-    complete_yggdrasil_login,
-    select_account,
-    select_account_identifier,
-    selected_account,
-    account_identifier,
-    save_account,
-    cleanup_avatar_cache,
-    migrate_account_storage,
-    upload_account_skin,
-    refresh_account,
-    delete_auth_server,
-    add_auth_server,
-    save_auth_servers,
-    load_auth_servers,
+    AuthAccount, AuthServer, YggdrasilLoginResult, YggdrasilPendingLogin, YggdrasilProfileChoice,
+    account_identifier, add_auth_server, cleanup_avatar_cache, complete_yggdrasil_login,
+    delete_account, delete_auth_server, load_accounts, load_auth_servers, login_microsoft_browser,
+    login_offline, login_yggdrasil, login_yggdrasil_start, migrate_account_storage,
+    refresh_account, save_account, save_auth_servers, select_account, select_account_identifier,
+    selected_account, upload_account_skin,
 };
 pub use game_download::{
-    InstallResult,
-    fetch_download_catalog_json,
-    install_game_version,
+    InstallResult, fetch_download_catalog_json, install_game_version,
     install_game_version_with_manager,
 };
 pub use java::{JavaRuntime, detect_java_runtimes};
@@ -58,26 +37,11 @@ pub fn launcher_info() -> LauncherInfo {
     }
 }
 
-
-pub use launch::{
-    LaunchOptions,
-    LaunchResult,
-    generate_launch_command_json,
-    launch_game,
-};
+pub use launch::{LaunchOptions, LaunchResult, generate_launch_command_json, launch_game};
 
 pub use version_manager::{
-    InstalledVersion,
-    delete_version,
-    installed_versions,
-    installed_versions_json,
-    select_version,
+    InstalledVersion, delete_version, installed_versions, installed_versions_json, select_version,
     selected_version,
 };
 
-
-pub use avatar::{
-    account_avatar_url,
-    offline_default_avatar_url,
-    yggdrasil_profile_avatar_url,
-};
+pub use avatar::{account_avatar_url, offline_default_avatar_url, yggdrasil_profile_avatar_url};

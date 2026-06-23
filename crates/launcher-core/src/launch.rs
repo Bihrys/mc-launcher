@@ -1,7 +1,7 @@
-use crate::auth::{load_accounts, selected_account, AuthAccount};
+use crate::auth::{AuthAccount, load_accounts, selected_account};
 use crate::java::detect_java_runtimes;
-use base64::engine::general_purpose::STANDARD;
 use base64::Engine as _;
+use base64::engine::general_purpose::STANDARD;
 use reqwest::blocking::Client;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -212,7 +212,11 @@ fn resolve_version_inner(
         .get("minecraftArguments")
         .and_then(Value::as_str)
         .map(ToString::to_string)
-        .or_else(|| parent.as_ref().and_then(|value| value.minecraft_arguments.clone()));
+        .or_else(|| {
+            parent
+                .as_ref()
+                .and_then(|value| value.minecraft_arguments.clone())
+        });
 
     let arguments = merge_arguments(
         parent.as_ref().and_then(|value| value.arguments.clone()),
@@ -333,17 +337,29 @@ fn build_launch_command(
     vars.insert("game_directory", abs(game_dir));
     vars.insert("user_type", user_type(account));
     vars.insert("assets_index_name", asset_id.to_string());
-    vars.insert("user_properties", account.user_properties_json.clone().unwrap_or_else(|| "{}".to_string()));
+    vars.insert(
+        "user_properties",
+        account
+            .user_properties_json
+            .clone()
+            .unwrap_or_else(|| "{}".to_string()),
+    );
     vars.insert("resolution_width", width.clone());
     vars.insert("resolution_height", height.clone());
     vars.insert("library_directory", abs(&root.join("libraries")));
     vars.insert("libraries_directory", abs(&root.join("libraries")));
-    vars.insert("classpath_separator", if cfg!(windows) { ";" } else { ":" }.to_string());
+    vars.insert(
+        "classpath_separator",
+        if cfg!(windows) { ";" } else { ":" }.to_string(),
+    );
     vars.insert("classpath", classpath_joined);
     vars.insert("game_assets", abs(&assets_root));
     vars.insert("assets_root", abs(&assets_root));
     vars.insert("natives_directory", abs(natives_dir));
-    vars.insert("primary_jar", abs(&version_jar_path(root, &version.jar_version)));
+    vars.insert(
+        "primary_jar",
+        abs(&version_jar_path(root, &version.jar_version)),
+    );
     vars.insert("primary_jar_name", format!("{}.jar", version.jar_version));
     vars.insert("launcher_name", "mc-launcher".to_string());
     vars.insert("launcher_version", env!("CARGO_PKG_VERSION").to_string());
@@ -418,10 +434,7 @@ fn default_jvm_args(vars: &HashMap<&'static str, String>) -> Vec<String> {
     ]
 }
 
-fn parse_argument_array(
-    args: &[Value],
-    vars: &HashMap<&'static str, String>,
-) -> Vec<String> {
+fn parse_argument_array(args: &[Value], vars: &HashMap<&'static str, String>) -> Vec<String> {
     let mut out = Vec::new();
 
     for arg in args {
@@ -558,7 +571,11 @@ fn build_classpath(root: &Path, version: &ResolvedVersion) -> Result<Vec<PathBuf
     Ok(out)
 }
 
-fn extract_natives(root: &Path, version: &ResolvedVersion, natives_dir: &Path) -> Result<(), LaunchError> {
+fn extract_natives(
+    root: &Path,
+    version: &ResolvedVersion,
+    natives_dir: &Path,
+) -> Result<(), LaunchError> {
     if natives_dir.exists() {
         fs::remove_dir_all(natives_dir)?;
     }
@@ -826,11 +843,18 @@ fn maven_path(descriptor: &str) -> Option<PathBuf> {
         format!("{artifact}-{version}.{ext}")
     };
 
-    Some(PathBuf::from(group).join(artifact).join(version).join(file_name))
+    Some(
+        PathBuf::from(group)
+            .join(artifact)
+            .join(version)
+            .join(file_name),
+    )
 }
 
-
-fn authlib_injector_jvm_args(root: &Path, account: &AuthAccount) -> Result<Vec<String>, LaunchError> {
+fn authlib_injector_jvm_args(
+    root: &Path,
+    account: &AuthAccount,
+) -> Result<Vec<String>, LaunchError> {
     if account.kind != "yggdrasil" {
         return Ok(Vec::new());
     }
@@ -912,7 +936,11 @@ fn fetch_authlib_injector_latest() -> Result<AuthlibInjectorLatest, LaunchError>
     let mut last_error = String::new();
 
     for url in urls {
-        match client.get(url).send().and_then(|response| response.error_for_status()) {
+        match client
+            .get(url)
+            .send()
+            .and_then(|response| response.error_for_status())
+        {
             Ok(response) => match response.json::<AuthlibInjectorLatest>() {
                 Ok(latest) => return Ok(latest),
                 Err(err) => last_error = format!("{url}\n{err}"),
@@ -945,7 +973,11 @@ fn download_authlib_injector(url: &str, target: &Path) -> Result<(), LaunchError
     let mut last_error = String::new();
 
     for url in urls {
-        match client.get(&url).send().and_then(|response| response.error_for_status()) {
+        match client
+            .get(&url)
+            .send()
+            .and_then(|response| response.error_for_status())
+        {
             Ok(response) => {
                 let bytes = response.bytes()?;
 

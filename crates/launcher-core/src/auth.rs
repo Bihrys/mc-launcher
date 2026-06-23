@@ -243,7 +243,9 @@ pub fn login_offline(username: &str) -> Result<AuthAccount, AuthError> {
     }
 
     if !is_valid_minecraft_name(username) {
-        return Err(simple_error("离线用户名只能包含 3-16 位字母、数字或下划线。"));
+        return Err(simple_error(
+            "离线用户名只能包含 3-16 位字母、数字或下划线。",
+        ));
     }
 
     let uuid = offline_player_uuid(username);
@@ -306,7 +308,10 @@ pub fn login_yggdrasil_start(
     }
 
     let client_token = Uuid::new_v4().to_string();
-    let auth_url = format!("{}/authserver/authenticate", server_url.trim_end_matches('/'));
+    let auth_url = format!(
+        "{}/authserver/authenticate",
+        server_url.trim_end_matches('/')
+    );
 
     let body = json!({
         "agent": {
@@ -343,7 +348,9 @@ pub fn login_yggdrasil_start(
 
     if let Some(error) = parsed.error {
         let message = parsed.error_message.unwrap_or_default();
-        return Err(simple_error(format!("第三方服务器登录失败：{error}\n{message}")));
+        return Err(simple_error(format!(
+            "第三方服务器登录失败：{error}\n{message}"
+        )));
     }
 
     let access_token = parsed
@@ -361,14 +368,16 @@ pub fn login_yggdrasil_start(
     let user_properties_json = yggdrasil_user_properties_json(parsed.user.as_ref());
 
     if let Some(profile) = parsed.selected_profile {
-        return Ok(YggdrasilLoginResult::Account(yggdrasil_account_from_profile(
-            &server_url,
-            username,
-            access_token,
-            Some(client_token),
-            profile,
-            user_properties_json,
-        )));
+        return Ok(YggdrasilLoginResult::Account(
+            yggdrasil_account_from_profile(
+                &server_url,
+                username,
+                access_token,
+                Some(client_token),
+                profile,
+                user_properties_json,
+            ),
+        ));
     }
 
     let profiles = parsed
@@ -442,7 +451,9 @@ pub fn complete_yggdrasil_login(
 
     if let Some(error) = parsed.error {
         let message = parsed.error_message.unwrap_or_default();
-        return Err(simple_error(format!("第三方服务器选择角色失败：{error}\n{message}")));
+        return Err(simple_error(format!(
+            "第三方服务器选择角色失败：{error}\n{message}"
+        )));
     }
 
     let user_properties_json = yggdrasil_user_properties_json(parsed.user.as_ref());
@@ -471,7 +482,6 @@ pub fn complete_yggdrasil_login(
         user_properties_json,
     ))
 }
-
 
 fn yggdrasil_user_properties_json(user: Option<&serde_json::Value>) -> Option<String> {
     let user = user?;
@@ -539,8 +549,6 @@ fn yggdrasil_account_from_profile(
     }
 }
 
-
-
 pub fn login_microsoft_browser(client_id: &str) -> Result<AuthAccount, AuthError> {
     let client_id = normalize_client_id(client_id)?;
 
@@ -566,7 +574,8 @@ pub fn login_microsoft_browser(client_id: &str) -> Result<AuthAccount, AuthError
     let code = wait_for_oauth_callback(listener, &state)?;
     let token = exchange_microsoft_code(&client_id, &redirect_uri, &code, &code_verifier)?;
 
-    let mut account = authenticate_minecraft_with_live_token(token.access_token, token.refresh_token)?;
+    let mut account =
+        authenticate_minecraft_with_live_token(token.access_token, token.refresh_token)?;
     account.client_id = Some(client_id);
     Ok(account)
 }
@@ -624,8 +633,7 @@ pub fn delete_account(
     let before = accounts.len();
 
     accounts.retain(|account| {
-        let same_server = account.server_url.as_deref().unwrap_or("")
-            == server_url.unwrap_or("");
+        let same_server = account.server_url.as_deref().unwrap_or("") == server_url.unwrap_or("");
 
         !(account.kind == kind && account.uuid == uuid && same_server)
     });
@@ -640,12 +648,7 @@ pub fn delete_account(
 
     fs::write(&path, serde_json::to_string_pretty(&accounts)?)?;
 
-    let removed_identifier = format!(
-        "{}|{}|{}",
-        kind,
-        server_url.unwrap_or(""),
-        uuid
-    );
+    let removed_identifier = format!("{}|{}|{}", kind, server_url.unwrap_or(""), uuid);
 
     if read_selected_account_identifier()?.as_deref() == Some(removed_identifier.as_str()) {
         if let Some(account) = accounts.first() {
@@ -657,8 +660,6 @@ pub fn delete_account(
 
     Ok(accounts)
 }
-
-
 
 pub fn select_account(account: &AuthAccount) -> Result<(), AuthError> {
     write_selected_account_identifier(&account_identifier(account))
@@ -885,7 +886,6 @@ fn authenticate_minecraft_with_live_token(
     })
 }
 
-
 pub fn refresh_account(account: &AuthAccount) -> Result<AuthAccount, AuthError> {
     match account.kind.as_str() {
         "offline" => Ok(account.clone()),
@@ -936,7 +936,11 @@ pub fn upload_account_skin(
                 .as_deref()
                 .ok_or_else(|| simple_error("第三方账户缺少服务器地址。"))?;
 
-            let compact_uuid = refreshed.uuid.chars().filter(|ch| *ch != '-').collect::<String>();
+            let compact_uuid = refreshed
+                .uuid
+                .chars()
+                .filter(|ch| *ch != '-')
+                .collect::<String>();
             let upload_url = format!(
                 "{}/api/user/profile/{}/skin",
                 server_url.trim_end_matches('/'),
@@ -1023,10 +1027,9 @@ pub fn cleanup_avatar_cache(max_age_days: u64) -> Result<usize, AuthError> {
 }
 
 fn refresh_microsoft_account(account: &AuthAccount) -> Result<AuthAccount, AuthError> {
-    let client_id = account
-        .client_id
-        .as_deref()
-        .ok_or_else(|| simple_error("Microsoft 账户缺少 client_id。需要重新通过浏览器登录一次。"))?;
+    let client_id = account.client_id.as_deref().ok_or_else(|| {
+        simple_error("Microsoft 账户缺少 client_id。需要重新通过浏览器登录一次。")
+    })?;
 
     let refresh_token = account
         .refresh_token
@@ -1034,7 +1037,8 @@ fn refresh_microsoft_account(account: &AuthAccount) -> Result<AuthAccount, AuthE
         .ok_or_else(|| simple_error("Microsoft 账户没有 refresh_token。需要重新登录。"))?;
 
     let token = exchange_microsoft_refresh_token(client_id, refresh_token)?;
-    let mut refreshed = authenticate_minecraft_with_live_token(token.access_token, token.refresh_token)?;
+    let mut refreshed =
+        authenticate_minecraft_with_live_token(token.access_token, token.refresh_token)?;
 
     refreshed.client_id = Some(client_id.to_string());
     refreshed.storage_scope = account.storage_scope.clone();
@@ -1165,7 +1169,10 @@ fn validate_skin_file(path: &std::path::Path) -> Result<(), AuthError> {
     Ok(())
 }
 
-fn save_offline_skin_file(account: &AuthAccount, skin_file: &std::path::Path) -> Result<PathBuf, AuthError> {
+fn save_offline_skin_file(
+    account: &AuthAccount,
+    skin_file: &std::path::Path,
+) -> Result<PathBuf, AuthError> {
     let dir = offline_skins_dir()?;
     fs::create_dir_all(&dir)?;
 
@@ -1196,11 +1203,16 @@ fn avatar_cache_dir_for_cleanup() -> Result<PathBuf, AuthError> {
         }
     }
 
-    Ok(home_dir()?.join(".cache").join("mc-launcher").join("avatars"))
+    Ok(home_dir()?
+        .join(".cache")
+        .join("mc-launcher")
+        .join("avatars"))
 }
 
-
-fn wait_for_oauth_callback(listener: TcpListener, expected_state: &str) -> Result<String, AuthError> {
+fn wait_for_oauth_callback(
+    listener: TcpListener,
+    expected_state: &str,
+) -> Result<String, AuthError> {
     listener.set_nonblocking(false)?;
 
     let (mut stream, _) = listener.accept()?;
@@ -1323,11 +1335,15 @@ fn normalize_server_url(server_url: &str) -> Result<String, AuthError> {
     let mut server_url = server_url.trim().trim_end_matches('/').to_string();
 
     if server_url.is_empty() {
-        return Err(simple_error("第三方服务器地址不能为空。可以直接填 littleskin.cn，或点击 LittleSkin 快捷按钮。"));
+        return Err(simple_error(
+            "第三方服务器地址不能为空。可以直接填 littleskin.cn，或点击 LittleSkin 快捷按钮。",
+        ));
     }
 
     if server_url.contains("example.com") {
-        return Err(simple_error("第三方服务器地址仍然包含 example.com。请清空后重新填写，例如：https://littleskin.cn/api/yggdrasil"));
+        return Err(simple_error(
+            "第三方服务器地址仍然包含 example.com。请清空后重新填写，例如：https://littleskin.cn/api/yggdrasil",
+        ));
     }
 
     if !server_url.starts_with("http://") && !server_url.starts_with("https://") {
@@ -1356,7 +1372,9 @@ fn normalize_server_url(server_url: &str) -> Result<String, AuthError> {
     }
 
     if !server_url.starts_with("http://") && !server_url.starts_with("https://") {
-        return Err(simple_error("第三方服务器地址必须以 http:// 或 https:// 开头。"));
+        return Err(simple_error(
+            "第三方服务器地址必须以 http:// 或 https:// 开头。",
+        ));
     }
 
     Ok(server_url)

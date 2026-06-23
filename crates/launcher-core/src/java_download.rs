@@ -74,10 +74,16 @@ pub fn download_java_runtime(
     let package_type = normalize_package_type(package_type)?;
     let operating_system = current_disco_os()?;
     let architecture = current_disco_arch()?;
-    let archive_type = if operating_system == "windows" { "zip" } else { "tar.gz" };
+    let archive_type = if operating_system == "windows" {
+        "zip"
+    } else {
+        "tar.gz"
+    };
 
     if archive_type != "tar.gz" {
-        return Err(simple_error("当前第一版只实现 Linux/macOS tar.gz 下载与解压。"));
+        return Err(simple_error(
+            "当前第一版只实现 Linux/macOS tar.gz 下载与解压。",
+        ));
     }
 
     let api_url = format!(
@@ -93,11 +99,7 @@ pub fn download_java_runtime(
         .user_agent("mc-launcher/0.1 JavaDownloader")
         .build()?;
 
-    let response: DiscoResponse = client
-        .get(&api_url)
-        .send()?
-        .error_for_status()?
-        .json()?;
+    let response: DiscoResponse = client.get(&api_url).send()?.error_for_status()?.json()?;
 
     let mut candidates: Vec<DiscoPackage> = response
         .result
@@ -281,7 +283,9 @@ fn find_java_binary(root: &Path) -> Option<PathBuf> {
 }
 
 fn compare_version_strings(a: &str, b: &str) -> Ordering {
-    version_score(a).cmp(&version_score(b)).then_with(|| a.cmp(b))
+    version_score(a)
+        .cmp(&version_score(b))
+        .then_with(|| a.cmp(b))
 }
 
 fn version_score(value: &str) -> Vec<u64> {

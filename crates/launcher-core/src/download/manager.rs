@@ -1,10 +1,10 @@
+use crate::download::DownloadError;
 use crate::download::file::DownloadFile;
 use crate::download::verify::is_valid_file;
-use crate::download::DownloadError;
 use crate::task::TaskExecutor;
+use reqwest::StatusCode;
 use reqwest::blocking::Client;
 use reqwest::header::{CONTENT_LENGTH, RANGE};
-use reqwest::StatusCode;
 use std::collections::VecDeque;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Read, Write};
@@ -242,10 +242,8 @@ impl DownloadManager {
                             continue;
                         }
 
-                        self.executor.finish_file(
-                            format!("已完成：{}", file.display_name()),
-                            0,
-                        )?;
+                        self.executor
+                            .finish_file(format!("已完成：{}", file.display_name()), 0)?;
 
                         return Ok(true);
                     }
@@ -273,9 +271,8 @@ impl DownloadManager {
         let _ = fs::remove_file(&part_path);
         self.untrack_part_file(&part_path);
 
-        Err(last_error.unwrap_or_else(|| {
-            simple_error(format!("文件下载失败：{}", file.display_name()))
-        }))
+        Err(last_error
+            .unwrap_or_else(|| simple_error(format!("文件下载失败：{}", file.display_name()))))
     }
 
     fn download_candidate(

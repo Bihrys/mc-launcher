@@ -65,11 +65,11 @@ impl TaskSnapshot {
 
     pub fn recompute_percent(&mut self) {
         if self.total_bytes > 0 {
-            self.percent = ((self.downloaded_bytes.saturating_mul(100)) / self.total_bytes)
-                .min(100) as u32;
+            self.percent =
+                ((self.downloaded_bytes.saturating_mul(100)) / self.total_bytes).min(100) as u32;
         } else if self.total_files > 0 {
-            self.percent = ((self.finished_files.saturating_mul(100)) / self.total_files)
-                .min(100) as u32;
+            self.percent =
+                ((self.finished_files.saturating_mul(100)) / self.total_files).min(100) as u32;
         } else {
             self.percent = 0;
         }

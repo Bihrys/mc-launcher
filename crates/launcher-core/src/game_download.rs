@@ -1,7 +1,7 @@
 use crate::download::{DownloadError, DownloadFile, DownloadManager};
 use reqwest::blocking::Client;
-use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs::{self};
@@ -137,13 +137,7 @@ pub fn install_game_version(
 ) -> Result<InstallResult, DownloadError> {
     let manager = DownloadManager::silent(format!("安装 Minecraft {game_version}"))?;
 
-    install_game_version_with_manager(
-        &manager,
-        source,
-        game_version,
-        loader_kind,
-        loader_version,
-    )
+    install_game_version_with_manager(&manager, source, game_version, loader_kind, loader_version)
 }
 
 pub fn install_game_version_with_manager(
@@ -164,10 +158,16 @@ pub fn install_game_version_with_manager(
 
     match loader_kind.as_str() {
         "" | "vanilla" => install_vanilla(manager, source, game_version),
-        "fabric" => install_fabric_or_quilt(manager, source, "fabric", game_version, loader_version),
+        "fabric" => {
+            install_fabric_or_quilt(manager, source, "fabric", game_version, loader_version)
+        }
         "quilt" => install_fabric_or_quilt(manager, source, "quilt", game_version, loader_version),
-        "forge" => download_loader_installer(manager, source, "forge", game_version, loader_version),
-        "neoforge" => download_loader_installer(manager, source, "neoforge", game_version, loader_version),
+        "forge" => {
+            download_loader_installer(manager, source, "forge", game_version, loader_version)
+        }
+        "neoforge" => {
+            download_loader_installer(manager, source, "neoforge", game_version, loader_version)
+        }
         other => Err(simple_error(format!("不支持的加载器类型：{other}"))),
     }
 }
@@ -189,7 +189,11 @@ fn fetch_download_catalog(source: DownloadSource) -> Result<DownloadCatalog, Dow
         })
         .collect::<Vec<_>>();
 
-    let fabric_loaders = match fetch_meta_loaders(&client, source, "https://meta.fabricmc.net/v2/versions/loader") {
+    let fabric_loaders = match fetch_meta_loaders(
+        &client,
+        source,
+        "https://meta.fabricmc.net/v2/versions/loader",
+    ) {
         Ok(value) => value,
         Err(err) => {
             warnings.push(format!("Fabric loader 列表获取失败：{err}"));
@@ -197,7 +201,11 @@ fn fetch_download_catalog(source: DownloadSource) -> Result<DownloadCatalog, Dow
         }
     };
 
-    let quilt_loaders = match fetch_meta_loaders(&client, source, "https://meta.quiltmc.org/v3/versions/loader") {
+    let quilt_loaders = match fetch_meta_loaders(
+        &client,
+        source,
+        "https://meta.quiltmc.org/v3/versions/loader",
+    ) {
         Ok(value) => value,
         Err(err) => {
             warnings.push(format!("Quilt loader 列表获取失败：{err}"));
@@ -259,9 +267,9 @@ fn fetch_forge_installers(
     let root: ForgeRoot = get_json(client, &url)?;
 
     let artifact = root.artifact.unwrap_or_else(|| "forge".to_string());
-    let webpath = root
-        .webpath
-        .unwrap_or_else(|| "https://maven.minecraftforge.net/net/minecraftforge/forge/".to_string());
+    let webpath = root.webpath.unwrap_or_else(|| {
+        "https://maven.minecraftforge.net/net/minecraftforge/forge/".to_string()
+    });
 
     let mcversion = root.mcversion.unwrap_or_default();
     let number = root.number.unwrap_or_default();
@@ -425,7 +433,9 @@ fn install_fabric_or_quilt(
     loader_version: &str,
 ) -> Result<InstallResult, DownloadError> {
     if loader_version.is_empty() {
-        return Err(simple_error(format!("没有选择 {loader_kind} loader 版本。")));
+        return Err(simple_error(format!(
+            "没有选择 {loader_kind} loader 版本。"
+        )));
     }
 
     let mut base = install_vanilla(manager, source, game_version)?;
@@ -458,7 +468,10 @@ fn install_fabric_or_quilt(
     fs::create_dir_all(&version_dir)?;
 
     let version_json_path = version_dir.join(format!("{version_id}.json"));
-    fs::write(&version_json_path, serde_json::to_string_pretty(&profile_json)?)?;
+    fs::write(
+        &version_json_path,
+        serde_json::to_string_pretty(&profile_json)?,
+    )?;
     manager.track_created_file(version_json_path.clone())?;
 
     manager.set_message(format!("正在下载 {loader_kind} libraries..."))?;
@@ -471,9 +484,8 @@ fn install_fabric_or_quilt(
     base.loader_version = loader_version.to_string();
     base.version_id = version_id;
     base.downloaded_files += library_count + 1;
-    base.message = format!(
-        "{loader_kind} 已安装。已先安装原版 {game_version}，并写入 loader profile。"
-    );
+    base.message =
+        format!("{loader_kind} 已安装。已先安装原版 {game_version}，并写入 loader profile。");
 
     Ok(base)
 }
@@ -512,10 +524,8 @@ fn download_loader_installer(
     let file_name = file_name_from_url(&installer.url);
     let target = cache_dir.join(file_name);
 
-    let downloaded_files = manager.download_files(vec![DownloadFile::new(
-        installer.url,
-        target.clone(),
-    )])?;
+    let downloaded_files =
+        manager.download_files(vec![DownloadFile::new(installer.url, target.clone())])?;
 
     Ok(InstallResult {
         kind: "installer".to_string(),
@@ -546,7 +556,10 @@ fn install_version_json(
     fs::create_dir_all(&version_dir)?;
 
     let version_json_path = version_dir.join(format!("{version_id}.json"));
-    fs::write(&version_json_path, serde_json::to_string_pretty(version_json)?)?;
+    fs::write(
+        &version_json_path,
+        serde_json::to_string_pretty(version_json)?,
+    )?;
     manager.track_created_file(version_json_path.clone())?;
 
     let mut files = Vec::new();
@@ -568,10 +581,20 @@ fn install_version_json(
     }
 
     manager.set_message("正在收集 libraries...")?;
-    files.extend(collect_libraries_from_version_json(source, &root, version_json)?);
+    files.extend(collect_libraries_from_version_json(
+        source,
+        &root,
+        version_json,
+    )?);
 
     manager.set_message("正在收集 assets...")?;
-    files.extend(collect_assets_from_version_json(manager, source, client, &root, version_json)?);
+    files.extend(collect_assets_from_version_json(
+        manager,
+        source,
+        client,
+        &root,
+        version_json,
+    )?);
 
     manager.set_message(format!("开始下载 Minecraft {game_version} 文件..."))?;
 
@@ -602,10 +625,7 @@ fn collect_libraries_from_version_json(
     let mut files = Vec::new();
 
     for lib in libraries {
-        if let Some(artifact) = lib
-            .get("downloads")
-            .and_then(|value| value.get("artifact"))
-        {
+        if let Some(artifact) = lib.get("downloads").and_then(|value| value.get("artifact")) {
             if let Some(file) = library_artifact_to_file(source, root, artifact) {
                 files.push(file);
             }
@@ -784,7 +804,9 @@ fn download_file_from_artifact(
 
 fn manifest_url(source: DownloadSource) -> String {
     match source {
-        DownloadSource::Official => "https://piston-meta.mojang.com/mc/game/version_manifest.json".to_string(),
+        DownloadSource::Official => {
+            "https://piston-meta.mojang.com/mc/game/version_manifest.json".to_string()
+        }
         DownloadSource::Bmcl | DownloadSource::Balanced | DownloadSource::Mirror => {
             "https://bmclapi2.bangbang93.com/mc/game/version_manifest.json".to_string()
         }
@@ -794,7 +816,9 @@ fn manifest_url(source: DownloadSource) -> String {
 fn inject_url(source: DownloadSource, url: &str) -> String {
     match source {
         DownloadSource::Official => url.to_string(),
-        DownloadSource::Bmcl | DownloadSource::Balanced | DownloadSource::Mirror => inject_bmcl_url(url),
+        DownloadSource::Bmcl | DownloadSource::Balanced | DownloadSource::Mirror => {
+            inject_bmcl_url(url)
+        }
     }
 }
 
@@ -819,27 +843,73 @@ fn asset_object_candidates(source: DownloadSource, prefix: &str, hash: &str) -> 
 
 fn inject_bmcl_url(url: &str) -> String {
     let replacements = [
-        ("https://bmclapi2.bangbang93.com", "https://bmclapi2.bangbang93.com"),
-        ("https://launchermeta.mojang.com", "https://bmclapi2.bangbang93.com"),
-        ("https://piston-meta.mojang.com", "https://bmclapi2.bangbang93.com"),
-        ("https://piston-data.mojang.com", "https://bmclapi2.bangbang93.com"),
-        ("https://launcher.mojang.com", "https://bmclapi2.bangbang93.com"),
-        ("https://libraries.minecraft.net", "https://bmclapi2.bangbang93.com/libraries"),
-        ("https://maven.minecraftforge.net", "https://bmclapi2.bangbang93.com/maven"),
-        ("https://files.minecraftforge.net/maven", "https://bmclapi2.bangbang93.com/maven"),
-        ("http://files.minecraftforge.net/maven", "https://bmclapi2.bangbang93.com/maven"),
-        ("https://maven.neoforged.net/releases/", "https://bmclapi2.bangbang93.com/maven/"),
-        ("https://meta.fabricmc.net", "https://bmclapi2.bangbang93.com/fabric-meta"),
-        ("https://maven.fabricmc.net", "https://bmclapi2.bangbang93.com/maven"),
-
+        (
+            "https://bmclapi2.bangbang93.com",
+            "https://bmclapi2.bangbang93.com",
+        ),
+        (
+            "https://launchermeta.mojang.com",
+            "https://bmclapi2.bangbang93.com",
+        ),
+        (
+            "https://piston-meta.mojang.com",
+            "https://bmclapi2.bangbang93.com",
+        ),
+        (
+            "https://piston-data.mojang.com",
+            "https://bmclapi2.bangbang93.com",
+        ),
+        (
+            "https://launcher.mojang.com",
+            "https://bmclapi2.bangbang93.com",
+        ),
+        (
+            "https://libraries.minecraft.net",
+            "https://bmclapi2.bangbang93.com/libraries",
+        ),
+        (
+            "https://maven.minecraftforge.net",
+            "https://bmclapi2.bangbang93.com/maven",
+        ),
+        (
+            "https://files.minecraftforge.net/maven",
+            "https://bmclapi2.bangbang93.com/maven",
+        ),
+        (
+            "http://files.minecraftforge.net/maven",
+            "https://bmclapi2.bangbang93.com/maven",
+        ),
+        (
+            "https://maven.neoforged.net/releases/",
+            "https://bmclapi2.bangbang93.com/maven/",
+        ),
+        (
+            "https://meta.fabricmc.net",
+            "https://bmclapi2.bangbang93.com/fabric-meta",
+        ),
+        (
+            "https://maven.fabricmc.net",
+            "https://bmclapi2.bangbang93.com/maven",
+        ),
         // HMCL BMCLAPIDownloadProvider 的内容源 fallback 逻辑：
         // 对 Modrinth/CursorForge 下载 URL 也提供镜像候选。
-        ("https://api.modrinth.com", "https://mod.mcimirror.top/modrinth"),
+        (
+            "https://api.modrinth.com",
+            "https://mod.mcimirror.top/modrinth",
+        ),
         ("https://cdn.modrinth.com", "https://mod.mcimirror.top"),
-        ("https://edge.forgecdn.net", "https://mod.mcimirror.top/curseforge"),
-        ("https://mediafilez.forgecdn.net", "https://mod.mcimirror.top/curseforge"),
-
-        ("https://hmcl.glavo.site/metadata/forge", "https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/json"),
+        (
+            "https://edge.forgecdn.net",
+            "https://mod.mcimirror.top/curseforge",
+        ),
+        (
+            "https://mediafilez.forgecdn.net",
+            "https://mod.mcimirror.top/curseforge",
+        ),
+        (
+            "https://hmcl.glavo.site/metadata/forge",
+            "https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/json",
+        ),
     ];
 
     for (from, to) in replacements {
@@ -954,11 +1024,7 @@ fn http_client() -> Result<Client, DownloadError> {
 }
 
 fn get_json<T: DeserializeOwned>(client: &Client, url: &str) -> Result<T, DownloadError> {
-    Ok(client
-        .get(url)
-        .send()?
-        .error_for_status()?
-        .json()?)
+    Ok(client.get(url).send()?.error_for_status()?.json()?)
 }
 
 fn ensure_parent(path: &Path) -> Result<(), DownloadError> {

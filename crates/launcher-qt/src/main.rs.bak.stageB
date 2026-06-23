@@ -1,16 +1,15 @@
 pub mod backend;
-mod backend_account;
-mod backend_download;
-mod backend_java;
-mod backend_launch;
-mod backend_settings;
-mod json_models;
-mod task_bridge;
 
 use std::pin::Pin;
 
 use cxx_qt::casting::Upcast;
-use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QQmlEngine, QString, QUrl};
+use cxx_qt_lib::{
+    QGuiApplication,
+    QQmlApplicationEngine,
+    QQmlEngine,
+    QString,
+    QUrl,
+};
 
 fn main() {
     let mut app = QGuiApplication::new();

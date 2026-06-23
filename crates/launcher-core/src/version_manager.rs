@@ -169,7 +169,10 @@ pub fn delete_version(version_id: &str) -> Result<(), VersionError> {
     let version_dir = root.join("versions").join(version_id);
 
     if !version_dir.exists() {
-        return Err(simple_error(format!("版本目录不存在：{}", version_dir.display())));
+        return Err(simple_error(format!(
+            "版本目录不存在：{}",
+            version_dir.display()
+        )));
     }
 
     fs::remove_dir_all(&version_dir)?;
@@ -177,7 +180,9 @@ pub fn delete_version(version_id: &str) -> Result<(), VersionError> {
     let mut settings = load_settings().unwrap_or_default();
 
     if settings.selected_version.as_deref() == Some(version_id) {
-        settings.selected_version = installed_versions()?.first().map(|version| version.id.clone());
+        settings.selected_version = installed_versions()?
+            .first()
+            .map(|version| version.id.clone());
         save_settings(&settings)?;
     }
 

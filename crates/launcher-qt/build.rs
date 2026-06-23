@@ -1,34 +1,30 @@
 use cxx_qt_build::{CxxQtBuilder, QmlModule};
 
 fn main() {
-    CxxQtBuilder::new_qml_module(
-        QmlModule::new("com.bihrys.launcher").qml_files([
-            "qml/main.qml",
-            "qml/Style.qml",
-            "qml/RootShell.qml",
-
-            "qml/components/TitleBar.qml",
-            "qml/components/Sidebar.qml",
-            "qml/components/SectionTitle.qml",
-            "qml/components/NavItem.qml",
-            "qml/components/SplitLaunchButton.qml",
-            "qml/components/HmclSvgIcon.qml",
-            "qml/components/HmclRipple.qml",
-            "qml/components/HmclImageContainer.qml",
-            "qml/components/HmclNavigator.qml",
-            "qml/components/HmclAnimatedPage.qml",
-            "qml/components/PageState.qml",
-            "qml/components/HmclSlideUpFadePane.qml",
-
-            "qml/pages/MainPage.qml",
-            "qml/pages/PlaceholderPage.qml",
-            "qml/pages/SettingsPage.qml",
-            "qml/pages/JavaPage.qml",
-            "qml/pages/AccountPage.qml",
-            "qml/pages/DownloadPage.qml",
-            "qml/pages/VersionPage.qml",
-        ]),
-    )
+    CxxQtBuilder::new_qml_module(QmlModule::new("com.bihrys.launcher").qml_files([
+        "qml/main.qml",
+        "qml/Style.qml",
+        "qml/RootShell.qml",
+        "qml/components/TitleBar.qml",
+        "qml/components/Sidebar.qml",
+        "qml/components/SectionTitle.qml",
+        "qml/components/NavItem.qml",
+        "qml/components/SplitLaunchButton.qml",
+        "qml/components/HmclSvgIcon.qml",
+        "qml/components/HmclRipple.qml",
+        "qml/components/HmclImageContainer.qml",
+        "qml/components/HmclNavigator.qml",
+        "qml/components/HmclAnimatedPage.qml",
+        "qml/components/PageState.qml",
+        "qml/components/HmclSlideUpFadePane.qml",
+        "qml/pages/MainPage.qml",
+        "qml/pages/PlaceholderPage.qml",
+        "qml/pages/SettingsPage.qml",
+        "qml/pages/JavaPage.qml",
+        "qml/pages/AccountPage.qml",
+        "qml/pages/DownloadPage.qml",
+        "qml/pages/VersionPage.qml",
+    ]))
     .qrc_resources([
         "qml/assets/img/icon-title.png",
         "qml/assets/img/grass.png",
