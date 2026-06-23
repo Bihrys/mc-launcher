@@ -416,6 +416,7 @@ Item {
                     themeMode: root.launcherTheme
                     launcherVisibility: root.launcherVisibility
                     requestedSection: root.requestedSettingsSection
+                    pageActive: root.currentPage === "settings"
 
                     onThemeSelected: function(mode) {
                         root.launcherTheme = mode
@@ -425,6 +426,9 @@ Item {
                         root.launcherVisibility = mode
                     }
 
+                    onBackRequested: {
+                        root.goBack()
+                    }
                 }
             }
         }
@@ -484,9 +488,11 @@ Item {
         root.requestedSettingsSection = section
         root.prepareSettingsPage()
 
-        if (root.currentPage !== "settings") {
-            root.navigate("settings")
+        if (root.currentPage === "settings") {
+            return
         }
+
+        root.navigate("settings")
     }
 
     function goBack() {

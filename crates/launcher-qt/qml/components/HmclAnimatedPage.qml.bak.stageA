@@ -5,15 +5,15 @@ Item {
 
     required property var style
 
-    // DecoratorAnimatedPage：left + center。
     property real leftWidth: 0
     property Component leftComponent: null
     property Component centerComponent: null
 
-    // HmclNavigator 注入动画偏移。
+    // HmclNavigator 动画时写入
     property real leftTranslateX: 0
     property real centerTranslateX: 0
 
+    anchors.fill: parent
     clip: true
 
     Loader {
@@ -26,7 +26,6 @@ Item {
         visible: root.leftWidth > 0
         active: root.leftComponent !== null && root.leftWidth > 0
         sourceComponent: root.leftComponent
-        asynchronous: true
     }
 
     Loader {
@@ -38,6 +37,5 @@ Item {
         height: root.height
         active: root.centerComponent !== null
         sourceComponent: root.centerComponent
-        asynchronous: true
     }
 }

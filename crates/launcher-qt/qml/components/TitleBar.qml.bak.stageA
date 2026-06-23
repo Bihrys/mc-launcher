@@ -67,10 +67,15 @@ Rectangle {
     }
 
     function stateBack() {
-        return root.pageState
-                && root.pageState.backable === true
-                && root.pageState.key !== "main"
-                && root.navigatorCanBack
+        if (!root.pageState || root.pageState.backable !== true) {
+            return false
+        }
+
+        if (root.pageState.key === "main") {
+            return false
+        }
+
+        return true
     }
 
     function stateClose() {
@@ -78,7 +83,7 @@ Rectangle {
     }
 
     function stateHome() {
-        return root.pageState && root.pageState.homeable === true
+        return root.pageState && root.pageState.showCloseAsHome === true
     }
 
     function stateRefresh() {
@@ -192,7 +197,7 @@ Rectangle {
             showBrand: root.shownBrand
             canBack: root.shownBack
             canClose: root.shownClose
-            canHome: root.shownHome
+            showHome: root.shownHome
             canRefresh: root.shownRefresh
             style: root.style
             onBackRequested: root.backRequested()
@@ -209,7 +214,7 @@ Rectangle {
             showBrand: navBarTransition.running ? root.incomingBrand : root.shownBrand
             canBack: navBarTransition.running ? root.incomingBack : root.shownBack
             canClose: navBarTransition.running ? root.incomingClose : root.shownClose
-            canHome: navBarTransition.running ? root.incomingHome : root.shownHome
+            showHome: navBarTransition.running ? root.incomingHome : root.shownHome
             canRefresh: navBarTransition.running ? root.incomingRefresh : root.shownRefresh
             style: root.style
             onBackRequested: root.backRequested()
@@ -266,7 +271,7 @@ Rectangle {
         property bool showBrand: false
         property bool canBack: false
         property bool canClose: false
-        property bool canHome: false
+        property bool showHome: false
         property bool canRefresh: false
 
         signal backRequested()
@@ -296,15 +301,8 @@ Rectangle {
             DecoratorIconButton {
                 visible: content.canClose
                 style: content.style
-                iconKind: "CLOSE"
-                onClicked: content.closeRequested()
-            }
-
-            DecoratorIconButton {
-                visible: content.canHome
-                style: content.style
-                iconKind: "HOME"
-                onClicked: content.homeRequested()
+                iconKind: content.showHome ? "HOME" : "CLOSE"
+                onClicked: content.showHome ? content.homeRequested() : content.closeRequested()
             }
         }
 

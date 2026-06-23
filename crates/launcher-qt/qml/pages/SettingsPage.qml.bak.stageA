@@ -24,6 +24,7 @@ Item {
 
     signal themeSelected(string mode)
     signal launcherVisibilitySelected(string mode)
+    signal backRequested()
 
     Component.onCompleted: {
         if (root.requestedSection.length > 0) {
@@ -226,10 +227,85 @@ Item {
         anchors.fill: parent
         spacing: 0
 
-        RowLayout {
+        // HMCL 设置页是独立页面；这里增加左上返回箭头。
+        Rectangle {
             Layout.fillWidth: true
-            Layout.fillHeight: true
-            spacing: 0
+            Layout.preferredHeight: 48
+            color: "transparent"
+
+            Item {
+                id: backButton
+
+                width: 44
+                height: 44
+                anchors.left: parent.left
+                anchors.leftMargin: 8
+                anchors.verticalCenter: parent.verticalCenter
+
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 22
+                    color: backMouse.containsMouse
+                           ? Qt.rgba(root.style.cTextOnSurface.r,
+                                     root.style.cTextOnSurface.g,
+                                     root.style.cTextOnSurface.b,
+                                     0.06)
+                           : "transparent"
+                }
+
+                Canvas {
+                    id: backArrowCanvas
+
+                    anchors.centerIn: parent
+                    width: 22
+                    height: 22
+
+                    property color arrowColor: root.style.cTextOnSurface
+
+                    onArrowColorChanged: requestPaint()
+                    onVisibleChanged: requestPaint()
+                    Component.onCompleted: requestPaint()
+
+                    onPaint: {
+                        var ctx = getContext("2d")
+                        ctx.clearRect(0, 0, width, height)
+                        ctx.strokeStyle = arrowColor
+                        ctx.lineWidth = 1.8
+                        ctx.lineCap = "round"
+                        ctx.lineJoin = "round"
+
+                        ctx.beginPath()
+                        ctx.moveTo(13.5, 5)
+                        ctx.lineTo(7.5, 11)
+                        ctx.lineTo(13.5, 17)
+                        ctx.stroke()
+                    }
+                }
+
+                MouseArea {
+                    id: backMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.backRequested()
+                }
+            }
+
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 58
+                anchors.verticalCenter: parent.verticalCenter
+                text: "设置"
+                color: root.style.cTextOnSurface
+                font.pixelSize: 22
+                font.bold: true
+            }
+        }
+
+    RowLayout {
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        spacing: 0
 
         // HMCL AdvancedListBox: limit width 200, transparent, content padding top 12.
         // 关键：RowLayout 只管理 settingsLeftSlot，不直接动画 Layout 子项。

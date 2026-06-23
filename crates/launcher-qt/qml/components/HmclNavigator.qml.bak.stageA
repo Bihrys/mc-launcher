@@ -10,6 +10,7 @@ Item {
     property int stateSerial: 0
     property string navigationDirection: "start"
     property bool canGoBack: false
+
     property bool initialized: false
 
     property Component sourceA: null
@@ -37,7 +38,6 @@ Item {
     readonly property int duration: style.motionShort4
     readonly property bool animationsEnabled: style.animationsEnabled
 
-    // HMCL Motion.EASE 近似。
     readonly property var hmclEaseCurve: [
         0.25, 0.1,
         0.25, 1.0,
@@ -47,8 +47,6 @@ Item {
     clip: true
     focus: true
 
-    signal pageChanged(string page)
-
     function init(key, component, state) {
         if (root.initialized) {
             return
@@ -57,6 +55,7 @@ Item {
         root.sourceA = component
         root.keyA = key
         root.stateA = state
+
         root.sourceB = null
         root.keyB = ""
         root.stateB = null
@@ -65,17 +64,17 @@ Item {
         root.previousLayer = -1
         root.nextLayer = -1
 
+        root.currentPageKey = key
+        root.currentState = state
+        root.navigationDirection = "start"
+        root.stateSerial += 1
+
         root.stackKeys = [key]
         root.stackComponents = [component]
         root.stackStates = [state]
         root.canGoBack = false
 
-        root.currentPageKey = key
-        root.currentState = state
-        root.navigationDirection = "start"
         root.initialized = true
-        root.stateSerial += 1
-        root.pageChanged(key)
         root.forceActiveFocus()
     }
 
@@ -105,11 +104,9 @@ Item {
         var keys = root.stackKeys.slice()
         var comps = root.stackComponents.slice()
         var states = root.stackStates.slice()
-
         keys.push(key)
         comps.push(component)
         states.push(state)
-
         root.stackKeys = keys
         root.stackComponents = comps
         root.stackStates = states
@@ -119,60 +116,8 @@ Item {
         root.currentPageKey = key
         root.currentState = state
         root.stateSerial += 1
-        root.pageChanged(key)
 
         root.startNavigationAnimation("next")
-        root.forceActiveFocus()
-    }
-
-    function replace(key, component, state) {
-        if (!root.initialized) {
-            root.init(key, component, state)
-            return
-        }
-
-        if (transition.running) {
-            transition.stop()
-            root.commitIncomingAsCurrent()
-        }
-
-        var keys = root.stackKeys.slice()
-        var comps = root.stackComponents.slice()
-        var states = root.stackStates.slice()
-
-        if (keys.length === 0) {
-            keys = [key]
-            comps = [component]
-            states = [state]
-        } else {
-            keys[keys.length - 1] = key
-            comps[comps.length - 1] = component
-            states[states.length - 1] = state
-        }
-
-        root.stackKeys = keys
-        root.stackComponents = comps
-        root.stackStates = states
-        root.canGoBack = root.stackKeys.length > 1
-
-        var targetLayer = root.currentLayer === 0 ? 1 : 0
-        root.setLayerSource(targetLayer, key, component, state)
-
-        root.previousLayer = root.currentLayer
-        root.nextLayer = targetLayer
-
-        root.navigationDirection = "next"
-        root.currentPageKey = key
-        root.currentState = state
-        root.stateSerial += 1
-        root.pageChanged(key)
-
-        root.startNavigationAnimation("next")
-        root.forceActiveFocus()
-    }
-
-    function back() {
-        return root.close()
     }
 
     function close() {
@@ -212,19 +157,13 @@ Item {
         root.currentPageKey = key
         root.currentState = state
         root.stateSerial += 1
-        root.pageChanged(key)
 
         root.startNavigationAnimation("previous")
-        root.forceActiveFocus()
         return true
     }
 
-    function home() {
-        root.clear()
-    }
-
     function clear() {
-        if (!root.initialized || root.stackKeys.length <= 1) {
+        if (root.stackKeys.length <= 1) {
             return
         }
 
@@ -252,10 +191,8 @@ Item {
         root.currentPageKey = key
         root.currentState = state
         root.stateSerial += 1
-        root.pageChanged(key)
 
         root.startNavigationAnimation("previous")
-        root.forceActiveFocus()
     }
 
     function setLayerSource(layer, key, component, state) {
@@ -328,7 +265,6 @@ Item {
             if (layer === root.previousLayer) {
                 return root.previousOpacity
             }
-
             if (layer === root.nextLayer) {
                 return root.nextOpacity
             }
@@ -342,7 +278,6 @@ Item {
             if (layer === root.previousLayer) {
                 return root.previousLeftX
             }
-
             if (layer === root.nextLayer) {
                 return root.nextLeftX
             }
@@ -356,7 +291,6 @@ Item {
             if (layer === root.previousLayer) {
                 return root.previousCenterX
             }
-
             if (layer === root.nextLayer) {
                 return root.nextCenterX
             }
