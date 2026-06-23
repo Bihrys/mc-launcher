@@ -112,6 +112,23 @@ pub mod qobject {
         fn start_refresh_account(self: Pin<&mut LauncherBackend>, index: QString);
 
         #[qinvokable]
+        #[cxx_name = "startUploadSkin"]
+        fn start_upload_skin(
+            self: Pin<&mut LauncherBackend>,
+            index: QString,
+            file_url: QString,
+            model: QString,
+        );
+
+        #[qinvokable]
+        #[cxx_name = "startMigrateAccount"]
+        fn start_migrate_account(self: Pin<&mut LauncherBackend>, index: QString, target: QString);
+
+        #[qinvokable]
+        #[cxx_name = "startCleanupAvatarCache"]
+        fn start_cleanup_avatar_cache(self: Pin<&mut LauncherBackend>);
+
+        #[qinvokable]
         #[cxx_name = "pollRefreshAccountTask"]
         fn poll_refresh_account_task(self: Pin<&mut LauncherBackend>) -> QString;
 
@@ -803,16 +820,16 @@ impl qobject::LauncherBackend {
 
         if download_task_is_active(&status_path) {
             self.as_mut()
-                .set_output(QString::from("账户正在刷新中。请等待当前刷新任务完成。"));
+                .set_output(QString::from("账户任务正在执行中。请等待当前任务完成。"));
             return;
         }
 
         write_account_refresh_task_status(
             &status_path,
             true,
-            -1,
+            index_text.parse::<i64>().unwrap_or(-1),
             "正在刷新账户",
-            "正在后台刷新账户信息和头像缓存，界面不会卡死。",
+            "正在后台刷新账户登录状态、皮肤和头像缓存。",
             false,
             "",
             "",
@@ -820,10 +837,6 @@ impl qobject::LauncherBackend {
             "",
             "",
         );
-
-        self.as_mut().set_output(QString::from(
-            "正在后台刷新账户信息和头像缓存。",
-        ));
 
         thread::spawn(move || {
             let parsed_index = match index_text.parse::<usize>() {
@@ -846,7 +859,7 @@ impl qobject::LauncherBackend {
                 }
             };
 
-            let accounts = match launcher_core::load_accounts() {
+            let mut accounts = match launcher_core::load_accounts() {
                 Ok(accounts) => accounts,
                 Err(err) => {
                     write_account_refresh_task_status(
@@ -883,41 +896,374 @@ impl qobject::LauncherBackend {
                 return;
             };
 
-            if let Err(err) = launcher_core::select_account(&account) {
+            match launcher_core::refresh_account(&account).and_then(|updated| {
+                launcher_core::save_account(&updated)?;
+                Ok(updated)
+            }) {
+                Ok(updated) => {
+                    for item in &mut accounts {
+                        if launcher_core::account_identifier(item) == launcher_core::account_identifier(&updated) {
+                            *item = updated.clone();
+                        }
+                    }
+
+                    let accounts_json = accounts_public_json(&accounts);
+                    let kind = display_account_kind(&updated.kind);
+                    let avatar = avatar_url_for_account(&updated);
+
+                    write_account_refresh_task_status(
+                        &status_path,
+                        false,
+                        parsed_index as i64,
+                        "账户刷新完成",
+                        "账户登录状态和头像缓存已刷新。",
+                        true,
+                        &accounts_json,
+                        &updated.username,
+                        &kind,
+                        &avatar,
+                        "",
+                    );
+                }
+                Err(err) => {
+                    write_account_refresh_task_status(
+                        &status_path,
+                        false,
+                        parsed_index as i64,
+                        "账户刷新失败",
+                        &err.to_string(),
+                        false,
+                        "",
+                        "",
+                        "",
+                        "",
+                        &err.to_string(),
+                    );
+                }
+            }
+        });
+    }
+
+
+    pub fn start_upload_skin(mut self: Pin<&mut Self>, index: QString, file_url: QString, model: QString) {
+        let index_text = index.to_string();
+        let file_url = file_url.to_string();
+        let model = model.to_string();
+        let status_path = account_refresh_task_status_path();
+
+        if download_task_is_active(&status_path) {
+            self.as_mut()
+                .set_output(QString::from("账户任务正在执行中。请等待当前任务完成。"));
+            return;
+        }
+
+        write_account_refresh_task_status(
+            &status_path,
+            true,
+            index_text.parse::<i64>().unwrap_or(-1),
+            "正在上传皮肤",
+            "正在后台刷新账户、上传皮肤并更新头像缓存。",
+            false,
+            "",
+            "",
+            "",
+            "",
+            "",
+        );
+
+        thread::spawn(move || {
+            let parsed_index = match index_text.parse::<usize>() {
+                Ok(value) => value,
+                Err(err) => {
+                    write_account_refresh_task_status(
+                        &status_path,
+                        false,
+                        -1,
+                        "上传皮肤失败",
+                        &format!("无效账户索引：{err}"),
+                        false,
+                        "",
+                        "",
+                        "",
+                        "",
+                        &err.to_string(),
+                    );
+                    return;
+                }
+            };
+
+            let path = file_url_to_path(&file_url);
+            let slim = model == "slim";
+
+            let mut accounts = match launcher_core::load_accounts() {
+                Ok(accounts) => accounts,
+                Err(err) => {
+                    write_account_refresh_task_status(
+                        &status_path,
+                        false,
+                        parsed_index as i64,
+                        "上传皮肤失败",
+                        &err.to_string(),
+                        false,
+                        "",
+                        "",
+                        "",
+                        "",
+                        &err.to_string(),
+                    );
+                    return;
+                }
+            };
+
+            let Some(account) = accounts.get(parsed_index).cloned() else {
                 write_account_refresh_task_status(
                     &status_path,
                     false,
                     parsed_index as i64,
-                    "账户刷新失败",
-                    &format!("无法保存当前账户选择：{err}"),
+                    "上传皮肤失败",
+                    "账户索引不存在。",
                     false,
                     "",
                     "",
                     "",
                     "",
-                    &err.to_string(),
+                    "账户索引不存在。",
                 );
                 return;
+            };
+
+            match launcher_core::upload_account_skin(&account, &path, slim) {
+                Ok(updated) => {
+                    for item in &mut accounts {
+                        if launcher_core::account_identifier(item) == launcher_core::account_identifier(&updated) {
+                            *item = updated.clone();
+                        }
+                    }
+
+                    let accounts_json = accounts_public_json(&accounts);
+                    let kind = display_account_kind(&updated.kind);
+                    let avatar = avatar_url_for_account(&updated);
+
+                    write_account_refresh_task_status(
+                        &status_path,
+                        false,
+                        parsed_index as i64,
+                        "上传皮肤完成",
+                        "皮肤已上传或保存，账户头像已更新。",
+                        true,
+                        &accounts_json,
+                        &updated.username,
+                        &kind,
+                        &avatar,
+                        "",
+                    );
+                }
+                Err(err) => {
+                    write_account_refresh_task_status(
+                        &status_path,
+                        false,
+                        parsed_index as i64,
+                        "上传皮肤失败",
+                        &err.to_string(),
+                        false,
+                        "",
+                        "",
+                        "",
+                        "",
+                        &err.to_string(),
+                    );
+                }
             }
+        });
+    }
 
-            // 这些可能触发网络头像获取、皮肤裁剪、缓存写入，所以必须在后台线程。
-            let avatar = avatar_url_for_account(&account);
-            let accounts_json = accounts_public_json(&accounts);
-            let kind = display_account_kind(&account.kind);
+    pub fn start_migrate_account(mut self: Pin<&mut Self>, index: QString, target: QString) {
+        let index_text = index.to_string();
+        let target = target.to_string();
+        let status_path = account_refresh_task_status_path();
 
-            write_account_refresh_task_status(
-                &status_path,
-                false,
-                parsed_index as i64,
-                "账户刷新完成",
-                "账户信息和头像缓存已刷新。",
-                true,
-                &accounts_json,
-                &account.username,
-                &kind,
-                &avatar,
-                "",
-            );
+        if download_task_is_active(&status_path) {
+            self.as_mut()
+                .set_output(QString::from("账户任务正在执行中。请等待当前任务完成。"));
+            return;
+        }
+
+        write_account_refresh_task_status(
+            &status_path,
+            true,
+            index_text.parse::<i64>().unwrap_or(-1),
+            "正在迁移账户",
+            "正在切换账户存储位置。",
+            false,
+            "",
+            "",
+            "",
+            "",
+            "",
+        );
+
+        thread::spawn(move || {
+            let parsed_index = match index_text.parse::<usize>() {
+                Ok(value) => value,
+                Err(err) => {
+                    write_account_refresh_task_status(
+                        &status_path,
+                        false,
+                        -1,
+                        "账户迁移失败",
+                        &format!("无效账户索引：{err}"),
+                        false,
+                        "",
+                        "",
+                        "",
+                        "",
+                        &err.to_string(),
+                    );
+                    return;
+                }
+            };
+
+            let mut accounts = match launcher_core::load_accounts() {
+                Ok(accounts) => accounts,
+                Err(err) => {
+                    write_account_refresh_task_status(
+                        &status_path,
+                        false,
+                        parsed_index as i64,
+                        "账户迁移失败",
+                        &err.to_string(),
+                        false,
+                        "",
+                        "",
+                        "",
+                        "",
+                        &err.to_string(),
+                    );
+                    return;
+                }
+            };
+
+            let Some(account) = accounts.get(parsed_index).cloned() else {
+                write_account_refresh_task_status(
+                    &status_path,
+                    false,
+                    parsed_index as i64,
+                    "账户迁移失败",
+                    "账户索引不存在。",
+                    false,
+                    "",
+                    "",
+                    "",
+                    "",
+                    "账户索引不存在。",
+                );
+                return;
+            };
+
+            match launcher_core::migrate_account_storage(&account, &target) {
+                Ok(updated) => {
+                    for item in &mut accounts {
+                        if launcher_core::account_identifier(item) == launcher_core::account_identifier(&updated) {
+                            *item = updated.clone();
+                        }
+                    }
+
+                    let accounts_json = accounts_public_json(&accounts);
+                    let kind = display_account_kind(&updated.kind);
+                    let avatar = avatar_url_for_account(&updated);
+
+                    write_account_refresh_task_status(
+                        &status_path,
+                        false,
+                        parsed_index as i64,
+                        "账户迁移完成",
+                        "账户存储位置已更新。",
+                        true,
+                        &accounts_json,
+                        &updated.username,
+                        &kind,
+                        &avatar,
+                        "",
+                    );
+                }
+                Err(err) => {
+                    write_account_refresh_task_status(
+                        &status_path,
+                        false,
+                        parsed_index as i64,
+                        "账户迁移失败",
+                        &err.to_string(),
+                        false,
+                        "",
+                        "",
+                        "",
+                        "",
+                        &err.to_string(),
+                    );
+                }
+            }
+        });
+    }
+
+    pub fn start_cleanup_avatar_cache(mut self: Pin<&mut Self>) {
+        let status_path = account_refresh_task_status_path();
+
+        if download_task_is_active(&status_path) {
+            self.as_mut()
+                .set_output(QString::from("账户任务正在执行中。请等待当前任务完成。"));
+            return;
+        }
+
+        write_account_refresh_task_status(
+            &status_path,
+            true,
+            -1,
+            "正在清理头像缓存",
+            "正在删除过期头像缓存。",
+            false,
+            "",
+            "",
+            "",
+            "",
+            "",
+        );
+
+        thread::spawn(move || {
+            match launcher_core::cleanup_avatar_cache(30) {
+                Ok(count) => {
+                    let accounts = launcher_core::load_accounts().unwrap_or_default();
+                    let accounts_json = accounts_public_json(&accounts);
+
+                    write_account_refresh_task_status(
+                        &status_path,
+                        false,
+                        -1,
+                        "头像缓存清理完成",
+                        &format!("已清理 {count} 个过期头像缓存文件。"),
+                        true,
+                        &accounts_json,
+                        "",
+                        "",
+                        "",
+                        "",
+                    );
+                }
+                Err(err) => {
+                    write_account_refresh_task_status(
+                        &status_path,
+                        false,
+                        -1,
+                        "头像缓存清理失败",
+                        &err.to_string(),
+                        false,
+                        "",
+                        "",
+                        "",
+                        "",
+                        &err.to_string(),
+                    );
+                }
+            }
         });
     }
 
@@ -2690,4 +3036,44 @@ fn avatar_url_for_account(account: &AuthAccount) -> String {
         .ok()
         .flatten()
         .unwrap_or_default()
+}
+
+
+fn file_url_to_path(value: &str) -> PathBuf {
+    let value = value.trim();
+
+    if let Some(rest) = value.strip_prefix("file://") {
+        return PathBuf::from(percent_decode_file_url(rest));
+    }
+
+    PathBuf::from(value)
+}
+
+fn percent_decode_file_url(value: &str) -> String {
+    let bytes = value.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+
+    while i < bytes.len() {
+        match bytes[i] {
+            b'%' if i + 2 < bytes.len() => {
+                let hi = (bytes[i + 1] as char).to_digit(16);
+                let lo = (bytes[i + 2] as char).to_digit(16);
+
+                if let (Some(hi), Some(lo)) = (hi, lo) {
+                    out.push(((hi << 4) | lo) as u8);
+                    i += 3;
+                } else {
+                    out.push(bytes[i]);
+                    i += 1;
+                }
+            }
+            b => {
+                out.push(b);
+                i += 1;
+            }
+        }
+    }
+
+    String::from_utf8_lossy(&out).to_string()
 }

@@ -25,6 +25,17 @@ pub struct AuthAccount {
     pub user_properties_json: Option<String>,
     pub server_url: Option<String>,
     pub note: Option<String>,
+
+    // Microsoft refresh token 刷新需要保留 public client id。
+    pub client_id: Option<String>,
+
+    // 离线账户本地皮肤。HMCL OfflineAccountSkinPane 会保存离线皮肤设置；
+    // 这里先保存本地 skin path/model，前端头像和后续启动注入都可以读取。
+    pub skin_path: Option<String>,
+    pub skin_model: Option<String>,
+
+    // 对应 HMCL 的全局/本地账户迁移状态。
+    pub storage_scope: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -246,6 +257,10 @@ pub fn login_offline(username: &str) -> Result<AuthAccount, AuthError> {
         client_token: None,
         user_properties_json: None,
         server_url: None,
+        client_id: None,
+        skin_path: None,
+        skin_model: None,
+        storage_scope: Some("global".to_string()),
         note: Some("离线账户，不进行正版验证。".to_string()),
     })
 }
@@ -516,6 +531,10 @@ fn yggdrasil_account_from_profile(
         client_token,
         user_properties_json,
         server_url: Some(server_url.to_string()),
+        client_id: None,
+        skin_path: None,
+        skin_model: None,
+        storage_scope: Some("global".to_string()),
         note: Some(format!("第三方登录：{login_username}")),
     }
 }
@@ -547,7 +566,9 @@ pub fn login_microsoft_browser(client_id: &str) -> Result<AuthAccount, AuthError
     let code = wait_for_oauth_callback(listener, &state)?;
     let token = exchange_microsoft_code(&client_id, &redirect_uri, &code, &code_verifier)?;
 
-    authenticate_minecraft_with_live_token(token.access_token, token.refresh_token)
+    let mut account = authenticate_minecraft_with_live_token(token.access_token, token.refresh_token)?;
+    account.client_id = Some(client_id);
+    Ok(account)
 }
 
 pub fn save_account(account: &AuthAccount) -> Result<PathBuf, AuthError> {
@@ -856,9 +877,328 @@ fn authenticate_minecraft_with_live_token(
         client_token: None,
         user_properties_json: None,
         server_url: None,
+        client_id: None,
+        skin_path: None,
+        skin_model: None,
+        storage_scope: Some("global".to_string()),
         note: Some("Microsoft 浏览器登录。".to_string()),
     })
 }
+
+
+pub fn refresh_account(account: &AuthAccount) -> Result<AuthAccount, AuthError> {
+    match account.kind.as_str() {
+        "offline" => Ok(account.clone()),
+        "microsoft" => refresh_microsoft_account(account),
+        "yggdrasil" => refresh_yggdrasil_account(account),
+        other => Err(simple_error(format!("暂不支持刷新账户类型：{other}"))),
+    }
+}
+
+pub fn upload_account_skin(
+    account: &AuthAccount,
+    skin_file: &std::path::Path,
+    slim: bool,
+) -> Result<AuthAccount, AuthError> {
+    validate_skin_file(skin_file)?;
+
+    match account.kind.as_str() {
+        "offline" => {
+            let mut updated = account.clone();
+            let path = save_offline_skin_file(account, skin_file)?;
+            updated.skin_path = Some(path.to_string_lossy().to_string());
+            updated.skin_model = Some(if slim { "slim" } else { "classic" }.to_string());
+            save_account(&updated)?;
+            Ok(updated)
+        }
+        "microsoft" => {
+            let refreshed = refresh_microsoft_account(account)?;
+
+            http_client()?
+                .post("https://api.minecraftservices.com/minecraft/profile/skins")
+                .bearer_auth(&refreshed.access_token)
+                .multipart(
+                    reqwest::blocking::multipart::Form::new()
+                        .text("variant", if slim { "slim" } else { "classic" }.to_string())
+                        .file("file", skin_file)?,
+                )
+                .send()?
+                .error_for_status()?;
+
+            let updated = refresh_microsoft_account(&refreshed)?;
+            save_account(&updated)?;
+            Ok(updated)
+        }
+        "yggdrasil" => {
+            let refreshed = refresh_yggdrasil_account(account)?;
+            let server_url = refreshed
+                .server_url
+                .as_deref()
+                .ok_or_else(|| simple_error("第三方账户缺少服务器地址。"))?;
+
+            let compact_uuid = refreshed.uuid.chars().filter(|ch| *ch != '-').collect::<String>();
+            let upload_url = format!(
+                "{}/api/user/profile/{}/skin",
+                server_url.trim_end_matches('/'),
+                compact_uuid
+            );
+
+            http_client()?
+                .put(&upload_url)
+                .bearer_auth(&refreshed.access_token)
+                .multipart(
+                    reqwest::blocking::multipart::Form::new()
+                        .text("model", if slim { "slim" } else { "" }.to_string())
+                        .file("file", skin_file)?,
+                )
+                .send()?
+                .error_for_status()?;
+
+            let updated = refresh_yggdrasil_account(&refreshed)?;
+            save_account(&updated)?;
+            Ok(updated)
+        }
+        other => Err(simple_error(format!("暂不支持上传皮肤到账户类型：{other}"))),
+    }
+}
+
+pub fn migrate_account_storage(
+    account: &AuthAccount,
+    target_scope: &str,
+) -> Result<AuthAccount, AuthError> {
+    let target_scope = match target_scope {
+        "global" => "global",
+        "portable" => "portable",
+        "toggle" => {
+            if account.storage_scope.as_deref() == Some("portable") {
+                "global"
+            } else {
+                "portable"
+            }
+        }
+        other => return Err(simple_error(format!("未知账户存储位置：{other}"))),
+    };
+
+    let mut updated = account.clone();
+    updated.storage_scope = Some(target_scope.to_string());
+
+    save_account(&updated)?;
+    Ok(updated)
+}
+
+pub fn cleanup_avatar_cache(max_age_days: u64) -> Result<usize, AuthError> {
+    let cache_dir = avatar_cache_dir_for_cleanup()?;
+
+    let Ok(entries) = fs::read_dir(&cache_dir) else {
+        return Ok(0);
+    };
+
+    let max_age = std::time::Duration::from_secs(max_age_days.saturating_mul(24 * 60 * 60));
+    let now = std::time::SystemTime::now();
+    let mut removed = 0usize;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+
+        if !path.is_file() {
+            continue;
+        }
+
+        let Ok(meta) = entry.metadata() else {
+            continue;
+        };
+
+        let Ok(modified) = meta.modified() else {
+            continue;
+        };
+
+        if now.duration_since(modified).unwrap_or_default() > max_age {
+            if fs::remove_file(&path).is_ok() {
+                removed += 1;
+            }
+        }
+    }
+
+    Ok(removed)
+}
+
+fn refresh_microsoft_account(account: &AuthAccount) -> Result<AuthAccount, AuthError> {
+    let client_id = account
+        .client_id
+        .as_deref()
+        .ok_or_else(|| simple_error("Microsoft 账户缺少 client_id。需要重新通过浏览器登录一次。"))?;
+
+    let refresh_token = account
+        .refresh_token
+        .as_deref()
+        .ok_or_else(|| simple_error("Microsoft 账户没有 refresh_token。需要重新登录。"))?;
+
+    let token = exchange_microsoft_refresh_token(client_id, refresh_token)?;
+    let mut refreshed = authenticate_minecraft_with_live_token(token.access_token, token.refresh_token)?;
+
+    refreshed.client_id = Some(client_id.to_string());
+    refreshed.storage_scope = account.storage_scope.clone();
+    refreshed.skin_path = account.skin_path.clone();
+    refreshed.skin_model = account.skin_model.clone();
+
+    Ok(refreshed)
+}
+
+fn exchange_microsoft_refresh_token(
+    client_id: &str,
+    refresh_token: &str,
+) -> Result<MicrosoftTokenResponse, AuthError> {
+    let response = http_client()?
+        .post("https://login.microsoftonline.com/consumers/oauth2/v2.0/token")
+        .form(&[
+            ("client_id", client_id),
+            ("grant_type", "refresh_token"),
+            ("refresh_token", refresh_token),
+            ("scope", "XboxLive.signin offline_access"),
+        ])
+        .send()?;
+
+    let status = response.status();
+    let text = response.text()?;
+
+    let parsed: MicrosoftTokenResponse = serde_json::from_str(&text).map_err(|err| {
+        simple_error(format!(
+            "微软 refresh token 响应不是有效 JSON。\n\nHTTP: {status}\n\n{err}\n\n{text}"
+        ))
+    })?;
+
+    if !status.is_success() || parsed.error.is_some() {
+        return Err(simple_error(format!(
+            "微软 refresh token 刷新失败。\n\nHTTP: {status}\n错误: {}\n{}",
+            parsed.error.unwrap_or_else(|| "unknown".to_string()),
+            parsed.error_description.unwrap_or_default()
+        )));
+    }
+
+    if parsed.access_token.is_none() {
+        return Err(simple_error("微软 refresh token 响应缺少 access_token。"));
+    }
+
+    Ok(parsed)
+}
+
+fn refresh_yggdrasil_account(account: &AuthAccount) -> Result<AuthAccount, AuthError> {
+    let server_url = account
+        .server_url
+        .as_deref()
+        .ok_or_else(|| simple_error("第三方账户缺少服务器地址。"))?;
+
+    let client_token = account
+        .client_token
+        .clone()
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+
+    let refresh_url = format!("{}/authserver/refresh", server_url.trim_end_matches('/'));
+
+    let body = json!({
+        "accessToken": account.access_token,
+        "clientToken": client_token,
+        "requestUser": true,
+        "selectedProfile": {
+            "id": account.uuid,
+            "name": account.username
+        }
+    });
+
+    let response = http_client()?.post(&refresh_url).json(&body).send()?;
+    let status = response.status();
+    let text = response.text()?;
+
+    let parsed: YggdrasilAuthResponse = serde_json::from_str(&text).map_err(|err| {
+        simple_error(format!(
+            "第三方服务器 refresh 响应不是有效 Yggdrasil JSON。\n\nHTTP: {status}\nURL: {refresh_url}\n\n{err}\n\n{text}"
+        ))
+    })?;
+
+    if !status.is_success() {
+        let message = parsed
+            .error_message
+            .or(parsed.error)
+            .unwrap_or_else(|| text.clone());
+
+        return Err(simple_error(format!(
+            "第三方服务器刷新失败。\n\nHTTP: {status}\nURL: {refresh_url}\n\n{message}"
+        )));
+    }
+
+    let user_properties_json = yggdrasil_user_properties_json(parsed.user.as_ref());
+    let selected = parsed
+        .selected_profile
+        .ok_or_else(|| simple_error("第三方服务器 refresh 没有返回 selectedProfile。"))?;
+
+    let access_token = parsed
+        .access_token
+        .ok_or_else(|| simple_error("第三方服务器 refresh 没有返回 accessToken。"))?;
+
+    let mut refreshed = yggdrasil_account_from_profile(
+        server_url,
+        &account.username,
+        access_token,
+        parsed.client_token.or(account.client_token.clone()),
+        selected,
+        user_properties_json,
+    );
+
+    refreshed.storage_scope = account.storage_scope.clone();
+    refreshed.skin_path = account.skin_path.clone();
+    refreshed.skin_model = account.skin_model.clone();
+
+    Ok(refreshed)
+}
+
+fn validate_skin_file(path: &std::path::Path) -> Result<(), AuthError> {
+    let image = image::open(path)?;
+    let width = image.width();
+    let height = image.height();
+
+    if width != 64 || (height != 32 && height != 64) {
+        return Err(simple_error(format!(
+            "皮肤图片尺寸必须是 64x32 或 64x64，当前是 {width}x{height}。"
+        )));
+    }
+
+    Ok(())
+}
+
+fn save_offline_skin_file(account: &AuthAccount, skin_file: &std::path::Path) -> Result<PathBuf, AuthError> {
+    let dir = offline_skins_dir()?;
+    fs::create_dir_all(&dir)?;
+
+    let file_name = format!("{}-{}.png", account.kind, account.uuid.replace('-', ""));
+    let target = dir.join(file_name);
+    fs::copy(skin_file, &target)?;
+    Ok(target)
+}
+
+fn offline_skins_dir() -> Result<PathBuf, AuthError> {
+    let config_home = if let Some(value) = std::env::var_os("XDG_CONFIG_HOME") {
+        if !value.is_empty() {
+            PathBuf::from(value)
+        } else {
+            home_dir()?.join(".config")
+        }
+    } else {
+        home_dir()?.join(".config")
+    };
+
+    Ok(config_home.join("mc-launcher").join("offline-skins"))
+}
+
+fn avatar_cache_dir_for_cleanup() -> Result<PathBuf, AuthError> {
+    if let Some(value) = std::env::var_os("XDG_CACHE_HOME") {
+        if !value.is_empty() {
+            return Ok(PathBuf::from(value).join("mc-launcher").join("avatars"));
+        }
+    }
+
+    Ok(home_dir()?.join(".cache").join("mc-launcher").join("avatars"))
+}
+
 
 fn wait_for_oauth_callback(listener: TcpListener, expected_state: &str) -> Result<String, AuthError> {
     listener.set_nonblocking(false)?;

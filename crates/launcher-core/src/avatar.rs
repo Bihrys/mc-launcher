@@ -42,6 +42,24 @@ pub fn account_avatar_url(account: &AuthAccount, size: u32) -> Result<Option<Str
     let size = size.clamp(16, 256);
 
     if account.kind == "offline" {
+        if let Some(path) = account.skin_path.as_deref() {
+            let path = PathBuf::from(path);
+            if path.is_file() {
+                let cache_dir = avatar_cache_dir()?;
+                fs::create_dir_all(&cache_dir)?;
+                let avatar_path = cache_dir.join(format!(
+                    "offline-custom-{}-{size}.png",
+                    account.uuid.replace('-', "")
+                ));
+
+                if !avatar_path.is_file() {
+                    crop_avatar_from_skin(&path, &avatar_path, size)?;
+                }
+
+                return Ok(Some(path_to_qml_url(&avatar_path)));
+            }
+        }
+
         let avatar_path = make_offline_default_avatar(&account.uuid, size)?;
         return Ok(Some(path_to_qml_url(&avatar_path)));
     }

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Dialogs
 import "../components"
 
 Item {
@@ -32,6 +33,10 @@ Item {
     property real accountMenuY: 0
     property string accountErrorText: ""
     property int refreshingAccountIndex: -1
+    property int taskAccountIndex: -1
+    property string taskKind: ""
+    property int pendingSkinUploadIndex: -1
+    property string pendingSkinUploadModel: "classic"
     property var accountRefreshStatus: ({ "active": false })
 
     property bool yggdrasilProfileDialogOpen: false
@@ -102,6 +107,19 @@ Item {
         running: false
 
         onTriggered: root.reloadAccounts()
+    }
+
+    FileDialog {
+        id: skinUploadDialog
+
+        title: "选择皮肤文件"
+        nameFilters: ["Minecraft skin (*.png)", "PNG images (*.png)"]
+
+        onAccepted: {
+            if (root.pendingSkinUploadIndex >= 0) {
+                root.startSkinUpload(root.pendingSkinUploadIndex, selectedFile, root.pendingSkinUploadModel)
+            }
+        }
     }
 
     RowLayout {
@@ -274,7 +292,12 @@ Item {
                             avatarUrl: accountDelegate.avatarUrl
                             identifier: accountDelegate.identifier
                             selected: accountDelegate.selected
-                            refreshing: accountDelegate.pageRoot.refreshingAccountIndex === accountDelegate.index
+                            refreshing: accountDelegate.pageRoot.taskAccountIndex === accountDelegate.index
+                                        && accountDelegate.pageRoot.taskKind === "refresh"
+                            uploading: accountDelegate.pageRoot.taskAccountIndex === accountDelegate.index
+                                      && accountDelegate.pageRoot.taskKind === "upload"
+                            moving: accountDelegate.pageRoot.taskAccountIndex === accountDelegate.index
+                                    && accountDelegate.pageRoot.taskKind === "move"
 
                             onSelectRequested: {
                                 accountDelegate.pageRoot.markSelectedAccount(accountCard.accountIndex)
@@ -313,11 +336,11 @@ Item {
                             }
 
                             onMoveRequested: {
-                                accountDelegate.pageRoot.showUnsupportedHint("账户本地/全局迁移")
+                                accountDelegate.pageRoot.startAccountMigration(accountCard.accountIndex)
                             }
 
                             onUploadSkinRequested: {
-                                accountDelegate.pageRoot.showUnsupportedHint("上传皮肤")
+                                accountDelegate.pageRoot.openSkinUpload(accountCard.accountIndex)
                             }
                         }
                     }
@@ -405,7 +428,7 @@ Item {
                     text: "上传皮肤"
                     iconKind: "CHECKROOM"
                     onClicked: {
-                        root.showUnsupportedHint("上传皮肤")
+                        root.openSkinUpload(root.accountMenuIndex)
                         root.closeAccountMenu()
                     }
                 }
@@ -415,7 +438,17 @@ Item {
                     text: "账户存储迁移"
                     iconKind: "OUTPUT"
                     onClicked: {
-                        root.showUnsupportedHint("账户本地/全局迁移")
+                        root.startAccountMigration(root.accountMenuIndex)
+                        root.closeAccountMenu()
+                    }
+                }
+
+                AccountMenuItem {
+                    style: root.style
+                    text: "清理头像缓存"
+                    iconKind: "DELETE_FOREVER"
+                    onClicked: {
+                        root.startAvatarCacheCleanup()
                         root.closeAccountMenu()
                     }
                 }
@@ -1075,10 +1108,12 @@ Item {
     }
 
     function startAccountRefresh(index) {
-        if (root.refreshingAccountIndex >= 0) {
+        if (root.taskAccountIndex >= 0) {
             return
         }
 
+        root.taskAccountIndex = index
+        root.taskKind = "refresh"
         root.refreshingAccountIndex = index
         root.accountRefreshStatus = {
             "active": true,
@@ -1087,6 +1122,49 @@ Item {
         }
 
         root.backend.startRefreshAccount(String(index))
+        accountRefreshPoller.restart()
+    }
+
+    function openSkinUpload(index) {
+        if (root.taskAccountIndex >= 0) {
+            return
+        }
+
+        root.pendingSkinUploadIndex = index
+        root.pendingSkinUploadModel = "classic"
+        skinUploadDialog.open()
+    }
+
+    function startSkinUpload(index, fileUrl, model) {
+        if (root.taskAccountIndex >= 0) {
+            return
+        }
+
+        root.taskAccountIndex = index
+        root.taskKind = "upload"
+        root.backend.startUploadSkin(String(index), String(fileUrl), model)
+        accountRefreshPoller.restart()
+    }
+
+    function startAccountMigration(index) {
+        if (root.taskAccountIndex >= 0) {
+            return
+        }
+
+        root.taskAccountIndex = index
+        root.taskKind = "move"
+        root.backend.startMigrateAccount(String(index), "toggle")
+        accountRefreshPoller.restart()
+    }
+
+    function startAvatarCacheCleanup() {
+        if (root.taskAccountIndex >= 0) {
+            return
+        }
+
+        root.taskAccountIndex = -2
+        root.taskKind = "cleanup"
+        root.backend.startCleanupAvatarCache()
         accountRefreshPoller.restart()
     }
 
@@ -1104,6 +1182,9 @@ Item {
             if (!status.active) {
                 accountRefreshPoller.stop()
                 root.refreshingAccountIndex = -1
+                root.taskAccountIndex = -1
+                root.taskKind = ""
+                root.pendingSkinUploadIndex = -1
             }
         } catch (e) {
             accountRefreshPoller.stop()
@@ -1417,6 +1498,8 @@ Item {
         property string identifier: ""
         property bool selected: false
         property bool refreshing: false
+        property bool uploading: false
+        property bool moving: false
 
         signal selectRequested()
         signal contextMenuRequested(real localX, real localY)
@@ -1516,7 +1599,9 @@ Item {
                 IconButton {
                     style: card.style
                     iconKind: "OUTPUT"
-                    tooltip: "迁移账户存储"
+                    tooltip: card.moving ? "迁移中" : "迁移账户存储"
+                    loading: card.moving
+                    enabled: !card.moving
                     onClicked: card.moveRequested()
                 }
 
@@ -1532,7 +1617,9 @@ Item {
                 IconButton {
                     style: card.style
                     iconKind: "CHECKROOM"
-                    tooltip: "上传皮肤"
+                    tooltip: card.uploading ? "上传中" : "上传皮肤"
+                    loading: card.uploading
+                    enabled: !card.uploading
                     onClicked: card.uploadSkinRequested()
                 }
 
