@@ -3,6 +3,7 @@ use crate::backend_settings::{
     launcher_setting_bool, launcher_setting_string, launcher_setting_u32,
     load_launcher_settings_value,
 };
+use crate::task_bridge::read_status_text;
 use core::pin::Pin;
 use cxx_qt_lib::QString;
 use std::fs;
@@ -666,8 +667,9 @@ fn launch_task_status_path() -> PathBuf {
 }
 
 fn read_launch_task_status_text(path: &Path) -> String {
-    fs::read_to_string(path).unwrap_or_else(|_| {
-        serde_json::json!({
+    read_status_text(
+        path,
+        &serde_json::json!({
             "id": "",
             "active": false,
             "percent": 0,
@@ -679,10 +681,16 @@ fn read_launch_task_status_text(path: &Path) -> String {
             "shouldHide": false,
             "shouldClose": false,
             "shouldReopen": false,
-            "pid": 0
+            "pid": 0,
+            "canCancel": false,
+            "cancelled": false,
+            "speedText": "请耐心等待",
+            "currentStage": "",
+            "stages": [],
+            "tasks": []
         })
-        .to_string()
-    })
+        .to_string(),
+    )
 }
 
 fn launch_task_is_active(path: &Path) -> bool {
@@ -699,43 +707,6 @@ fn launch_task_is_active(path: &Path) -> bool {
                 .map(bool::from)
         })
         .unwrap_or(false)
-}
-
-fn write_launch_task_status(
-    path: &Path,
-    id: &str,
-    active: bool,
-    percent: u32,
-    title: &str,
-    message: &str,
-    status: &str,
-    visibility: &str,
-    game_started: bool,
-    should_hide: bool,
-    should_close: bool,
-    should_reopen: bool,
-    pid: u32,
-) {
-    if let Some(parent) = path.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
-
-    let payload = serde_json::json!({
-        "id": id,
-        "active": active,
-        "percent": percent.min(100),
-        "title": title,
-        "message": message,
-        "status": status,
-        "visibility": visibility,
-        "gameStarted": game_started,
-        "shouldHide": should_hide,
-        "shouldClose": should_close,
-        "shouldReopen": should_reopen,
-        "pid": pid
-    });
-
-    let _ = fs::write(path, payload.to_string());
 }
 
 fn new_launch_task_id() -> String {

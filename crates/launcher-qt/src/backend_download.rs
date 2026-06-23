@@ -3,7 +3,7 @@ use crate::backend_settings::{
     launcher_setting_bool, launcher_setting_string, launcher_setting_u32,
     load_launcher_settings_value,
 };
-use crate::task_bridge::task_status_is_active;
+use crate::task_bridge::{read_status_text, task_status_is_active};
 use core::pin::Pin;
 use cxx_qt_lib::QString;
 use std::fs;
@@ -518,8 +518,9 @@ fn download_catalog_task_status_path() -> PathBuf {
 }
 
 fn read_download_catalog_task_status_text(path: &Path) -> String {
-    fs::read_to_string(path).unwrap_or_else(|_| {
-        serde_json::json!({
+    read_status_text(
+        path,
+        &serde_json::json!({
             "active": false,
             "percent": 0,
             "title": "空闲",
@@ -527,8 +528,8 @@ fn read_download_catalog_task_status_text(path: &Path) -> String {
             "catalogReady": false,
             "catalogJson": ""
         })
-        .to_string()
-    })
+        .to_string(),
+    )
 }
 
 fn write_download_catalog_task_status(
@@ -578,13 +579,14 @@ fn download_task_status_path() -> PathBuf {
 }
 
 fn read_download_task_status_text(path: &Path) -> String {
-    fs::read_to_string(path).unwrap_or_else(|_| {
-        serde_json::json!({
+    read_status_text(
+        path,
+        &serde_json::json!({
             "active": false,
             "percent": 0,
             "title": "空闲",
             "message": "还没有下载任务。"
         })
-        .to_string()
-    })
+        .to_string(),
+    )
 }

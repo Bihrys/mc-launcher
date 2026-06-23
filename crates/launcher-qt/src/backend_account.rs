@@ -1,6 +1,6 @@
 use crate::backend::qobject;
 use crate::json_models::{accounts_public_json, avatar_url_for_account, display_account_kind};
-use crate::task_bridge::task_status_is_active;
+use crate::task_bridge::{read_status_text, task_status_is_active};
 use core::pin::Pin;
 use cxx_qt_lib::QString;
 use launcher_core::AuthAccount;
@@ -1146,8 +1146,9 @@ fn write_account_refresh_task_status(
 }
 
 fn read_account_refresh_task_status_text(path: &Path) -> String {
-    fs::read_to_string(path).unwrap_or_else(|_| {
-        serde_json::json!({
+    read_status_text(
+        path,
+        &serde_json::json!({
             "active": false,
             "index": -1,
             "title": "账户刷新",
@@ -1157,10 +1158,10 @@ fn read_account_refresh_task_status_text(path: &Path) -> String {
             "currentAccountName": "",
             "currentAccountKind": "",
             "currentAccountAvatarUrl": "",
-            "error": "",
+            "error": ""
         })
-        .to_string()
-    })
+        .to_string(),
+    )
 }
 
 fn refresh_accounts_property(mut qobject: Pin<&mut qobject::LauncherBackend>) {
