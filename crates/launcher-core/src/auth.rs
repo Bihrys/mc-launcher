@@ -542,6 +542,10 @@ pub fn select_account(account: &AuthAccount) -> Result<(), AuthError> {
     write_selected_account_identifier(&account_identifier(account))
 }
 
+pub fn select_account_identifier(identifier: &str) -> Result<(), AuthError> {
+    write_selected_account_identifier(identifier)
+}
+
 pub fn selected_account() -> Result<Option<AuthAccount>, AuthError> {
     let accounts = load_accounts()?;
 

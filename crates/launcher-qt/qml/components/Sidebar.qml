@@ -13,6 +13,7 @@ Rectangle {
 
     signal navigate(string page)
     signal navigateSettingsSection(string section)
+    signal prepareAccount()
     signal prepareSettings()
     signal prepareDownload()
     signal prepareVersion()
@@ -59,6 +60,7 @@ Rectangle {
                              : "添加账户"
                 avatarUrl: root.backend.currentAccountAvatarUrl
                 active: root.currentPage === "account"
+                onEntered: root.prepareAccount()
                 onClicked: root.navigate("account")
             }
 
@@ -205,6 +207,7 @@ Rectangle {
         property bool active: false
 
         signal clicked()
+        signal entered()
 
         width: parent ? parent.width : 200
         height: 58
@@ -242,6 +245,7 @@ Rectangle {
             onPressed: function(event) {
                 accountRipple.press(event.x, event.y)
             }
+            onEntered: item.entered()
             onClicked: item.clicked()
         }
 

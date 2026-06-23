@@ -305,6 +305,7 @@ Item {
         anchors.fill: parent
         active: root.sourceA !== null
         sourceComponent: root.sourceA
+        asynchronous: true
         opacity: root.layerOpacity(0)
         visible: active && opacity > 0.001
         z: root.nextLayer === 0 ? 2 : 1
@@ -330,6 +331,7 @@ Item {
         anchors.fill: parent
         active: root.sourceB !== null
         sourceComponent: root.sourceB
+        asynchronous: true
         opacity: root.layerOpacity(1)
         visible: active && opacity > 0.001
         z: root.nextLayer === 1 ? 2 : 1

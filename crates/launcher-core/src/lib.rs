@@ -21,6 +21,7 @@ pub use auth::{
     login_yggdrasil_start,
     complete_yggdrasil_login,
     select_account,
+    select_account_identifier,
     selected_account,
     account_identifier,
     save_account,

@@ -77,6 +77,16 @@ pub mod qobject {
         );
 
         #[qinvokable]
+        #[cxx_name = "switchAccountByIdentifier"]
+        fn switch_account_by_identifier(
+            self: Pin<&mut LauncherBackend>,
+            identifier: QString,
+            username: QString,
+            display_kind: QString,
+            avatar_url: QString,
+        );
+
+        #[qinvokable]
         #[cxx_name = "deleteAccount"]
         fn delete_account(self: Pin<&mut LauncherBackend>, index: QString);
 
@@ -613,6 +623,42 @@ impl qobject::LauncherBackend {
             }
         }
     }
+
+    pub fn switch_account_by_identifier(
+        mut self: Pin<&mut Self>,
+        identifier: QString,
+        username: QString,
+        display_kind: QString,
+        avatar_url: QString,
+    ) {
+        let identifier = identifier.to_string();
+
+        if identifier.trim().is_empty() {
+            self.as_mut()
+                .set_output(QString::from("切换账户失败：账户 identifier 为空。"));
+            return;
+        }
+
+        if let Err(err) = launcher_core::select_account_identifier(&identifier) {
+            self.as_mut()
+                .set_output(QString::from(&format!("切换账户失败：无法保存选择。\n\n{err}")));
+            return;
+        }
+
+        let username = username.to_string();
+        let display_kind = display_kind.to_string();
+        let avatar_url = avatar_url.to_string();
+
+        self.as_mut()
+            .set_current_account_name(QString::from(&username));
+
+        self.as_mut()
+            .set_current_account_kind(QString::from(&display_kind));
+
+        self.as_mut()
+            .set_current_account_avatar_url(QString::from(&avatar_url));
+    }
+
 
     pub fn delete_account(mut self: Pin<&mut Self>, index: QString) {
         let index = match index.to_string().parse::<usize>() {

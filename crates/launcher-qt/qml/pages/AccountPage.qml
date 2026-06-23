@@ -47,7 +47,11 @@ Item {
     }
 
     Component.onCompleted: {
-        root.reloadAccounts()
+        if (root.backend.accountsJson && root.backend.accountsJson.length > 0) {
+            root.reloadAccountsFromJson(root.backend.accountsJson)
+        } else {
+            initialAccountLoadTimer.restart()
+        }
     }
 
     Connections {
@@ -70,6 +74,16 @@ Item {
         running: false
 
         onTriggered: root.pollAccountRefresh()
+    }
+
+    Timer {
+        id: initialAccountLoadTimer
+
+        interval: root.style.motionShort4
+        repeat: false
+        running: false
+
+        onTriggered: root.reloadAccounts()
     }
 
     RowLayout {
@@ -212,12 +226,15 @@ Item {
                     model: accountsModel
 
                     delegate: Item {
+                        id: accountDelegate
+
                         required property int index
                         required property string username
                         required property string uuid
                         required property string displayKind
                         required property string serverUrl
                         required property string avatarUrl
+                        required property string identifier
                         required property bool selected
                         property var pageRoot: root
 
@@ -227,20 +244,21 @@ Item {
                         AccountCard {
                             id: accountCard
                             anchors.fill: parent
-                            style: parent.pageRoot.style
-                            accountIndex: parent.index
-                            username: parent.username
-                            uuid: parent.uuid
-                            displayKind: parent.displayKind
-                            serverUrl: parent.serverUrl
-                            avatarUrl: parent.avatarUrl
-                            selected: parent.selected
-                            refreshing: parent.pageRoot.refreshingAccountIndex === parent.index
+                            style: accountDelegate.pageRoot.style
+                            accountIndex: accountDelegate.index
+                            username: accountDelegate.username
+                            uuid: accountDelegate.uuid
+                            displayKind: accountDelegate.displayKind
+                            serverUrl: accountDelegate.serverUrl
+                            avatarUrl: accountDelegate.avatarUrl
+                            identifier: accountDelegate.identifier
+                            selected: accountDelegate.selected
+                            refreshing: accountDelegate.pageRoot.refreshingAccountIndex === accountDelegate.index
 
                             onSelectRequested: {
-                                parent.pageRoot.markSelectedAccount(accountCard.accountIndex)
-                                parent.pageRoot.backend.switchAccountFast(
-                                    String(accountCard.accountIndex),
+                                accountDelegate.pageRoot.markSelectedAccount(accountCard.accountIndex)
+                                accountDelegate.pageRoot.backend.switchAccountByIdentifier(
+                                    accountCard.identifier,
                                     accountCard.username,
                                     accountCard.displayKind,
                                     accountCard.avatarUrl
@@ -248,23 +266,23 @@ Item {
                             }
 
                             onDeleteRequested: {
-                                parent.pageRoot.deleteIndex = accountCard.accountIndex
+                                accountDelegate.pageRoot.deleteIndex = accountCard.accountIndex
                             }
 
                             onRefreshRequested: {
-                                parent.pageRoot.startAccountRefresh(accountCard.accountIndex)
+                                accountDelegate.pageRoot.startAccountRefresh(accountCard.accountIndex)
                             }
 
                             onCopyUuidRequested: {
-                                parent.pageRoot.copyText(accountCard.uuid)
+                                accountDelegate.pageRoot.copyText(accountCard.uuid)
                             }
 
                             onMoveRequested: {
-                                parent.pageRoot.showUnsupportedHint("账户本地/全局迁移")
+                                accountDelegate.pageRoot.showUnsupportedHint("账户本地/全局迁移")
                             }
 
                             onUploadSkinRequested: {
-                                parent.pageRoot.showUnsupportedHint("上传皮肤")
+                                accountDelegate.pageRoot.showUnsupportedHint("上传皮肤")
                             }
                         }
                     }
@@ -887,6 +905,7 @@ Item {
                     "serverUrl": account.serverUrl || "",
                     "avatarUrl": account.avatarUrl || "",
                     "note": account.note || "",
+                    "identifier": account.identifier || "",
                     "selected": !!account.selected
                 })
             }
@@ -1104,6 +1123,7 @@ Item {
         property string displayKind: ""
         property string serverUrl: ""
         property string avatarUrl: ""
+        property string identifier: ""
         property bool selected: false
         property bool refreshing: false
 

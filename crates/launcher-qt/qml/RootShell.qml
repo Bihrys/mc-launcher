@@ -307,6 +307,7 @@ Item {
                         root.navigateSettingsSection(section)
                     }
 
+                    onPrepareAccount: root.prepareAccountPage()
                     onPrepareSettings: root.prepareSettingsPage()
                     onPrepareDownload: root.prepareDownloadPage()
                     onPrepareVersion: root.prepareVersionPage()
@@ -689,6 +690,11 @@ Item {
         } catch (e) {
             console.log("Failed to parse launcher settings", e)
         }
+    }
+
+    function prepareAccountPage() {
+        // HMCL 的账户页绑定全局 Accounts 列表；这里不在 hover 中同步刷新。
+        // 账户 JSON 在启动时已加载，AccountPage 进入时直接读取 backend.accountsJson。
     }
 
     function prepareDownloadPage() {
