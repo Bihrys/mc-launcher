@@ -17,6 +17,7 @@ Item {
     property string yggdrasilServer: ""
     property string yggdrasilUsername: ""
     property string yggdrasilPassword: ""
+    property bool yggdrasilLoginBusy: false
 
     property string addServerName: ""
     property string addServerUrl: ""
@@ -87,6 +88,16 @@ Item {
         function onAuthServersJsonChanged() {
             root.reloadAuthServersFromJson(root.backend.authServersJson)
         }
+    }
+
+    Timer {
+        id: yggdrasilLoginPoller
+
+        interval: 80
+        repeat: true
+        running: false
+
+        onTriggered: root.pollYggdrasilLogin()
     }
 
     Timer {
@@ -1074,12 +1085,13 @@ Item {
         }
 
         if (root.dialogMode === "yggdrasil") {
-            root.backend.loginYggdrasil(root.yggdrasilServer, root.yggdrasilUsername, root.yggdrasilPassword)
-            root.reloadAccounts()
-            root.loadPendingYggdrasilProfiles()
-            if (!root.yggdrasilProfileDialogOpen) {
-                root.closeDialog()
+            if (root.yggdrasilLoginBusy) {
+                return
             }
+
+            root.yggdrasilLoginBusy = true
+            root.backend.loginYggdrasil(root.yggdrasilServer, root.yggdrasilUsername, root.yggdrasilPassword)
+            yggdrasilLoginPoller.restart()
             return
         }
 
@@ -1190,6 +1202,47 @@ Item {
             accountRefreshPoller.stop()
             root.refreshingAccountIndex = -1
             console.log("Failed to parse account refresh task", e)
+        }
+    }
+
+    function pollYggdrasilLogin() {
+        var raw = root.backend.pollYggdrasilLoginTask()
+
+        if (!raw || raw.length === 0) {
+            return
+        }
+
+        try {
+            var status = JSON.parse(raw)
+
+            if (status.active) {
+                return
+            }
+
+            yggdrasilLoginPoller.stop()
+            root.yggdrasilLoginBusy = false
+
+            if (status.accountsJson && status.accountsJson.length > 0) {
+                root.reloadAccountsFromJson(status.accountsJson)
+                root.closeDialog()
+            }
+
+            if (status.pendingProfilesJson && status.pendingProfilesJson.length > 0) {
+                root.loadPendingYggdrasilProfiles()
+                root.closeDialog()
+                return
+            }
+
+            if (!status.success) {
+                // 失败时保留弹窗，方便修改用户名/密码后重试。
+                return
+            }
+
+            root.closeDialog()
+        } catch (e) {
+            yggdrasilLoginPoller.stop()
+            root.yggdrasilLoginBusy = false
+            console.log("Failed to parse yggdrasil login task", e)
         }
     }
 
