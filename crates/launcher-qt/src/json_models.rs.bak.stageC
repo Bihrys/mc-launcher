@@ -1,4 +1,4 @@
-use launcher_core::{Account as AuthAccount, AccountService};
+use launcher_core::AuthAccount;
 
 pub(crate) fn accounts_public_json(accounts: &[AuthAccount]) -> String {
     let values = accounts
@@ -12,11 +12,11 @@ pub(crate) fn accounts_public_json(accounts: &[AuthAccount]) -> String {
                 "serverUrl": account.server_url,
                 "avatarUrl": avatar_url_for_account(account),
                 "note": account.note,
-                "identifier": AccountService::identifier(account),
-                "selected": AccountService::selected()
+                "identifier": launcher_core::account_identifier(account),
+                "selected": launcher_core::selected_account()
                     .ok()
                     .flatten()
-                    .map(|selected| AccountService::identifier(&selected) == AccountService::identifier(account))
+                    .map(|selected| launcher_core::account_identifier(&selected) == launcher_core::account_identifier(account))
                     .unwrap_or(false),
             })
         })
@@ -38,7 +38,7 @@ pub(crate) fn display_account_kind(kind: &str) -> String {
 }
 
 pub(crate) fn avatar_url_for_account(account: &AuthAccount) -> String {
-    AccountService::avatar_url(account, 96)
+    launcher_core::account_avatar_url(account, 96)
         .ok()
         .flatten()
         .unwrap_or_default()

@@ -6,6 +6,7 @@ use crate::backend_settings::{
 use crate::task_bridge::read_status_text;
 use core::pin::Pin;
 use cxx_qt_lib::QString;
+use launcher_core::AccountService;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -305,7 +306,7 @@ impl qobject::LauncherBackend {
                 return;
             }
 
-            let account_text = match launcher_core::selected_account() {
+            let account_text = match AccountService::selected() {
                 Ok(Some(account)) => format!("正在使用账户 {} 登录。", account.username),
                 Ok(None) => "正在读取账户信息。".to_string(),
                 Err(err) => {

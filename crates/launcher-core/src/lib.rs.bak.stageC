@@ -1,4 +1,3 @@
-pub mod account;
 pub mod auth;
 pub mod avatar;
 pub mod download;
@@ -8,12 +7,6 @@ pub mod java_download;
 pub mod launch;
 pub mod task;
 pub mod version_manager;
-
-pub use account::{
-    Account, AccountAvatarService, AccountError, AccountKind, AccountRepository, AccountService,
-    AccountSkinService, AccountTaskKind, AccountTaskStatus, AuthServerRepository, SkinModel,
-    StorageScope,
-};
 
 pub use auth::{
     AuthAccount, AuthServer, YggdrasilLoginResult, YggdrasilPendingLogin, YggdrasilProfileChoice,
