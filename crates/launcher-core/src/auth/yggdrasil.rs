@@ -1,4 +1,4 @@
-use super::{http_client, normalize_server_url, simple_error, AuthAccount, AuthError};
+use super::{AuthAccount, AuthError, http_client, normalize_server_url, simple_error};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
@@ -396,4 +396,3 @@ pub(crate) fn refresh_yggdrasil_account(account: &AuthAccount) -> Result<AuthAcc
 
     Ok(refreshed)
 }
-

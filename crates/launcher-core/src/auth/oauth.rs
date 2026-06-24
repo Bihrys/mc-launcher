@@ -1,5 +1,5 @@
-use super::{simple_error, AuthError};
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use super::{AuthError, simple_error};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::io::{Read, Write};
@@ -203,4 +203,3 @@ fn html_escape(value: &str) -> String {
         .replace('"', "&quot;")
         .replace('\'', "&#39;")
 }
-

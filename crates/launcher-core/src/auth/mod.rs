@@ -5,15 +5,15 @@ use std::io;
 use std::path::PathBuf;
 
 pub mod microsoft;
-pub mod offline;
 pub mod oauth;
+pub mod offline;
 pub mod yggdrasil;
 
 pub use microsoft::login_microsoft_browser;
 pub use offline::{login_offline, offline_player_uuid};
 pub use yggdrasil::{
-    complete_yggdrasil_login, login_yggdrasil, login_yggdrasil_start, YggdrasilLoginResult,
-    YggdrasilPendingLogin, YggdrasilProfileChoice,
+    YggdrasilLoginResult, YggdrasilPendingLogin, YggdrasilProfileChoice, complete_yggdrasil_login,
+    login_yggdrasil, login_yggdrasil_start,
 };
 
 use self::microsoft::refresh_microsoft_account;
@@ -603,4 +603,3 @@ pub(crate) fn http_client() -> Result<Client, AuthError> {
 pub(crate) fn simple_error(message: impl Into<String>) -> AuthError {
     Box::new(io::Error::other(message.into()))
 }
-

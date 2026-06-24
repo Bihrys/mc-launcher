@@ -1,4 +1,4 @@
-use super::{is_valid_minecraft_name, simple_error, AuthAccount, AuthError};
+use super::{AuthAccount, AuthError, is_valid_minecraft_name, simple_error};
 use uuid::Uuid;
 
 pub fn offline_player_uuid(username: &str) -> Uuid {

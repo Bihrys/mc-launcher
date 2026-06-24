@@ -1,7 +1,7 @@
 use super::oauth::{
     create_pkce_challenge, create_pkce_verifier, open_browser, url_encode, wait_for_oauth_callback,
 };
-use super::{http_client, simple_error, AuthAccount, AuthError};
+use super::{AuthAccount, AuthError, http_client, simple_error};
 use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashMap;
@@ -290,4 +290,3 @@ fn normalize_client_id(client_id: &str) -> Result<String, AuthError> {
 
     Ok(client_id.to_string())
 }
-
