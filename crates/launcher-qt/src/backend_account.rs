@@ -42,114 +42,227 @@ impl qobject::LauncherBackend {
         let server_url = server_url.to_string();
         let username = username.to_string();
         let password = password.to_string();
+        let status_path = yggdrasil_login_task_status_path();
+
+        if task_status_is_active(&status_path) {
+            self.as_mut()
+                .set_output(QString::from("第三方账户登录任务正在执行中。"));
+            return;
+        }
+
+        write_yggdrasil_login_task_status(
+            &status_path,
+            true,
+            "正在登录第三方服务器",
+            &format!("服务器: {server_url}\n用户名: {username}"),
+            false,
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+        );
 
         self.as_mut().set_output(QString::from(&format!(
-            "正在登录第三方服务器...\n\n服务器: {server_url}\n用户名: {username}"
+            "正在后台登录第三方服务器...\n\n服务器: {server_url}\n用户名: {username}"
         )));
 
-        match AccountService::login_yggdrasil_start(&server_url, &username, &password) {
-            Ok(launcher_core::YggdrasilLoginResult::Account(account)) => {
-                match AccountService::save(&account) {
-                    Ok(path) => {
-                        clear_pending_yggdrasil_login();
-                        self.as_mut()
-                            .set_pending_yggdrasil_profiles_json(QString::from(""));
-                        set_current_account(self.as_mut(), &account);
-                        refresh_accounts_property(self.as_mut());
-
-                        self.as_mut().set_output(QString::from(&format!(
-                            "第三方服务器登录完成，并已切换到该账户。\n\n服务器: {}\n角色名: {}\nUUID: {}\n账户文件:\n{}",
-                            account.server_url.as_deref().unwrap_or("unknown"),
-                            account.username,
-                            account.uuid,
-                            path.display()
-                        )));
-                    }
-                    Err(err) => {
-                        self.as_mut()
-                            .set_output(QString::from(&format!("保存第三方账户失败。\n\n{err}")));
-                    }
-                }
-            }
-            Ok(launcher_core::YggdrasilLoginResult::Pending(pending)) => {
-                if pending.profiles.len() == 1 {
-                    match AccountService::complete_yggdrasil_login(&pending, 0).and_then(
-                        |account| {
-                            let path = AccountService::save(&account)?;
-                            Ok((account, path))
-                        },
-                    ) {
-                        Ok((account, path)) => {
+        thread::spawn(move || {
+            match AccountService::login_yggdrasil_start(&server_url, &username, &password) {
+                Ok(launcher_core::YggdrasilLoginResult::Account(account)) => {
+                    match AccountService::save(&account).and_then(|path| {
+                        AccountService::select_account(&account)?;
+                        Ok(path)
+                    }) {
+                        Ok(path) => {
                             clear_pending_yggdrasil_login();
-                            self.as_mut()
-                                .set_pending_yggdrasil_profiles_json(QString::from(""));
-                            set_current_account(self.as_mut(), &account);
-                            refresh_accounts_property(self.as_mut());
-                            self.as_mut().set_output(QString::from(&format!(
-                                "第三方服务器登录完成，并已切换到唯一角色。\n\n角色名: {}\nUUID: {}\n账户文件:\n{}",
-                                account.username,
-                                account.uuid,
-                                path.display()
-                            )));
+
+                            let accounts = AccountService::list().unwrap_or_default();
+                            let accounts_json = accounts_public_json(&accounts);
+                            let kind = display_account_kind(&account.kind);
+                            let avatar = avatar_url_for_account(&account);
+
+                            write_yggdrasil_login_task_status(
+                                &status_path,
+                                false,
+                                "第三方服务器登录完成",
+                                "第三方账户已保存并切换为当前账户。",
+                                true,
+                                &accounts_json,
+                                "",
+                                &account.username,
+                                &kind,
+                                &avatar,
+                                &format!(
+                                    "第三方服务器登录完成，并已切换到该账户。\n\n服务器: {}\n角色名: {}\nUUID: {}\n账户文件:\n{}",
+                                    account.server_url.as_deref().unwrap_or("unknown"),
+                                    account.username,
+                                    account.uuid,
+                                    path.display()
+                                ),
+                                "",
+                            );
                         }
                         Err(err) => {
-                            self.as_mut().set_output(QString::from(&format!(
-                                "第三方服务器选择角色失败。\n\n{err}"
-                            )));
+                            write_yggdrasil_login_task_status(
+                                &status_path,
+                                false,
+                                "保存第三方账户失败",
+                                &err.to_string(),
+                                false,
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                &err.to_string(),
+                            );
                         }
                     }
-                } else {
-                    let profiles = pending
-                        .profiles
-                        .iter()
-                        .map(|profile| {
-                            let avatar_url = AccountService::yggdrasil_profile_avatar_url(
-                                &pending.server_url,
-                                &profile.id,
-                                96,
-                            )
-                            .ok()
-                            .flatten()
-                            .unwrap_or_default();
+                }
+                Ok(launcher_core::YggdrasilLoginResult::Pending(pending)) => {
+                    if pending.profiles.len() == 1 {
+                        match AccountService::complete_yggdrasil_login(&pending, 0).and_then(
+                            |account| {
+                                let path = AccountService::save(&account)?;
+                                AccountService::select_account(&account)?;
+                                Ok((account, path))
+                            },
+                        ) {
+                            Ok((account, path)) => {
+                                clear_pending_yggdrasil_login();
 
-                            serde_json::json!({
-                                "id": profile.id,
-                                "name": profile.name,
-                                "avatarUrl": avatar_url,
+                                let accounts = AccountService::list().unwrap_or_default();
+                                let accounts_json = accounts_public_json(&accounts);
+                                let kind = display_account_kind(&account.kind);
+                                let avatar = avatar_url_for_account(&account);
+
+                                write_yggdrasil_login_task_status(
+                                    &status_path,
+                                    false,
+                                    "第三方服务器登录完成",
+                                    "第三方账户只有一个角色，已自动选择。",
+                                    true,
+                                    &accounts_json,
+                                    "",
+                                    &account.username,
+                                    &kind,
+                                    &avatar,
+                                    &format!(
+                                        "第三方服务器登录完成，并已切换到唯一角色。\n\n角色名: {}\nUUID: {}\n账户文件:\n{}",
+                                        account.username,
+                                        account.uuid,
+                                        path.display()
+                                    ),
+                                    "",
+                                );
+                            }
+                            Err(err) => {
+                                write_yggdrasil_login_task_status(
+                                    &status_path,
+                                    false,
+                                    "第三方服务器选择角色失败",
+                                    &err.to_string(),
+                                    false,
+                                    "",
+                                    "",
+                                    "",
+                                    "",
+                                    "",
+                                    "",
+                                    &err.to_string(),
+                                );
+                            }
+                        }
+                    } else {
+                        let profiles = pending
+                            .profiles
+                            .iter()
+                            .map(|profile| {
+                                let avatar_url = AccountService::yggdrasil_profile_avatar_url(
+                                    &pending.server_url,
+                                    &profile.id,
+                                    96,
+                                )
+                                .ok()
+                                .flatten()
+                                .unwrap_or_default();
+
+                                serde_json::json!({
+                                    "id": profile.id,
+                                    "name": profile.name,
+                                    "avatarUrl": avatar_url,
+                                })
                             })
+                            .collect::<Vec<_>>();
+
+                        let pending_json = serde_json::json!({
+                            "serverUrl": pending.server_url,
+                            "username": pending.username,
+                            "profiles": profiles,
                         })
-                        .collect::<Vec<_>>();
+                        .to_string();
 
-                    let json = serde_json::json!({
-                        "serverUrl": pending.server_url,
-                        "username": pending.username,
-                        "profiles": profiles,
-                    })
-                    .to_string();
+                        if let Err(err) = write_pending_yggdrasil_login(&pending) {
+                            write_yggdrasil_login_task_status(
+                                &status_path,
+                                false,
+                                "保存第三方角色选择状态失败",
+                                &err.to_string(),
+                                false,
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                &err.to_string(),
+                            );
+                            return;
+                        }
 
-                    if let Err(err) = write_pending_yggdrasil_login(&pending) {
-                        self.as_mut().set_output(QString::from(&format!(
-                            "保存第三方角色选择状态失败。\n\n{err}"
-                        )));
-                        return;
+                        write_yggdrasil_login_task_status(
+                            &status_path,
+                            false,
+                            "需要选择第三方角色",
+                            "该第三方账户有多个角色，请选择一个。",
+                            true,
+                            "",
+                            &pending_json,
+                            "",
+                            "",
+                            "",
+                            &format!(
+                                "该第三方账户有多个角色，请在弹出的角色选择框中选择一个。\n\n服务器: {}\n登录用户: {}\n角色数量: {}",
+                                pending.server_url,
+                                pending.username,
+                                pending.profiles.len()
+                            ),
+                            "",
+                        );
                     }
-
-                    self.as_mut()
-                        .set_pending_yggdrasil_profiles_json(QString::from(&json));
-
-                    self.as_mut().set_output(QString::from(&format!(
-                        "该第三方账户有多个角色，请在弹出的角色选择框中选择一个。\n\n服务器: {}\n登录用户: {}\n角色数量: {}",
-                        pending.server_url,
-                        pending.username,
-                        pending.profiles.len()
-                    )));
+                }
+                Err(err) => {
+                    write_yggdrasil_login_task_status(
+                        &status_path,
+                        false,
+                        "第三方服务器登录失败",
+                        &err.to_string(),
+                        false,
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        &err.to_string(),
+                    );
                 }
             }
-            Err(err) => {
-                self.as_mut()
-                    .set_output(QString::from(&format!("第三方服务器登录失败。\n\n{err}")));
-            }
-        }
+        });
     }
 
     pub fn select_yggdrasil_profile(mut self: Pin<&mut Self>, index: QString) {
@@ -197,6 +310,75 @@ impl qobject::LauncherBackend {
                     .set_output(QString::from(&format!("第三方角色选择失败。\n\n{err}")));
             }
         }
+    }
+
+
+    pub fn poll_yggdrasil_login_task(mut self: Pin<&mut Self>) -> QString {
+        let status_path = yggdrasil_login_task_status_path();
+        let text = read_yggdrasil_login_task_status_text(&status_path);
+
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) else {
+            return QString::from(&text);
+        };
+
+        let active = value
+            .get("active")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false);
+
+        if !active {
+            let accounts_json = value
+                .get("accountsJson")
+                .and_then(|value| value.as_str())
+                .unwrap_or_default();
+
+            if !accounts_json.is_empty() {
+                self.as_mut()
+                    .set_accounts_json(QString::from(accounts_json));
+            }
+
+            let pending_profiles_json = value
+                .get("pendingProfilesJson")
+                .and_then(|value| value.as_str())
+                .unwrap_or_default();
+
+            self.as_mut()
+                .set_pending_yggdrasil_profiles_json(QString::from(pending_profiles_json));
+
+            let current_name = value
+                .get("currentAccountName")
+                .and_then(|value| value.as_str())
+                .unwrap_or_default();
+
+            if !current_name.is_empty() {
+                self.as_mut()
+                    .set_current_account_name(QString::from(current_name));
+
+                self.as_mut().set_current_account_kind(QString::from(
+                    value.get("currentAccountKind")
+                        .and_then(|value| value.as_str())
+                        .unwrap_or_default(),
+                ));
+
+                self.as_mut()
+                    .set_current_account_avatar_url(QString::from(
+                        value.get("currentAccountAvatarUrl")
+                            .and_then(|value| value.as_str())
+                            .unwrap_or_default(),
+                    ));
+            }
+
+            let output = value
+                .get("output")
+                .and_then(|value| value.as_str())
+                .unwrap_or_default();
+
+            if !output.is_empty() {
+                self.as_mut().set_output(QString::from(output));
+            }
+        }
+
+        QString::from(&text)
     }
 
     pub fn login_microsoft_browser(mut self: Pin<&mut Self>, client_id: QString) {
@@ -1240,4 +1422,62 @@ fn percent_decode_file_url(value: &str) -> String {
     }
 
     String::from_utf8_lossy(&out).to_string()
+}
+
+
+fn yggdrasil_login_task_status_path() -> PathBuf {
+    let mut path = std::env::temp_dir();
+    path.push("mc-launcher-yggdrasil-login-task.json");
+    path
+}
+
+fn read_yggdrasil_login_task_status_text(path: &Path) -> String {
+    read_status_text(
+        path,
+        &serde_json::json!({
+            "active": false,
+            "title": "第三方账户登录",
+            "message": "还没有第三方账户登录任务。",
+            "success": false,
+            "accountsJson": "",
+            "pendingProfilesJson": "",
+            "currentAccountName": "",
+            "currentAccountKind": "",
+            "currentAccountAvatarUrl": "",
+            "output": "",
+            "error": ""
+        })
+        .to_string(),
+    )
+}
+
+fn write_yggdrasil_login_task_status(
+    path: &Path,
+    active: bool,
+    title: &str,
+    message: &str,
+    success: bool,
+    accounts_json: &str,
+    pending_profiles_json: &str,
+    current_account_name: &str,
+    current_account_kind: &str,
+    current_account_avatar_url: &str,
+    output: &str,
+    error: &str,
+) {
+    let payload = serde_json::json!({
+        "active": active,
+        "title": title,
+        "message": message,
+        "success": success,
+        "accountsJson": accounts_json,
+        "pendingProfilesJson": pending_profiles_json,
+        "currentAccountName": current_account_name,
+        "currentAccountKind": current_account_kind,
+        "currentAccountAvatarUrl": current_account_avatar_url,
+        "output": output,
+        "error": error
+    });
+
+    let _ = fs::write(path, payload.to_string());
 }
