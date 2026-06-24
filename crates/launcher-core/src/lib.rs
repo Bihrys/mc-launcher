@@ -24,7 +24,10 @@ pub use auth::{
     refresh_account, save_account, save_auth_servers, select_account, select_account_identifier,
     selected_account, upload_account_skin,
 };
-pub use download_center::{DownloadCatalogService, DownloadCenterTaskKind, DownloadService, DownloadSourceKind, DownloadTab, GameInstallerService, LoaderKind};
+pub use download_center::{
+    DownloadCatalogService, DownloadCenterTaskKind, DownloadService, DownloadSourceKind,
+    DownloadTab, GameInstallerService, LoaderKind,
+};
 
 pub use game_download::{
     InstallResult, fetch_download_catalog_json, install_game_version,
