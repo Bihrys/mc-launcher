@@ -303,7 +303,7 @@ fn yggdrasil_user_properties_json(user: Option<&serde_json::Value>) -> Option<St
     }
 }
 
-pub(crate) fn yggdrasil_account_from_profile(
+fn yggdrasil_account_from_profile(
     server_url: &str,
     login_username: &str,
     access_token: String,
