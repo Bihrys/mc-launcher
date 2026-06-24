@@ -14,7 +14,6 @@ Item {
     property string selectedGameVersion: ""
     property string selectedGameReleaseTime: ""
     property string selectedLoaderKind: "vanilla"
-    property bool installerPaneOpen: false
     property string versionFilter: "release"
     property string searchText: ""
     property var catalog: null
@@ -367,8 +366,6 @@ Item {
             if (visibleVersionModel.count > 0) {
                 root.selectVersion(0)
             }
-
-            root.installerPaneOpen = false
         } catch (e) {
             console.log("Failed to parse download catalog", e)
         }
@@ -400,15 +397,6 @@ Item {
                 "tagText": item.tagText
             })
         }
-    }
-
-    function openInstallerForVersion(visibleIndex) {
-        root.selectVersion(visibleIndex)
-        root.installerPaneOpen = true
-    }
-
-    function closeInstallerPane() {
-        root.installerPaneOpen = false
     }
 
     function selectVersion(visibleIndex) {
@@ -621,7 +609,7 @@ Item {
                         style: root.style
                         text: root.catalogTaskStatus.active ? "加载中" : "刷新"
                         primary: true
-                        buttonEnabled: !root.catalogTaskStatus.active
+                        enabled: !root.catalogTaskStatus.active
                         onClicked: root.startRefreshCatalog()
                     }
                 }
@@ -694,31 +682,15 @@ Item {
                         spacing: 4
                         clip: true
 
-                        delegate: Item {
-                            id: versionDelegate
-
-                            required property int index
-                            required property int sourceIndex
-                            required property string versionId
-                            required property string versionType
-                            required property string releaseTime
-                            required property string group
-                            required property string iconSource
-                            required property string tagText
-
+                        delegate: RemoteVersionCell {
                             width: versionList.width
-                            height: 56
-
-                            RemoteVersionCell {
-                                anchors.fill: parent
-                                style: root.style
-                                versionId: versionDelegate.versionId
-                                subtitle: versionDelegate.releaseTime
-                                tagText: versionDelegate.tagText
-                                iconSource: versionDelegate.iconSource
-                                selected: root.selectedGameVersion === versionDelegate.versionId
-                                onClicked: root.openInstallerForVersion(versionDelegate.index)
-                            }
+                            style: root.style
+                            versionId: model.versionId
+                            subtitle: model.releaseTime
+                            tagText: model.tagText
+                            iconSource: model.iconSource
+                            selected: root.selectedGameVersion === model.versionId
+                            onClicked: root.selectVersion(index)
                         }
                     }
 
@@ -732,10 +704,8 @@ Item {
                 }
 
                 Rectangle {
-                    Layout.preferredWidth: root.installerPaneOpen ? 330 : 0
+                    Layout.preferredWidth: 330
                     Layout.fillHeight: true
-                    visible: root.installerPaneOpen
-                    opacity: root.installerPaneOpen ? 1 : 0
                     radius: 4
                     color: root.style.cSurfaceContainerHigh
                     border.color: root.style.cBorder
@@ -746,24 +716,12 @@ Item {
                         anchors.margins: 14
                         spacing: 12
 
-                        RowLayout {
+                        Text {
                             Layout.fillWidth: true
-                            spacing: 8
-
-                            Text {
-                                Layout.fillWidth: true
-                                text: "安装"
-                                color: root.style.cTextOnSurface
-                                font.pixelSize: 18
-                                font.bold: true
-                            }
-
-                            HmclButton {
-                                Layout.preferredWidth: 92
-                                style: root.style
-                                text: "返回版本列表"
-                                onClicked: root.closeInstallerPane()
-                            }
+                            text: "安装"
+                            color: root.style.cTextOnSurface
+                            font.pixelSize: 18
+                            font.bold: true
                         }
 
                         Text {
@@ -772,7 +730,7 @@ Item {
                                   ? "Minecraft " + root.selectedGameVersion
                                   : "请选择 Minecraft 版本"
                             color: root.style.cTextOnSurface
-                            font.pixelSize: 13
+                            font.pixelSize: 14
                             font.bold: true
                             elide: Text.ElideRight
                         }
@@ -980,13 +938,13 @@ Item {
 
         signal clicked()
 
-        height: 48
+        height: 54
 
         Rectangle {
             anchors.fill: parent
             radius: 3
             color: item.selected
-                   ? Qt.rgba(item.style.cPrimary.r, item.style.cPrimary.g, item.style.cPrimary.b, 0.14)
+                   ? Qt.rgba(item.style.cAccent.r, item.style.cAccent.g, item.style.cAccent.b, 0.14)
                    : (mouse.containsMouse ? Qt.rgba(item.style.cTextOnSurface.r, item.style.cTextOnSurface.g, item.style.cTextOnSurface.b, 0.06) : "transparent")
         }
 
@@ -1009,7 +967,7 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             icon: item.iconKind
             iconSize: 22
-            iconColor: item.selected ? item.style.cPrimary : item.style.cTextOnSurfaceVariant
+            iconColor: item.selected ? item.style.cAccent : item.style.cTextOnSurfaceVariant
             animationsEnabled: item.style.animationsEnabled
         }
 
@@ -1024,7 +982,7 @@ Item {
             Text {
                 width: parent.width
                 text: item.title
-                color: item.selected ? item.style.cPrimary : item.style.cTextOnSurface
+                color: item.selected ? item.style.cAccent : item.style.cTextOnSurface
                 font.pixelSize: 13
                 font.bold: item.selected
                 elide: Text.ElideRight
@@ -1060,13 +1018,13 @@ Item {
 
         signal clicked()
 
-        height: 56
+        height: 65
 
         Rectangle {
             anchors.fill: parent
             radius: 3
             color: cell.selected
-                   ? Qt.rgba(cell.style.cPrimary.r, cell.style.cPrimary.g, cell.style.cPrimary.b, 0.14)
+                   ? Qt.rgba(cell.style.cAccent.r, cell.style.cAccent.g, cell.style.cAccent.b, 0.14)
                    : (mouse.containsMouse ? Qt.rgba(cell.style.cTextOnSurface.r, cell.style.cTextOnSurface.g, cell.style.cTextOnSurface.b, 0.06) : "transparent")
         }
 
@@ -1083,7 +1041,7 @@ Item {
 
         Column {
             anchors.left: parent.left
-            anchors.leftMargin: 62
+            anchors.leftMargin: 64
             anchors.right: arrow.left
             anchors.rightMargin: 8
             anchors.verticalCenter: parent.verticalCenter
@@ -1096,7 +1054,7 @@ Item {
                 Text {
                     text: cell.versionId
                     color: cell.style.cTextOnSurface
-                    font.pixelSize: 13
+                    font.pixelSize: 14
                     font.bold: true
                     elide: Text.ElideRight
                     width: Math.min(implicitWidth, parent.width - tag.width - 12)
@@ -1107,13 +1065,13 @@ Item {
                     width: tagText.implicitWidth + 12
                     height: 20
                     radius: 2
-                    color: Qt.rgba(cell.style.cPrimary.r, cell.style.cPrimary.g, cell.style.cPrimary.b, 0.14)
+                    color: Qt.rgba(cell.style.cAccent.r, cell.style.cAccent.g, cell.style.cAccent.b, 0.14)
 
                     Text {
                         id: tagText
                         anchors.centerIn: parent
                         text: cell.tagText
-                        color: cell.style.cPrimary
+                        color: cell.style.cAccent
                         font.pixelSize: 10
                     }
                 }
@@ -1164,9 +1122,9 @@ Item {
             anchors.fill: parent
             radius: 16
             color: chip.selected
-                   ? Qt.rgba(chip.style.cPrimary.r, chip.style.cPrimary.g, chip.style.cPrimary.b, 0.16)
+                   ? Qt.rgba(chip.style.cAccent.r, chip.style.cAccent.g, chip.style.cAccent.b, 0.16)
                    : (mouse.containsMouse ? Qt.rgba(chip.style.cTextOnSurface.r, chip.style.cTextOnSurface.g, chip.style.cTextOnSurface.b, 0.06) : chip.style.cSurfaceContainer)
-            border.color: chip.selected ? chip.style.cPrimary : chip.style.cBorder
+            border.color: chip.selected ? chip.style.cAccent : chip.style.cBorder
             border.width: 1
         }
 
@@ -1174,7 +1132,7 @@ Item {
             id: label
             anchors.centerIn: parent
             text: chip.text
-            color: chip.selected ? chip.style.cPrimary : chip.style.cTextOnSurface
+            color: chip.selected ? chip.style.cAccent : chip.style.cTextOnSurface
             font.pixelSize: 12
             font.bold: chip.selected
         }
@@ -1194,26 +1152,26 @@ Item {
         required property var style
         property string text: ""
         property bool primary: false
-        property bool buttonEnabled: true
+        property bool enabled: true
 
         signal clicked()
 
         implicitHeight: 36
         height: 36
-        opacity: button.buttonEnabled ? 1.0 : 0.45
+        opacity: enabled ? 1.0 : 0.45
 
         Rectangle {
             anchors.fill: parent
             radius: 3
             color: button.primary
-                   ? button.style.cPrimary
+                   ? button.style.cAccent
                    : (mouse.containsMouse ? button.style.cButtonHover : button.style.cButtonSurface)
         }
 
         Text {
             anchors.centerIn: parent
             text: button.text
-            color: button.primary ? button.style.cButtonSelectedText : button.style.cTextOnSurface
+            color: button.primary ? button.style.cTextOnAccent : button.style.cTextOnSurface
             font.pixelSize: 12
             font.bold: button.primary
         }
@@ -1222,8 +1180,8 @@ Item {
             id: mouse
             anchors.fill: parent
             hoverEnabled: true
-            enabled: button.buttonEnabled
-            cursorShape: button.buttonEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+            enabled: button.enabled
+            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
             onClicked: button.clicked()
         }
     }
@@ -1276,7 +1234,7 @@ Item {
                     height: parent.height
                     radius: 3
                     width: parent.width * Math.max(0, Math.min(100, card.status.percent || 0)) / 100
-                    color: card.style.cPrimary
+                    color: card.style.cAccent
                 }
             }
 
