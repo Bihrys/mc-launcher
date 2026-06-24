@@ -312,7 +312,6 @@ impl qobject::LauncherBackend {
         }
     }
 
-
     pub fn poll_yggdrasil_login_task(mut self: Pin<&mut Self>) -> QString {
         let status_path = yggdrasil_login_task_status_path();
         let text = read_yggdrasil_login_task_status_text(&status_path);
@@ -355,17 +354,18 @@ impl qobject::LauncherBackend {
                     .set_current_account_name(QString::from(current_name));
 
                 self.as_mut().set_current_account_kind(QString::from(
-                    value.get("currentAccountKind")
+                    value
+                        .get("currentAccountKind")
                         .and_then(|value| value.as_str())
                         .unwrap_or_default(),
                 ));
 
-                self.as_mut()
-                    .set_current_account_avatar_url(QString::from(
-                        value.get("currentAccountAvatarUrl")
-                            .and_then(|value| value.as_str())
-                            .unwrap_or_default(),
-                    ));
+                self.as_mut().set_current_account_avatar_url(QString::from(
+                    value
+                        .get("currentAccountAvatarUrl")
+                        .and_then(|value| value.as_str())
+                        .unwrap_or_default(),
+                ));
             }
 
             let output = value
@@ -1423,7 +1423,6 @@ fn percent_decode_file_url(value: &str) -> String {
 
     String::from_utf8_lossy(&out).to_string()
 }
-
 
 fn yggdrasil_login_task_status_path() -> PathBuf {
     let mut path = std::env::temp_dir();
