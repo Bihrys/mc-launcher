@@ -60,6 +60,10 @@ pub mod qobject {
         );
 
         #[qinvokable]
+        #[cxx_name = "pollYggdrasilLoginTask"]
+        fn poll_yggdrasil_login_task(self: Pin<&mut LauncherBackend>) -> QString;
+
+        #[qinvokable]
         #[cxx_name = "loginMicrosoftBrowser"]
         fn login_microsoft_browser(self: Pin<&mut LauncherBackend>, client_id: QString);
 
