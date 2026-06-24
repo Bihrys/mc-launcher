@@ -2,6 +2,7 @@ pub mod account;
 pub mod auth;
 pub mod avatar;
 pub mod download;
+pub mod download_center;
 pub mod game_download;
 pub mod java;
 pub mod java_download;
@@ -23,6 +24,8 @@ pub use auth::{
     refresh_account, save_account, save_auth_servers, select_account, select_account_identifier,
     selected_account, upload_account_skin,
 };
+pub use download_center::{DownloadCatalogService, DownloadCenterTaskKind, DownloadService, DownloadSourceKind, DownloadTab, GameInstallerService, LoaderKind};
+
 pub use game_download::{
     InstallResult, fetch_download_catalog_json, install_game_version,
     install_game_version_with_manager,
