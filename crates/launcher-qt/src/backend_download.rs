@@ -6,6 +6,7 @@ use crate::backend_settings::{
 use crate::task_bridge::{read_status_text, task_status_is_active};
 use core::pin::Pin;
 use cxx_qt_lib::QString;
+use launcher_core::DownloadService;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -22,7 +23,7 @@ impl qobject::LauncherBackend {
             "正在获取 Minecraft / Fabric / Quilt / Forge / NeoForge 版本列表...",
         ));
 
-        match launcher_core::fetch_download_catalog_json(&source) {
+        match DownloadService::fetch_catalog_json(&source) {
             Ok(json) => {
                 self.as_mut()
                     .set_download_catalog_json(QString::from(&json));
@@ -95,7 +96,7 @@ impl qobject::LauncherBackend {
                 "",
             );
 
-            let result = launcher_core::fetch_download_catalog_json(&source);
+            let result = DownloadService::fetch_catalog_json(&source);
 
             match result {
                 Ok(json) => {
@@ -226,7 +227,7 @@ impl qobject::LauncherBackend {
                 )));
 
                 thread::spawn(move || {
-                    let result = launcher_core::install_game_version_with_manager(
+                    let result = DownloadService::install_game_version_with_manager(
                         &manager,
                         &source,
                         &game_version,
