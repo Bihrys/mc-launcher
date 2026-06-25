@@ -16,3 +16,5 @@ uuid = { version = "1", features = ["v4", "v5", "serde"] }
 
 image = { version = "0.25", default-features = false, features = ["png"] }
 md5 = "0.7"
+
+zip = { version = "2", default-features = false, features = ["deflate"] }
