@@ -415,39 +415,27 @@ fn resolve_download_source(
     let auto = launcher_setting_bool(settings, "autoChooseDownloadSource").unwrap_or(true);
 
     if auto {
-        let source = launcher_setting_string(settings, "versionListSource")
-            .unwrap_or_else(|| "balanced".to_string());
+        if for_version_list {
+            let source = launcher_setting_string(settings, "versionListSource")
+                .unwrap_or_else(|| "balanced".to_string());
+            return normalize_requested_download_source(&source);
+        }
 
-        return match source.as_str() {
-            // HMCL DEFAULT_AUTO_PROVIDER_ID = "balanced"。
-            // 中国大陆时 balanced 默认走 BMCLAPI；这里按中文环境直接走 bmcl。
-            "" | "auto" | "balanced" => "balanced".to_string(),
-
-            // HMCL 的 official auto provider 偏向官方列表。
-            "official" | "mojang" => {
-                if for_version_list {
-                    "official".to_string()
-                } else {
-                    "balanced".to_string()
-                }
-            }
-
-            // HMCL mirror 对应镜像优先。
-            "mirror" | "bmcl" | "bmclapi" => "mirror".to_string(),
-
-            _ => "balanced".to_string(),
-        };
+        // HMCL DEFAULT_AUTO_PROVIDER_ID = balanced。
+        // balanced 表示镜像优先 + 官方候选 fallback。
+        return "balanced".to_string();
     }
 
-    let source = launcher_setting_string(settings, "downloadSource")
+    let setting_key = if for_version_list {
+        "versionListSource"
+    } else {
+        "downloadSource"
+    };
+
+    let source = launcher_setting_string(settings, setting_key)
         .unwrap_or_else(|| requested_source.to_string());
 
-    match source.as_str() {
-        "bmcl" | "bmclapi" | "mirror" => "bmcl".to_string(),
-        "official" | "mojang" => "official".to_string(),
-        "" | "auto" => normalize_requested_download_source(requested_source),
-        _ => normalize_requested_download_source(requested_source),
-    }
+    normalize_requested_download_source(&source)
 }
 
 fn normalize_requested_download_source(value: &str) -> String {

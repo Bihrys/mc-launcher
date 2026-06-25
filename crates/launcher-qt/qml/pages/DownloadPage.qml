@@ -10,7 +10,7 @@ Item {
     required property var backend
 
     property string currentTab: "game"
-    property string downloadSource: "bmcl"
+    property string downloadSource: "auto"
     property string selectedGameVersion: ""
     property string selectedGameReleaseTime: ""
     property string selectedLoaderKind: "vanilla"

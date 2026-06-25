@@ -91,7 +91,7 @@ fn default_launcher_settings_value() -> serde_json::Value {
 
         "autoChooseDownloadSource": true,
         "versionListSource": "balanced",
-        "downloadSource": "mojang",
+        "downloadSource": "balanced",
         "defaultAddonSource": "modrinth",
         "commonDirType": "default",
         "commonDirectory": "",
