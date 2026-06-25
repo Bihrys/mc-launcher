@@ -25,6 +25,12 @@ pub use auth::{
     selected_account, upload_account_skin,
 };
 
+pub use download_center::{
+    DownloadCatalogService, DownloadCenterTaskKind, DownloadService, DownloadSourceKind,
+    DownloadTab, FabricInstaller, ForgeInstaller, LoaderKind, MinecraftInstaller,
+    NeoForgeInstaller, QuiltInstaller,
+};
+
 pub use game_download::{
     InstallResult, fetch_download_catalog_json, install_game_version,
     install_game_version_with_manager,

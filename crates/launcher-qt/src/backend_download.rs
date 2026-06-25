@@ -6,7 +6,7 @@ use crate::backend_settings::{
 use crate::task_bridge::{read_status_text, task_status_is_active};
 use core::pin::Pin;
 use cxx_qt_lib::QString;
-use launcher_core::DownloadService;
+use launcher_core::download_center::DownloadService;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};

@@ -809,9 +809,9 @@ Item {
                             description: "版本清单下载来源。"
                             currentValue: root.settingText("versionListSource")
                             choices: [
-                                {"text": "平衡", "value": "balanced"},
-                                {"text": "官方优先", "value": "official"},
-                                {"text": "镜像优先", "value": "mirror"}
+                                {"text": "自动/平衡", "value": "balanced"},
+                                {"text": "官方", "value": "official"},
+                                {"text": "BMCLAPI", "value": "bmcl"}
                             ]
                             onChoice: function(v) { root.setSetting("versionListSource", v) }
                         }
@@ -822,8 +822,9 @@ Item {
                             description: "游戏文件、资源文件、依赖库下载源。"
                             currentValue: root.settingText("downloadSource")
                             choices: [
-                                {"text": "官方", "value": "mojang"},
-                                {"text": "BMCLAPI", "value": "bmclapi"}
+                                {"text": "自动/平衡", "value": "balanced"},
+                                {"text": "官方", "value": "official"},
+                                {"text": "BMCLAPI", "value": "bmcl"}
                             ]
                             onChoice: function(v) { root.setSetting("downloadSource", v) }
                         }
@@ -1043,7 +1044,13 @@ Item {
     }
 
     function setSetting(key, value) {
-        root.settingsData[key] = value
+        var next = {}
+        for (var k in root.settingsData) {
+            next[k] = root.settingsData[k]
+        }
+
+        next[key] = value
+        root.settingsData = next
         root.backend.updateLauncherSetting(key, String(value))
     }
 

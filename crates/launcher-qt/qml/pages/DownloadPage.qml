@@ -608,13 +608,10 @@ Item {
                         }
                     }
 
-                    HmclButton {
-                        style: root.style
-                        text: root.downloadSource === "official" ? "官方源" : "BMCLAPI"
-                        onClicked: {
-                            root.downloadSource = root.downloadSource === "official" ? "bmcl" : "official"
-                            root.startRefreshCatalog()
-                        }
+                    Text {
+                        text: "下载源：设置页"
+                        color: root.style.cTextOnSurfaceVariant
+                        font.pixelSize: 11
                     }
 
                     HmclButton {
