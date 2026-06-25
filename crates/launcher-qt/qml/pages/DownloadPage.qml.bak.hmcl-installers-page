@@ -14,12 +14,6 @@ Item {
     property string selectedGameVersion: ""
     property string selectedGameReleaseTime: ""
     property string selectedLoaderKind: "vanilla"
-
-    property string installVersionName: ""
-    property string selectedFabricVersion: ""
-    property string selectedQuiltVersion: ""
-    property string selectedForgeVersion: ""
-    property string selectedNeoForgeVersion: ""
     property bool installerPaneOpen: false
     property string versionFilter: "release"
     property string searchText: ""
@@ -509,172 +503,12 @@ Item {
 
     function openInstallerForVersion(visibleIndex) {
         root.selectVersion(visibleIndex)
-
         root.installerPaneOpen = true
-        root.installVersionName = root.selectedGameVersion
-        root.selectedLoaderKind = "vanilla"
-        root.selectedFabricVersion = ""
-        root.selectedQuiltVersion = ""
-        root.selectedForgeVersion = ""
-        root.selectedNeoForgeVersion = ""
-
         root.startFetchInstallerMetadata()
     }
 
     function closeInstallerPane() {
         root.installerPaneOpen = false
-    }
-
-    function selectInstaller(kind) {
-        if (kind === "vanilla") {
-            root.selectedLoaderKind = "vanilla"
-            return
-        }
-
-        if (root.installerMetadataTaskStatus.active) {
-            root.backend.output = "安装器列表仍在加载，请稍后。"
-            return
-        }
-
-        var version = root.firstInstallerVersion(kind)
-
-        if (version.length === 0) {
-            root.backend.output = "当前 Minecraft " + root.selectedGameVersion + " 没有可用的 " + root.loaderTitle(kind) + " 安装器。"
-            return
-        }
-
-        root.selectedLoaderKind = kind
-
-        if (kind === "fabric") {
-            root.selectedFabricVersion = version
-        } else if (kind === "quilt") {
-            root.selectedQuiltVersion = version
-        } else if (kind === "forge") {
-            root.selectedForgeVersion = version
-        } else if (kind === "neoforge") {
-            root.selectedNeoForgeVersion = version
-        }
-
-        root.installVersionName = root.buildInstallVersionName()
-    }
-
-    function firstInstallerVersion(kind) {
-        if (kind === "fabric" && fabricLoaderModel.count > 0) {
-            return fabricLoaderModel.get(0).version || ""
-        }
-
-        if (kind === "quilt" && quiltLoaderModel.count > 0) {
-            return quiltLoaderModel.get(0).version || ""
-        }
-
-        if (kind === "forge" && forgeInstallerModel.count > 0) {
-            return forgeInstallerModel.get(0).loaderVersion || ""
-        }
-
-        if (kind === "neoforge" && neoforgeInstallerModel.count > 0) {
-            return neoforgeInstallerModel.get(0).loaderVersion || ""
-        }
-
-        return ""
-    }
-
-    function buildInstallVersionName() {
-        if (root.selectedLoaderKind === "vanilla") {
-            return root.selectedGameVersion
-        }
-
-        return root.selectedGameVersion + "-" + root.loaderTitle(root.selectedLoaderKind)
-    }
-
-    function loaderTitle(kind) {
-        switch (kind) {
-        case "fabric":
-            return "Fabric"
-        case "quilt":
-            return "Quilt"
-        case "forge":
-            return "Forge"
-        case "neoforge":
-            return "NeoForge"
-        case "fabric-api":
-            return "Fabric API"
-        case "quilt-api":
-            return "Quilt API"
-        case "optifine":
-            return "OptiFine"
-        default:
-            return "Minecraft"
-        }
-    }
-
-    function loaderIcon(kind) {
-        switch (kind) {
-        case "fabric":
-        case "fabric-api":
-            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/fabric.png"
-        case "quilt":
-        case "quilt-api":
-            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/quilt.png"
-        case "forge":
-            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/forge.png"
-        case "neoforge":
-            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/neoforge.png"
-        case "optifine":
-            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/optifine.png"
-        default:
-            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/grass.png"
-        }
-    }
-
-    function installerStatus(kind) {
-        if (kind === "vanilla") {
-            return "版本 " + root.selectedGameVersion
-        }
-
-        if (root.installerMetadataTaskStatus.active) {
-            return "正在加载版本列表"
-        }
-
-        if (kind === "fabric") {
-            return root.selectedFabricVersion.length > 0 ? "版本 " + root.selectedFabricVersion : "不安装"
-        }
-
-        if (kind === "quilt") {
-            return root.selectedQuiltVersion.length > 0 ? "版本 " + root.selectedQuiltVersion : "不安装"
-        }
-
-        if (kind === "forge") {
-            return root.selectedForgeVersion.length > 0 ? "版本 " + root.selectedForgeVersion : "不安装"
-        }
-
-        if (kind === "neoforge") {
-            return root.selectedNeoForgeVersion.length > 0 ? "版本 " + root.selectedNeoForgeVersion : "不安装"
-        }
-
-        if (kind === "fabric-api" || kind === "quilt-api" || kind === "optifine") {
-            return "后续安装器扩展"
-        }
-
-        return "不安装"
-    }
-
-    function installerSelected(kind) {
-        if (kind === "vanilla") {
-            return true
-        }
-
-        return root.selectedLoaderKind === kind
-    }
-
-    function removeInstaller(kind) {
-        if (root.selectedLoaderKind === kind) {
-            root.selectedLoaderKind = "vanilla"
-            root.selectedFabricVersion = ""
-            root.selectedQuiltVersion = ""
-            root.selectedForgeVersion = ""
-            root.selectedNeoForgeVersion = ""
-            root.installVersionName = root.selectedGameVersion
-        }
     }
 
     function selectVersion(visibleIndex) {
@@ -745,13 +579,13 @@ Item {
     function selectedLoaderVersion() {
         switch (root.selectedLoaderKind) {
         case "fabric":
-            return root.selectedFabricVersion
+            return fabricCombo.currentText || ""
         case "quilt":
-            return root.selectedQuiltVersion
+            return quiltCombo.currentText || ""
         case "forge":
-            return root.selectedForgeVersion
+            return forgeCombo.currentText || ""
         case "neoforge":
-            return root.selectedNeoForgeVersion
+            return neoforgeCombo.currentText || ""
         default:
             return ""
         }
@@ -825,40 +659,14 @@ Item {
     }
 
     component GameDownloadPane: Item {
-        Item {
-            anchors.fill: parent
-            clip: true
-
-            VersionsPagePane {
-                anchors.fill: parent
-                visible: !root.installerPaneOpen
-                opacity: visible ? 1 : 0
-            }
-
-            HmclInstallersPagePane {
-                anchors.fill: parent
-                visible: root.installerPaneOpen
-                opacity: visible ? 1 : 0
-            }
-
-            Behavior on opacity {
-                NumberAnimation {
-                    duration: root.style.animationsEnabled ? 120 : 0
-                    easing.type: Easing.OutCubic
-                }
-            }
-        }
-    }
-
-    component VersionsPagePane: Item {
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 8
-            spacing: 8
+            anchors.margins: 10
+            spacing: 10
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 52
+                Layout.preferredHeight: 64
                 radius: 4
                 color: root.style.cSurfaceContainerHigh
                 border.color: root.style.cBorder
@@ -866,8 +674,7 @@ Item {
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 10
-                    anchors.rightMargin: 10
+                    anchors.margins: 10
                     spacing: 10
 
                     Text {
@@ -880,7 +687,6 @@ Item {
                         id: searchField
 
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 36
                         placeholderText: "输入版本名称进行搜索"
                         text: root.searchText
                         onTextChanged: {
@@ -889,16 +695,9 @@ Item {
                         }
                     }
 
-                    Text {
-                        text: "版本类型"
-                        color: root.style.cTextOnSurface
-                        font.pixelSize: 13
-                    }
-
                     ComboBox {
                         id: versionFilterCombo
-                        Layout.preferredWidth: 112
-                        Layout.preferredHeight: 36
+                        Layout.preferredWidth: 128
                         model: ["正式版", "快照版", "愚人节", "远古版本", "全部"]
                         currentIndex: 0
 
@@ -908,9 +707,7 @@ Item {
                             root.rebuildVisibleVersions()
                         }
                     }
-
                     HmclButton {
-                        Layout.preferredWidth: 72
                         style: root.style
                         text: root.catalogTaskStatus.active ? "加载中" : "刷新"
                         primary: true
@@ -922,7 +719,7 @@ Item {
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: root.catalogTaskStatus.active ? 52 : 0
+                Layout.preferredHeight: root.catalogTaskStatus.active ? 70 : 0
                 visible: root.catalogTaskStatus.active
                 radius: 4
                 color: root.style.cSurfaceContainer
@@ -935,18 +732,18 @@ Item {
                     spacing: 10
 
                     BusyIndicator {
-                        Layout.preferredWidth: 28
-                        Layout.preferredHeight: 28
+                        Layout.preferredWidth: 34
+                        Layout.preferredHeight: 34
                         running: true
                     }
 
                     Column {
                         Layout.fillWidth: true
-                        spacing: 2
+                        spacing: 4
 
                         Text {
                             width: parent.width
-                            text: root.catalogTaskStatus.title || "正在获取原版版本清单"
+                            text: root.catalogTaskStatus.title || "正在获取版本列表"
                             color: root.style.cTextOnSurface
                             font.pixelSize: 13
                             font.bold: true
@@ -964,388 +761,254 @@ Item {
                 }
             }
 
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                radius: 4
-                color: root.style.cSurfaceContainerHigh
-                border.color: root.style.cBorder
-                border.width: 1
-                clip: true
-
-                ListView {
-                    id: versionList
-
-                    anchors.fill: parent
-                    anchors.margins: 8
-                    model: visibleVersionModel
-                    spacing: 0
-                    clip: true
-
-                    delegate: Item {
-                        id: versionDelegate
-
-                        required property int index
-                        required property string versionId
-                        required property string versionType
-                        required property string releaseTime
-                        required property string group
-                        required property string iconSource
-                        required property string tagText
-
-                        width: versionList.width
-                        height: 64
-
-                        RemoteVersionCell {
-                            anchors.fill: parent
-                            style: root.style
-                            versionId: versionDelegate.versionId
-                            subtitle: versionDelegate.releaseTime
-                            tagText: versionDelegate.tagText
-                            iconSource: versionDelegate.iconSource
-                            selected: root.selectedGameVersion === versionDelegate.versionId
-                            onClicked: root.openInstallerForVersion(versionDelegate.index)
-                        }
-                    }
-                }
-
-                Text {
-                    anchors.centerIn: parent
-                    visible: visibleVersionModel.count === 0 && !root.catalogTaskStatus.active
-                    text: "没有匹配的版本"
-                    color: root.style.cTextOnSurfaceVariant
-                    font.pixelSize: 13
-                }
-            }
-        }
-    }
-
-    component HmclInstallersPagePane: Item {
-        ColumnLayout {
-            anchors.fill: parent
-            anchors.margins: 16
-            spacing: 16
-
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 76
-                radius: 4
-                color: root.style.cSurfaceContainerHigh
-                border.color: root.style.cBorder
-                border.width: 1
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 16
-                    anchors.rightMargin: 8
-                    spacing: 8
-
-                    Text {
-                        text: "版本名称"
-                        color: root.style.cTextOnSurface
-                        font.pixelSize: 13
-                    }
-
-                    TextField {
-                        Layout.preferredWidth: 300
-                        Layout.preferredHeight: 36
-                        text: root.installVersionName
-                        onTextChanged: root.installVersionName = text
-                    }
-
-                    Item {
-                        Layout.fillWidth: true
-                    }
-
-                    HmclButton {
-                        Layout.preferredWidth: 110
-                        style: root.style
-                        text: "返回版本列表"
-                        onClicked: root.closeInstallerPane()
-                    }
-                }
-            }
-
-            ScrollView {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                clip: true
-
-                Flow {
-                    id: installerFlow
-
-                    width: Math.max(parent.width - 18, 1)
-                    spacing: 16
-
-                    InstallerItemCard {
-                        style: root.style
-                        width: Math.max(150, Math.min(190, (installerFlow.width - 48) / 4))
-                        libraryId: "game"
-                        title: "Minecraft"
-                        statusText: root.installerStatus("vanilla")
-                        iconSource: root.loaderIcon("vanilla")
-                        selected: root.installerSelected("vanilla")
-                        removable: false
-                        onInstallClicked: root.selectInstaller("vanilla")
-                    }
-
-                    InstallerItemCard {
-                        style: root.style
-                        width: Math.max(150, Math.min(190, (installerFlow.width - 48) / 4))
-                        libraryId: "forge"
-                        title: "Forge"
-                        statusText: root.installerStatus("forge")
-                        iconSource: root.loaderIcon("forge")
-                        selected: root.installerSelected("forge")
-                        removable: root.installerSelected("forge")
-                        onInstallClicked: root.selectInstaller("forge")
-                        onRemoveClicked: root.removeInstaller("forge")
-                    }
-
-                    InstallerItemCard {
-                        style: root.style
-                        width: Math.max(150, Math.min(190, (installerFlow.width - 48) / 4))
-                        libraryId: "neoforge"
-                        title: "NeoForge"
-                        statusText: root.installerStatus("neoforge")
-                        iconSource: root.loaderIcon("neoforge")
-                        selected: root.installerSelected("neoforge")
-                        removable: root.installerSelected("neoforge")
-                        onInstallClicked: root.selectInstaller("neoforge")
-                        onRemoveClicked: root.removeInstaller("neoforge")
-                    }
-
-                    InstallerItemCard {
-                        style: root.style
-                        width: Math.max(150, Math.min(190, (installerFlow.width - 48) / 4))
-                        libraryId: "optifine"
-                        title: "OptiFine"
-                        statusText: root.installerStatus("optifine")
-                        iconSource: root.loaderIcon("optifine")
-                        disabledCard: true
-                    }
-
-                    InstallerItemCard {
-                        style: root.style
-                        width: Math.max(150, Math.min(190, (installerFlow.width - 48) / 4))
-                        libraryId: "fabric"
-                        title: "Fabric"
-                        statusText: root.installerStatus("fabric")
-                        iconSource: root.loaderIcon("fabric")
-                        selected: root.installerSelected("fabric")
-                        removable: root.installerSelected("fabric")
-                        onInstallClicked: root.selectInstaller("fabric")
-                        onRemoveClicked: root.removeInstaller("fabric")
-                    }
-
-                    InstallerItemCard {
-                        style: root.style
-                        width: Math.max(150, Math.min(190, (installerFlow.width - 48) / 4))
-                        libraryId: "fabric-api"
-                        title: "Fabric API"
-                        statusText: root.installerStatus("fabric-api")
-                        iconSource: root.loaderIcon("fabric-api")
-                        disabledCard: true
-                    }
-
-                    InstallerItemCard {
-                        style: root.style
-                        width: Math.max(150, Math.min(190, (installerFlow.width - 48) / 4))
-                        libraryId: "quilt"
-                        title: "Quilt"
-                        statusText: root.installerStatus("quilt")
-                        iconSource: root.loaderIcon("quilt")
-                        selected: root.installerSelected("quilt")
-                        removable: root.installerSelected("quilt")
-                        onInstallClicked: root.selectInstaller("quilt")
-                        onRemoveClicked: root.removeInstaller("quilt")
-                    }
-
-                    InstallerItemCard {
-                        style: root.style
-                        width: Math.max(150, Math.min(190, (installerFlow.width - 48) / 4))
-                        libraryId: "quilt-api"
-                        title: "Quilt API"
-                        statusText: root.installerStatus("quilt-api")
-                        iconSource: root.loaderIcon("quilt-api")
-                        disabledCard: true
-                    }
-
-                    Text {
-                        width: installerFlow.width
-                        visible: root.installerMetadataTaskStatus.active
-                        text: root.installerMetadataTaskStatus.message
-                        color: root.style.cTextOnSurfaceVariant
-                        font.pixelSize: 12
-                        wrapMode: Text.WordWrap
-                    }
-                }
-            }
-
             RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 44
+                Layout.fillHeight: true
+                spacing: 10
 
-                Item {
+                Rectangle {
                     Layout.fillWidth: true
-                }
+                    Layout.fillHeight: true
+                    radius: 4
+                    color: root.style.cSurfaceContainerHigh
+                    border.color: root.style.cBorder
+                    border.width: 1
+                    clip: true
 
-                HmclButton {
-                    Layout.preferredWidth: 100
-                    Layout.preferredHeight: 40
-                    style: root.style
-                    text: root.downloadTaskStatus.active ? "查看任务" : "安装"
-                    primary: true
-                    onClicked: {
-                        if (root.downloadTaskStatus.active) {
-                            root.downloadDialogOpen = true
-                        } else {
-                            root.installSelected()
+                    ListView {
+                        id: versionList
+
+                        anchors.fill: parent
+                        anchors.margins: 10
+                        model: visibleVersionModel
+                        spacing: 4
+                        clip: true
+
+                        delegate: Item {
+                            id: versionDelegate
+
+                            required property int index
+                            required property int sourceIndex
+                            required property string versionId
+                            required property string versionType
+                            required property string releaseTime
+                            required property string group
+                            required property string iconSource
+                            required property string tagText
+
+                            width: versionList.width
+                            height: 56
+
+                            RemoteVersionCell {
+                                anchors.fill: parent
+                                style: root.style
+                                versionId: versionDelegate.versionId
+                                subtitle: versionDelegate.releaseTime
+                                tagText: versionDelegate.tagText
+                                iconSource: versionDelegate.iconSource
+                                selected: root.selectedGameVersion === versionDelegate.versionId
+                                onClicked: root.openInstallerForVersion(versionDelegate.index)
+                            }
                         }
                     }
-                }
-            }
-        }
-    }
-
-
-    component InstallerItemCard: Item {
-        id: card
-
-        required property var style
-        property string libraryId: ""
-        property string title: ""
-        property string statusText: ""
-        property string iconSource: ""
-        property bool selected: false
-        property bool removable: false
-        property bool disabledCard: false
-
-        signal installClicked()
-        signal removeClicked()
-
-        height: width * 0.70
-        opacity: disabledCard ? 0.52 : 1.0
-
-        Rectangle {
-            anchors.fill: parent
-            radius: 4
-            color: card.selected
-                   ? Qt.rgba(card.style.cPrimary.r, card.style.cPrimary.g, card.style.cPrimary.b, 0.12)
-                   : (mouse.containsMouse && !card.disabledCard
-                      ? Qt.rgba(card.style.cTextOnSurface.r, card.style.cTextOnSurface.g, card.style.cTextOnSurface.b, 0.06)
-                      : card.style.cSurfaceContainerHigh)
-            border.color: card.selected ? card.style.cPrimary : card.style.cBorder
-            border.width: card.selected ? 2 : 1
-        }
-
-        Column {
-            anchors.fill: parent
-            anchors.margins: 10
-            spacing: 6
-
-            Image {
-                width: 32
-                height: 32
-                anchors.horizontalCenter: parent.horizontalCenter
-                source: card.iconSource
-                fillMode: Image.PreserveAspectFit
-                smooth: false
-            }
-
-            Text {
-                width: parent.width
-                text: card.title
-                color: card.style.cTextOnSurface
-                font.pixelSize: 13
-                font.bold: true
-                horizontalAlignment: Text.AlignHCenter
-                elide: Text.ElideRight
-            }
-
-            Text {
-                width: parent.width
-                text: card.statusText
-                color: card.style.cTextOnSurfaceVariant
-                font.pixelSize: 11
-                horizontalAlignment: Text.AlignHCenter
-                elide: Text.ElideRight
-            }
-
-            Item {
-                width: parent.width
-                height: 1
-            }
-
-            Row {
-                anchors.horizontalCenter: parent.horizontalCenter
-                spacing: 8
-
-                Rectangle {
-                    width: 28
-                    height: 28
-                    radius: 14
-                    visible: card.removable
-                    color: removeMouse.containsMouse
-                           ? Qt.rgba(card.style.cTextOnSurface.r, card.style.cTextOnSurface.g, card.style.cTextOnSurface.b, 0.10)
-                           : "transparent"
 
                     Text {
                         anchors.centerIn: parent
-                        text: "×"
-                        color: card.style.cTextOnSurface
-                        font.pixelSize: 18
-                    }
-
-                    MouseArea {
-                        id: removeMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            mouse.accepted = true
-                            card.removeClicked()
-                        }
+                        visible: visibleVersionModel.count === 0 && !root.catalogTaskStatus.active
+                        text: "没有匹配的版本"
+                        color: root.style.cTextOnSurfaceVariant
+                        font.pixelSize: 13
                     }
                 }
 
                 Rectangle {
-                    width: 28
-                    height: 28
-                    radius: 14
-                    visible: !card.disabledCard
-                    color: installMouse.containsMouse
-                           ? Qt.rgba(card.style.cTextOnSurface.r, card.style.cTextOnSurface.g, card.style.cTextOnSurface.b, 0.10)
-                           : "transparent"
+                    Layout.preferredWidth: root.installerPaneOpen ? 330 : 0
+                    Layout.fillHeight: true
+                    visible: root.installerPaneOpen
+                    opacity: root.installerPaneOpen ? 1 : 0
+                    radius: 4
+                    color: root.style.cSurfaceContainerHigh
+                    border.color: root.style.cBorder
+                    border.width: 1
 
-                    Text {
-                        anchors.centerIn: parent
-                        text: card.selected ? "↻" : "➜"
-                        color: card.style.cTextOnSurface
-                        font.pixelSize: 17
-                    }
-
-                    MouseArea {
-                        id: installMouse
+                    ColumnLayout {
                         anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            mouse.accepted = true
-                            card.installClicked()
+                        anchors.margins: 14
+                        spacing: 12
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: "安装"
+                                color: root.style.cTextOnSurface
+                                font.pixelSize: 18
+                                font.bold: true
+                            }
+
+                            HmclButton {
+                                Layout.preferredWidth: 92
+                                style: root.style
+                                text: "返回版本列表"
+                                onClicked: root.closeInstallerPane()
+                            }
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: root.selectedGameVersion.length > 0
+                                  ? "Minecraft " + root.selectedGameVersion
+                                  : "请选择 Minecraft 版本"
+                            color: root.style.cTextOnSurface
+                            font.pixelSize: 13
+                            font.bold: true
+                            elide: Text.ElideRight
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: root.selectedGameReleaseTime.length > 0 ? root.selectedGameReleaseTime : "未选择版本"
+                            color: root.style.cTextOnSurfaceVariant
+                            font.pixelSize: 11
+                            elide: Text.ElideRight
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 1
+                            color: root.style.cBorder
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: "加载器"
+                            color: root.style.cTextOnSurface
+                            font.pixelSize: 13
+                            font.bold: true
+                        }
+
+                        Flow {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            LoaderChip {
+                                style: root.style
+                                text: "Vanilla"
+                                selected: root.selectedLoaderKind === "vanilla"
+                                onClicked: root.selectedLoaderKind = "vanilla"
+                            }
+
+                            LoaderChip {
+                                style: root.style
+                                text: "Fabric"
+                                selected: root.selectedLoaderKind === "fabric"
+                                onClicked: root.selectedLoaderKind = "fabric"
+                            }
+
+                            LoaderChip {
+                                style: root.style
+                                text: "Quilt"
+                                selected: root.selectedLoaderKind === "quilt"
+                                onClicked: root.selectedLoaderKind = "quilt"
+                            }
+
+                            LoaderChip {
+                                style: root.style
+                                text: "Forge"
+                                selected: root.selectedLoaderKind === "forge"
+                                onClicked: root.selectedLoaderKind = "forge"
+                            }
+
+                            LoaderChip {
+                                style: root.style
+                                text: "NeoForge"
+                                selected: root.selectedLoaderKind === "neoforge"
+                                onClicked: root.selectedLoaderKind = "neoforge"
+                            }
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: root.installerMetadataTaskStatus.active ? root.installerMetadataTaskStatus.message : ""
+                            color: root.style.cTextOnSurfaceVariant
+                            font.pixelSize: 11
+                            visible: root.installerMetadataTaskStatus.active
+                            elide: Text.ElideRight
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: "加载器版本"
+                            color: root.style.cTextOnSurface
+                            font.pixelSize: 13
+                            font.bold: true
+                            visible: root.selectedLoaderKind !== "vanilla"
+                        }
+
+                        ComboBox {
+                            id: fabricCombo
+                            visible: root.selectedLoaderKind === "fabric"
+                            Layout.fillWidth: true
+                            model: fabricLoaderModel
+                            textRole: "version"
+                        }
+
+                        ComboBox {
+                            id: quiltCombo
+                            visible: root.selectedLoaderKind === "quilt"
+                            Layout.fillWidth: true
+                            model: quiltLoaderModel
+                            textRole: "version"
+                        }
+
+                        ComboBox {
+                            id: forgeCombo
+                            visible: root.selectedLoaderKind === "forge"
+                            Layout.fillWidth: true
+                            model: forgeInstallerModel
+                            textRole: "loaderVersion"
+                        }
+
+                        ComboBox {
+                            id: neoforgeCombo
+                            visible: root.selectedLoaderKind === "neoforge"
+                            Layout.fillWidth: true
+                            model: neoforgeInstallerModel
+                            textRole: "loaderVersion"
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: root.selectedLoaderKind === "vanilla"
+                                  ? "原版会下载 version json、client jar、libraries、natives 和 assets。"
+                                  : "加载器会按所选 Minecraft 版本安装对应 profile 和依赖。"
+                            color: root.style.cTextOnSurfaceVariant
+                            font.pixelSize: 11
+                            wrapMode: Text.WordWrap
+                        }
+
+                        Item {
+                            Layout.fillHeight: true
+                        }
+
+                        HmclButton {
+                            Layout.fillWidth: true
+                            style: root.style
+                            text: root.downloadTaskStatus.active ? "查看下载任务" : "安装所选版本"
+                            primary: true
+                            onClicked: {
+                                if (root.downloadTaskStatus.active) {
+                                    root.downloadDialogOpen = true
+                                } else {
+                                    root.installSelected()
+                                }
+                            }
                         }
                     }
                 }
             }
-        }
-
-        MouseArea {
-            id: mouse
-            anchors.fill: parent
-            hoverEnabled: true
-            enabled: !card.disabledCard
-            cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-            onClicked: card.installClicked()
         }
     }
 
