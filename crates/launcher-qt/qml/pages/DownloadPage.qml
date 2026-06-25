@@ -40,6 +40,15 @@ Item {
         "status": "idle"
     })
 
+    property var installerMetadataTaskStatus: ({
+        "active": false,
+        "percent": 0,
+        "title": "空闲",
+        "message": "还没有安装器元数据任务。",
+        "metadataReady": false,
+        "metadataJson": ""
+    })
+
     property var catalogTaskStatus: ({
         "active": false,
         "percent": 0,
@@ -67,6 +76,14 @@ Item {
         repeat: true
         running: true
         onTriggered: root.pollDownloadCatalogTask()
+    }
+
+    Timer {
+        id: installerMetadataPoller
+        interval: 250
+        repeat: true
+        running: false
+        onTriggered: root.pollInstallerMetadataTask()
     }
 
     Timer {
@@ -288,6 +305,88 @@ Item {
         }
     }
 
+    function startFetchInstallerMetadata() {
+        if (root.selectedGameVersion.length === 0) {
+            return
+        }
+
+        fabricLoaderModel.clear()
+        quiltLoaderModel.clear()
+        forgeInstallerModel.clear()
+        neoforgeInstallerModel.clear()
+        root.allForgeInstallers = []
+        root.allNeoForgeInstallers = []
+
+        root.installerMetadataTaskStatus = {
+            "active": true,
+            "percent": 5,
+            "title": "正在加载安装器列表",
+            "message": "Minecraft " + root.selectedGameVersion,
+            "metadataReady": false,
+            "metadataJson": ""
+        }
+
+        root.backend.startFetchInstallerMetadata(root.downloadSource, root.selectedGameVersion)
+        installerMetadataPoller.restart()
+    }
+
+    function pollInstallerMetadataTask() {
+        var raw = root.backend.pollInstallerMetadataTask()
+
+        if (!raw || raw.length === 0) {
+            return
+        }
+
+        try {
+            var status = JSON.parse(raw)
+            root.installerMetadataTaskStatus = status
+
+            if (!status.active && status.metadataReady) {
+                installerMetadataPoller.stop()
+
+                if (status.metadataJson && status.metadataJson.length > 0) {
+                    root.parseInstallerMetadata(status.metadataJson)
+                }
+            }
+        } catch (e) {
+            console.log("Failed to parse installer metadata task", e)
+        }
+    }
+
+    function parseInstallerMetadata(raw) {
+        try {
+            var data = JSON.parse(raw)
+
+            fabricLoaderModel.clear()
+            quiltLoaderModel.clear()
+            forgeInstallerModel.clear()
+            neoforgeInstallerModel.clear()
+
+            var fabric = data.fabricLoaders || []
+            for (var f = 0; f < fabric.length; f++) {
+                fabricLoaderModel.append({
+                    "version": fabric[f].version || "",
+                    "stable": !!fabric[f].stable
+                })
+            }
+
+            var quilt = data.quiltLoaders || []
+            for (var q = 0; q < quilt.length; q++) {
+                quiltLoaderModel.append({
+                    "version": quilt[q].version || "",
+                    "stable": !!quilt[q].stable
+                })
+            }
+
+            root.allForgeInstallers = data.forgeInstallers || []
+            root.allNeoForgeInstallers = data.neoforgeInstallers || []
+
+            root.rebuildLoaderModels()
+        } catch (e) {
+            console.log("Failed to parse installer metadata", e)
+        }
+    }
+
     function pollDownloadTask() {
         var raw = root.backend.pollDownloadTask()
 
@@ -405,6 +504,7 @@ Item {
     function openInstallerForVersion(visibleIndex) {
         root.selectVersion(visibleIndex)
         root.installerPaneOpen = true
+        root.startFetchInstallerMetadata()
     }
 
     function closeInstallerPane() {
@@ -827,6 +927,15 @@ Item {
                                 selected: root.selectedLoaderKind === "neoforge"
                                 onClicked: root.selectedLoaderKind = "neoforge"
                             }
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: root.installerMetadataTaskStatus.active ? root.installerMetadataTaskStatus.message : ""
+                            color: root.style.cTextOnSurfaceVariant
+                            font.pixelSize: 11
+                            visible: root.installerMetadataTaskStatus.active
+                            elide: Text.ElideRight
                         }
 
                         Text {
