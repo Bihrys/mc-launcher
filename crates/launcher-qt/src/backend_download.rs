@@ -700,7 +700,6 @@ fn read_download_task_status_text(path: &Path) -> String {
     )
 }
 
-
 fn installer_metadata_task_status_path() -> PathBuf {
     if let Some(value) = std::env::var_os("XDG_CACHE_HOME") {
         if !value.is_empty() {
