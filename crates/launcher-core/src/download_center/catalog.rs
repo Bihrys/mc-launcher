@@ -14,8 +14,9 @@ impl DownloadCatalogService {
 
     pub fn fetch(source: DownloadSourceKind) -> Result<DownloadCatalog, DownloadCenterError> {
         let client = DownloadResolver::http_client()?;
-        let mut warnings = Vec::new();
 
+        // HMCL 的 VersionsPage 先加载 Minecraft manifest。
+        // Fabric / Quilt / Forge / NeoForge 属于点版本后的安装器向导，不应该阻塞版本列表显示。
         let manifest: MojangManifest =
             DownloadResolver::get_json(&client, &DownloadResolver::manifest_url(source))?;
 
@@ -30,56 +31,16 @@ impl DownloadCatalogService {
             })
             .collect::<Vec<_>>();
 
-        let fabric_loaders = match Self::fetch_meta_loaders(
-            &client,
-            source,
-            "https://meta.fabricmc.net/v2/versions/loader",
-        ) {
-            Ok(value) => value,
-            Err(err) => {
-                warnings.push(format!("Fabric loader 列表获取失败：{err}"));
-                Vec::new()
-            }
-        };
-
-        let quilt_loaders = match Self::fetch_meta_loaders(
-            &client,
-            source,
-            "https://meta.quiltmc.org/v3/versions/loader",
-        ) {
-            Ok(value) => value,
-            Err(err) => {
-                warnings.push(format!("Quilt loader 列表获取失败：{err}"));
-                Vec::new()
-            }
-        };
-
-        let forge_installers = match Self::fetch_forge_installers(&client, source) {
-            Ok(value) => value,
-            Err(err) => {
-                warnings.push(format!("Forge 列表获取失败：{err}"));
-                Vec::new()
-            }
-        };
-
-        let neoforge_installers = match Self::fetch_neoforge_installers(&client, source) {
-            Ok(value) => value,
-            Err(err) => {
-                warnings.push(format!("NeoForge 列表获取失败：{err}"));
-                Vec::new()
-            }
-        };
-
         Ok(DownloadCatalog {
             source: source.as_raw().to_string(),
             latest_release: manifest.latest.release,
             latest_snapshot: manifest.latest.snapshot,
             game_versions,
-            fabric_loaders,
-            quilt_loaders,
-            forge_installers,
-            neoforge_installers,
-            warnings,
+            fabric_loaders: Vec::new(),
+            quilt_loaders: Vec::new(),
+            forge_installers: Vec::new(),
+            neoforge_installers: Vec::new(),
+            warnings: Vec::new(),
         })
     }
 

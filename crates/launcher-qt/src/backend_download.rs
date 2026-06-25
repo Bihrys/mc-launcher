@@ -412,6 +412,12 @@ fn resolve_download_source(
     requested_source: &str,
     for_version_list: bool,
 ) -> String {
+    let requested = normalize_requested_download_source(requested_source);
+
+    if requested != "auto" && requested != "default" && !requested.is_empty() {
+        return requested;
+    }
+
     let auto = launcher_setting_bool(settings, "autoChooseDownloadSource").unwrap_or(true);
 
     if auto {
@@ -421,8 +427,6 @@ fn resolve_download_source(
             return normalize_requested_download_source(&source);
         }
 
-        // HMCL DEFAULT_AUTO_PROVIDER_ID = balanced。
-        // balanced 表示镜像优先 + 官方候选 fallback。
         return "balanced".to_string();
     }
 
@@ -432,8 +436,8 @@ fn resolve_download_source(
         "downloadSource"
     };
 
-    let source = launcher_setting_string(settings, setting_key)
-        .unwrap_or_else(|| requested_source.to_string());
+    let source =
+        launcher_setting_string(settings, setting_key).unwrap_or_else(|| "balanced".to_string());
 
     normalize_requested_download_source(&source)
 }

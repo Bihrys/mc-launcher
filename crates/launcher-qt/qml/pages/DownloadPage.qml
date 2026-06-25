@@ -93,7 +93,7 @@ Item {
 
                 HmclClassTitle {
                     width: parent.width
-                    text: "游戏下载"
+                    text: "新游戏"
                 }
 
                 DownloadNavItem {
@@ -108,7 +108,7 @@ Item {
 
                 HmclClassTitle {
                     width: parent.width
-                    text: "下载内容"
+                    text: "游戏内容"
                 }
 
                 DownloadNavItem {
@@ -578,7 +578,7 @@ Item {
                     spacing: 10
 
                     Text {
-                        text: "版本搜索"
+                        text: "名称"
                         color: root.style.cTextOnSurface
                         font.pixelSize: 13
                     }
@@ -587,7 +587,7 @@ Item {
                         id: searchField
 
                         Layout.fillWidth: true
-                        placeholderText: "输入版本号，支持 1.20 / 1.21 / regex 前缀后续接入"
+                        placeholderText: "输入版本名称进行搜索"
                         text: root.searchText
                         onTextChanged: {
                             root.searchText = text
@@ -607,13 +607,6 @@ Item {
                             root.rebuildVisibleVersions()
                         }
                     }
-
-                    Text {
-                        text: "下载源：设置页"
-                        color: root.style.cTextOnSurfaceVariant
-                        font.pixelSize: 11
-                    }
-
                     HmclButton {
                         style: root.style
                         text: root.catalogTaskStatus.active ? "加载中" : "刷新"
