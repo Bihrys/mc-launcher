@@ -1,8 +1,9 @@
 use super::catalog::DownloadCatalogService;
-use super::installer::GameInstallerService;
-use super::model::{DownloadCenterError, DownloadSourceKind, LoaderKind};
+use super::installer::{
+    FabricInstaller, ForgeInstaller, MinecraftInstaller, NeoForgeInstaller, QuiltInstaller,
+};
+use super::model::{DownloadCenterError, DownloadSourceKind, InstallResult, LoaderKind};
 use crate::download::DownloadManager;
-use crate::game_download::InstallResult;
 
 pub struct DownloadService;
 
@@ -18,12 +19,20 @@ impl DownloadService {
         loader_kind: &str,
         loader_version: &str,
     ) -> Result<InstallResult, DownloadCenterError> {
-        GameInstallerService::install(
-            manager,
-            DownloadSourceKind::from_raw(source),
-            game_version,
-            LoaderKind::from_raw(loader_kind),
-            loader_version,
-        )
+        let source = DownloadSourceKind::from_raw(source);
+        let game_version = game_version.trim();
+        let loader_version = loader_version.trim();
+
+        if game_version.is_empty() {
+            return Err(Box::new(std::io::Error::other("没有选择 Minecraft 版本。")));
+        }
+
+        match LoaderKind::from_raw(loader_kind) {
+            LoaderKind::Vanilla => MinecraftInstaller::install(manager, source, game_version),
+            LoaderKind::Fabric => FabricInstaller::install(manager, source, game_version, loader_version),
+            LoaderKind::Quilt => QuiltInstaller::install(manager, source, game_version, loader_version),
+            LoaderKind::Forge => ForgeInstaller::install(manager, source, game_version, loader_version),
+            LoaderKind::NeoForge => NeoForgeInstaller::install(manager, source, game_version, loader_version),
+        }
     }
 }
