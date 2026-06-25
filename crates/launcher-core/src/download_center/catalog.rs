@@ -2,8 +2,12 @@ use super::model::{
     DownloadCatalog, DownloadCenterError, DownloadSourceKind, ForgeRoot, GameEntry, InstallerEntry,
     LoaderEntry, MetaLoaderVersion, MojangManifest, NeoForgeApiResult,
 };
+use super::repository::DownloadRepository;
 use super::resolver::DownloadResolver;
 use reqwest::blocking::Client;
+use std::fs;
+use std::path::Path;
+use std::time::{Duration, SystemTime};
 
 pub struct DownloadCatalogService;
 
@@ -77,12 +81,9 @@ impl DownloadCatalogService {
     }
 
     pub fn fetch(source: DownloadSourceKind) -> Result<DownloadCatalog, DownloadCenterError> {
-        let client = DownloadResolver::http_client()?;
-
-        // HMCL 的 VersionsPage 先加载 Minecraft manifest。
-        // Fabric / Quilt / Forge / NeoForge 属于点版本后的安装器向导，不应该阻塞版本列表显示。
-        let manifest: MojangManifest =
-            DownloadResolver::get_json(&client, &DownloadResolver::manifest_url(source))?;
+        // HMCL 的 VersionsPage 只刷新 Minecraft manifest。
+        // Fabric / Quilt / Forge / NeoForge 属于点版本后的安装器向导，不允许阻塞版本列表。
+        let (manifest, used_source, mut warnings) = Self::fetch_manifest_hmcl_style(source)?;
 
         let game_versions = manifest
             .versions
@@ -95,8 +96,15 @@ impl DownloadCatalogService {
             })
             .collect::<Vec<_>>();
 
+        if used_source != source.as_raw() {
+            warnings.push(format!(
+                "版本列表使用 {used_source} 源返回。原请求源：{}。",
+                source.as_raw()
+            ));
+        }
+
         Ok(DownloadCatalog {
-            source: source.as_raw().to_string(),
+            source: used_source,
             latest_release: manifest.latest.release,
             latest_snapshot: manifest.latest.snapshot,
             game_versions,
@@ -104,8 +112,118 @@ impl DownloadCatalogService {
             quilt_loaders: Vec::new(),
             forge_installers: Vec::new(),
             neoforge_installers: Vec::new(),
-            warnings: Vec::new(),
+            warnings,
         })
+    }
+
+    fn fetch_manifest_hmcl_style(
+        source: DownloadSourceKind,
+    ) -> Result<(MojangManifest, String, Vec<String>), DownloadCenterError> {
+        let candidates = Self::manifest_candidates(source);
+        let cache_root = DownloadRepository::cache_root()?
+            .join("download_center")
+            .join("version_manifest");
+
+        fs::create_dir_all(&cache_root)?;
+
+        let mut warnings = Vec::new();
+
+        // 对齐 HMCL FetchTask：优先使用新鲜缓存，避免每次进下载页都等网络。
+        for (label, _) in &candidates {
+            let cache_path = cache_root.join(format!("{label}.json"));
+
+            if let Some(text) =
+                Self::read_cached_manifest(&cache_path, Some(Duration::from_secs(6 * 60 * 60)))
+            {
+                match serde_json::from_str::<MojangManifest>(&text) {
+                    Ok(manifest) => return Ok((manifest, label.clone(), warnings)),
+                    Err(err) => warnings.push(format!("忽略损坏的版本列表缓存 {label}: {err}")),
+                }
+            }
+        }
+
+        // 版本 manifest 必须短超时。不能像大文件下载一样等几十秒。
+        let client = Client::builder()
+            .user_agent("mc-launcher/0.1 hmcl-multiple-source-version-list")
+            .connect_timeout(Duration::from_secs(3))
+            .timeout(Duration::from_secs(8))
+            .build()?;
+
+        for (label, url) in &candidates {
+            match client
+                .get(url)
+                .send()
+                .and_then(|response| response.error_for_status())
+                .and_then(|response| response.text())
+            {
+                Ok(text) => match serde_json::from_str::<MojangManifest>(&text) {
+                    Ok(manifest) => {
+                        let cache_path = cache_root.join(format!("{label}.json"));
+                        let _ = fs::write(cache_path, text);
+                        return Ok((manifest, label.clone(), warnings));
+                    }
+                    Err(err) => warnings.push(format!("版本列表解析失败 {label}: {err}")),
+                },
+                Err(err) => warnings.push(format!("版本列表请求失败 {label}: {err}")),
+            }
+        }
+
+        // 所有网络源失败时，退回旧缓存。HMCL 日志里的 Using cached file 就是这个思路。
+        for (label, _) in &candidates {
+            let cache_path = cache_root.join(format!("{label}.json"));
+
+            if let Some(text) = Self::read_cached_manifest(&cache_path, None) {
+                match serde_json::from_str::<MojangManifest>(&text) {
+                    Ok(manifest) => {
+                        warnings.push(format!("网络不可用，已使用过期缓存：{label}"));
+                        return Ok((manifest, label.clone(), warnings));
+                    }
+                    Err(err) => warnings.push(format!("过期缓存不可用 {label}: {err}")),
+                }
+            }
+        }
+
+        Err(simple_error(format!(
+            "版本列表获取失败。已尝试源：{}。{}",
+            candidates
+                .iter()
+                .map(|(label, _)| label.as_str())
+                .collect::<Vec<_>>()
+                .join(", "),
+            warnings.join("；")
+        )))
+    }
+
+    fn manifest_candidates(source: DownloadSourceKind) -> Vec<(String, String)> {
+        let official = (
+            "official".to_string(),
+            "https://piston-meta.mojang.com/mc/game/version_manifest.json".to_string(),
+        );
+
+        let bmcl = (
+            "bmcl".to_string(),
+            "https://bmclapi2.bangbang93.com/mc/game/version_manifest.json".to_string(),
+        );
+
+        match source {
+            // 选官方时仍保留 BMCLAPI fallback，避免官方源不可达时无限转圈。
+            DownloadSourceKind::Official => vec![official, bmcl],
+            DownloadSourceKind::Bmcl | DownloadSourceKind::Mirror => vec![bmcl, official],
+            DownloadSourceKind::Balanced => vec![bmcl, official],
+        }
+    }
+
+    fn read_cached_manifest(path: &Path, max_age: Option<Duration>) -> Option<String> {
+        if let Some(max_age) = max_age {
+            let modified = fs::metadata(path).ok()?.modified().ok()?;
+            let age = SystemTime::now().duration_since(modified).ok()?;
+
+            if age > max_age {
+                return None;
+            }
+        }
+
+        fs::read_to_string(path).ok()
     }
 
     fn fetch_meta_loaders(
@@ -256,4 +374,8 @@ impl DownloadCatalogService {
 
         Ok(out)
     }
+}
+
+fn simple_error(message: impl Into<String>) -> DownloadCenterError {
+    Box::new(std::io::Error::other(message.into()))
 }

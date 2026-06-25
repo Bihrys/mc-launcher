@@ -273,7 +273,7 @@ Item {
             "active": true,
             "percent": 5,
             "title": "正在获取版本列表",
-            "message": "正在连接 Minecraft / Fabric / Quilt / Forge / NeoForge 版本源。",
+            "message": "正在连接 Minecraft 版本源。",
             "catalogReady": false,
             "catalogJson": ""
         }

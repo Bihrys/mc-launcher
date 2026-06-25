@@ -19,16 +19,15 @@ impl qobject::LauncherBackend {
     pub fn refresh_download_catalog(mut self: Pin<&mut Self>, source: QString) -> QString {
         let source = source.to_string();
 
-        self.as_mut().set_output(QString::from(
-            "正在获取 Minecraft / Fabric / Quilt / Forge / NeoForge 版本列表...",
-        ));
+        self.as_mut()
+            .set_output(QString::from("正在获取 Minecraft 版本列表..."));
 
         match DownloadService::fetch_catalog_json(&source) {
             Ok(json) => {
                 self.as_mut()
                     .set_download_catalog_json(QString::from(&json));
                 self.as_mut().set_output(QString::from(
-                    "版本列表获取完成。选择 Minecraft 版本和加载器后即可安装。",
+                    "版本列表获取完成。选择 Minecraft 版本后即可进入安装器选择。",
                 ));
                 QString::from(&json)
             }
@@ -65,10 +64,10 @@ impl qobject::LauncherBackend {
         let status_path = download_catalog_task_status_path();
 
         if task_status_is_active(&status_path) {
-            self.as_mut().set_output(QString::from(
-                "版本列表正在加载中。请等待当前刷新任务完成。",
-            ));
-            return;
+            // 上一次进程退出或网络超时时可能留下 active=true 的状态文件。
+            // HMCL 刷新版本列表会重新提交任务；这里直接覆盖旧状态，避免无限转圈。
+            self.as_mut()
+                .set_output(QString::from("正在重新刷新版本列表。"));
         }
 
         write_download_catalog_task_status(
@@ -81,9 +80,8 @@ impl qobject::LauncherBackend {
             "",
         );
 
-        self.as_mut().set_output(QString::from(
-            "正在后台获取 Minecraft / Fabric / Quilt / Forge / NeoForge 版本列表。",
-        ));
+        self.as_mut()
+            .set_output(QString::from("正在后台获取 Minecraft 版本列表。"));
 
         thread::spawn(move || {
             write_download_catalog_task_status(
