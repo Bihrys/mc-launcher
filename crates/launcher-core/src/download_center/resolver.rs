@@ -11,7 +11,9 @@ impl DownloadResolver {
             DownloadSourceKind::Official => {
                 "https://piston-meta.mojang.com/mc/game/version_manifest.json".to_string()
             }
-            DownloadSourceKind::Bmcl | DownloadSourceKind::Balanced | DownloadSourceKind::Mirror => {
+            DownloadSourceKind::Bmcl
+            | DownloadSourceKind::Balanced
+            | DownloadSourceKind::Mirror => {
                 "https://bmclapi2.bangbang93.com/mc/game/version_manifest.json".to_string()
             }
         }
@@ -20,9 +22,9 @@ impl DownloadResolver {
     pub fn inject_url(source: DownloadSourceKind, url: &str) -> String {
         match source {
             DownloadSourceKind::Official => url.to_string(),
-            DownloadSourceKind::Bmcl | DownloadSourceKind::Balanced | DownloadSourceKind::Mirror => {
-                Self::inject_bmcl_url(url)
-            }
+            DownloadSourceKind::Bmcl
+            | DownloadSourceKind::Balanced
+            | DownloadSourceKind::Mirror => Self::inject_bmcl_url(url),
         }
     }
 
@@ -32,14 +34,17 @@ impl DownloadResolver {
             DownloadSourceKind::Bmcl | DownloadSourceKind::Mirror => {
                 Self::unique_urls(vec![Self::inject_bmcl_url(url)])
             }
-            DownloadSourceKind::Balanced => Self::unique_urls(vec![
-                Self::inject_bmcl_url(url),
-                url.to_string(),
-            ]),
+            DownloadSourceKind::Balanced => {
+                Self::unique_urls(vec![Self::inject_bmcl_url(url), url.to_string()])
+            }
         }
     }
 
-    pub fn asset_object_candidates(source: DownloadSourceKind, prefix: &str, hash: &str) -> Vec<String> {
+    pub fn asset_object_candidates(
+        source: DownloadSourceKind,
+        prefix: &str,
+        hash: &str,
+    ) -> Vec<String> {
         let official = format!("https://resources.download.minecraft.net/{prefix}/{hash}");
         let bmcl = format!("https://bmclapi2.bangbang93.com/assets/{prefix}/{hash}");
 
@@ -52,22 +57,67 @@ impl DownloadResolver {
 
     pub fn inject_bmcl_url(url: &str) -> String {
         let replacements = [
-            ("https://launchermeta.mojang.com", "https://bmclapi2.bangbang93.com"),
-            ("https://piston-meta.mojang.com", "https://bmclapi2.bangbang93.com"),
-            ("https://piston-data.mojang.com", "https://bmclapi2.bangbang93.com"),
-            ("https://launcher.mojang.com", "https://bmclapi2.bangbang93.com"),
-            ("https://libraries.minecraft.net", "https://bmclapi2.bangbang93.com/libraries"),
-            ("https://maven.minecraftforge.net", "https://bmclapi2.bangbang93.com/maven"),
-            ("https://files.minecraftforge.net/maven", "https://bmclapi2.bangbang93.com/maven"),
-            ("http://files.minecraftforge.net/maven", "https://bmclapi2.bangbang93.com/maven"),
-            ("https://maven.neoforged.net/releases", "https://bmclapi2.bangbang93.com/maven"),
-            ("https://meta.fabricmc.net", "https://bmclapi2.bangbang93.com/fabric-meta"),
-            ("https://maven.fabricmc.net", "https://bmclapi2.bangbang93.com/maven"),
-            ("https://hmcl.glavo.site/metadata/forge", "https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/json"),
-            ("https://api.modrinth.com", "https://mod.mcimirror.top/modrinth"),
+            (
+                "https://launchermeta.mojang.com",
+                "https://bmclapi2.bangbang93.com",
+            ),
+            (
+                "https://piston-meta.mojang.com",
+                "https://bmclapi2.bangbang93.com",
+            ),
+            (
+                "https://piston-data.mojang.com",
+                "https://bmclapi2.bangbang93.com",
+            ),
+            (
+                "https://launcher.mojang.com",
+                "https://bmclapi2.bangbang93.com",
+            ),
+            (
+                "https://libraries.minecraft.net",
+                "https://bmclapi2.bangbang93.com/libraries",
+            ),
+            (
+                "https://maven.minecraftforge.net",
+                "https://bmclapi2.bangbang93.com/maven",
+            ),
+            (
+                "https://files.minecraftforge.net/maven",
+                "https://bmclapi2.bangbang93.com/maven",
+            ),
+            (
+                "http://files.minecraftforge.net/maven",
+                "https://bmclapi2.bangbang93.com/maven",
+            ),
+            (
+                "https://maven.neoforged.net/releases",
+                "https://bmclapi2.bangbang93.com/maven",
+            ),
+            (
+                "https://meta.fabricmc.net",
+                "https://bmclapi2.bangbang93.com/fabric-meta",
+            ),
+            (
+                "https://maven.fabricmc.net",
+                "https://bmclapi2.bangbang93.com/maven",
+            ),
+            (
+                "https://hmcl.glavo.site/metadata/forge",
+                "https://bmclapi2.bangbang93.com/maven/net/minecraftforge/forge/json",
+            ),
+            (
+                "https://api.modrinth.com",
+                "https://mod.mcimirror.top/modrinth",
+            ),
             ("https://cdn.modrinth.com", "https://mod.mcimirror.top"),
-            ("https://edge.forgecdn.net", "https://mod.mcimirror.top/curseforge"),
-            ("https://mediafilez.forgecdn.net", "https://mod.mcimirror.top/curseforge"),
+            (
+                "https://edge.forgecdn.net",
+                "https://mod.mcimirror.top/curseforge",
+            ),
+            (
+                "https://mediafilez.forgecdn.net",
+                "https://mod.mcimirror.top/curseforge",
+            ),
         ];
 
         for (from, to) in replacements {
@@ -122,7 +172,10 @@ impl DownloadResolver {
     }
 
     pub fn normalize_neoforge_version(version: &str) -> String {
-        version.strip_prefix("1.20.1-").unwrap_or(version).to_string()
+        version
+            .strip_prefix("1.20.1-")
+            .unwrap_or(version)
+            .to_string()
     }
 
     pub fn neoforge_game_version(version: &str) -> Option<String> {
@@ -176,7 +229,10 @@ impl DownloadResolver {
             .build()?)
     }
 
-    pub fn get_json<T: DeserializeOwned>(client: &Client, url: &str) -> Result<T, DownloadCenterError> {
+    pub fn get_json<T: DeserializeOwned>(
+        client: &Client,
+        url: &str,
+    ) -> Result<T, DownloadCenterError> {
         Ok(client.get(url).send()?.error_for_status()?.json()?)
     }
 }

@@ -59,7 +59,11 @@ impl LibraryResolver {
 
             let classifier_name = classifier_name.replace(
                 "${arch}",
-                if cfg!(target_pointer_width = "64") { "64" } else { "32" },
+                if cfg!(target_pointer_width = "64") {
+                    "64"
+                } else {
+                    "32"
+                },
             );
 
             if let Some(classifier) = lib

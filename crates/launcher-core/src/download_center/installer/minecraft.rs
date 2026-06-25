@@ -1,7 +1,7 @@
 use super::super::model::{DownloadCenterError, DownloadSourceKind, InstallResult, MojangManifest};
 use super::super::processor::libraries::LibraryResolver;
 use super::super::repository::DownloadRepository;
-use super::super::resolver::{simple_error, DownloadResolver};
+use super::super::resolver::{DownloadResolver, simple_error};
 use crate::download::DownloadManager;
 use serde_json::Value;
 use std::fs;

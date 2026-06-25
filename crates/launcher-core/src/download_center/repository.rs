@@ -32,7 +32,10 @@ impl DownloadRepository {
             }
         }
 
-        Ok(Self::home_dir()?.join(".local").join("share").join("mc-launcher"))
+        Ok(Self::home_dir()?
+            .join(".local")
+            .join("share")
+            .join("mc-launcher"))
     }
 
     pub fn ensure_parent(path: &Path) -> Result<(), DownloadCenterError> {

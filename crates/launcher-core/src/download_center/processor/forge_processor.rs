@@ -1,7 +1,7 @@
-use super::libraries::LibraryResolver;
 use super::super::model::{DownloadCenterError, DownloadSourceKind, InstallResult};
 use super::super::repository::DownloadRepository;
-use super::super::resolver::{simple_error, DownloadResolver};
+use super::super::resolver::{DownloadResolver, simple_error};
+use super::libraries::LibraryResolver;
 use crate::download::DownloadManager;
 use serde_json::Value;
 use std::fs;
@@ -26,21 +26,18 @@ impl ForgeProcessor {
         let profile_text = Self::read_zip_text(installer_path, &["install_profile.json"])?;
         let profile: Value = serde_json::from_str(&profile_text)?;
 
-        let version_json = Self::read_zip_text(
-            installer_path,
-            &[
-                "version.json",
-                "data/client.lzma",
-            ],
-        )
-        .ok()
-        .and_then(|text| serde_json::from_str::<Value>(&text).ok());
+        let version_json =
+            Self::read_zip_text(installer_path, &["version.json", "data/client.lzma"])
+                .ok()
+                .and_then(|text| serde_json::from_str::<Value>(&text).ok());
 
         let version_info = profile
             .get("versionInfo")
             .cloned()
             .or(version_json)
-            .ok_or_else(|| simple_error("installer 中没有 versionInfo/version.json，无法生成版本。"))?;
+            .ok_or_else(|| {
+                simple_error("installer 中没有 versionInfo/version.json，无法生成版本。")
+            })?;
 
         let version_id = version_info
             .get("id")
@@ -53,7 +50,10 @@ impl ForgeProcessor {
         fs::create_dir_all(&version_dir)?;
 
         let version_json_path = version_dir.join(format!("{version_id}.json"));
-        fs::write(&version_json_path, serde_json::to_string_pretty(&version_info)?)?;
+        fs::write(
+            &version_json_path,
+            serde_json::to_string_pretty(&version_info)?,
+        )?;
         manager.track_created_file(version_json_path.clone())?;
 
         let mut files = Vec::new();
@@ -69,9 +69,7 @@ impl ForgeProcessor {
         if let Some(libraries) = profile.get("libraries").and_then(Value::as_array) {
             let wrapper = serde_json::json!({ "libraries": libraries });
             files.extend(LibraryResolver::collect_libraries_from_version_json(
-                source,
-                &root,
-                &wrapper,
+                source, &root, &wrapper,
             )?);
         }
 

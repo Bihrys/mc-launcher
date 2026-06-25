@@ -2,7 +2,7 @@ use super::super::catalog::DownloadCatalogService;
 use super::super::model::{DownloadCenterError, DownloadSourceKind, InstallResult};
 use super::super::processor::ForgeProcessor;
 use super::super::repository::DownloadRepository;
-use super::super::resolver::{simple_error, DownloadResolver};
+use super::super::resolver::{DownloadResolver, simple_error};
 use crate::download::{DownloadFile, DownloadManager};
 use std::fs;
 
@@ -30,7 +30,9 @@ impl NeoForgeInstaller {
                 "没有找到 NeoForge installer：Minecraft {game_version}, NeoForge {loader_version}"
             )))?;
 
-        let cache_dir = DownloadRepository::cache_root()?.join("installers").join("neoforge");
+        let cache_dir = DownloadRepository::cache_root()?
+            .join("installers")
+            .join("neoforge");
         fs::create_dir_all(&cache_dir)?;
 
         let file_name = DownloadResolver::file_name_from_url(&installer.url);

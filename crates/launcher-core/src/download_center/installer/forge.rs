@@ -2,7 +2,7 @@ use super::super::catalog::DownloadCatalogService;
 use super::super::model::{DownloadCenterError, DownloadSourceKind, InstallResult};
 use super::super::processor::ForgeProcessor;
 use super::super::repository::DownloadRepository;
-use super::super::resolver::{simple_error, DownloadResolver};
+use super::super::resolver::{DownloadResolver, simple_error};
 use crate::download::{DownloadFile, DownloadManager};
 use std::fs;
 
@@ -26,11 +26,15 @@ impl ForgeInstaller {
             .forge_installers
             .into_iter()
             .find(|item| item.game_version == game_version && item.loader_version == loader_version)
-            .ok_or_else(|| simple_error(format!(
-                "没有找到 Forge installer：Minecraft {game_version}, Forge {loader_version}"
-            )))?;
+            .ok_or_else(|| {
+                simple_error(format!(
+                    "没有找到 Forge installer：Minecraft {game_version}, Forge {loader_version}"
+                ))
+            })?;
 
-        let cache_dir = DownloadRepository::cache_root()?.join("installers").join("forge");
+        let cache_dir = DownloadRepository::cache_root()?
+            .join("installers")
+            .join("forge");
         fs::create_dir_all(&cache_dir)?;
 
         let file_name = DownloadResolver::file_name_from_url(&installer.url);

@@ -29,10 +29,18 @@ impl DownloadService {
 
         match LoaderKind::from_raw(loader_kind) {
             LoaderKind::Vanilla => MinecraftInstaller::install(manager, source, game_version),
-            LoaderKind::Fabric => FabricInstaller::install(manager, source, game_version, loader_version),
-            LoaderKind::Quilt => QuiltInstaller::install(manager, source, game_version, loader_version),
-            LoaderKind::Forge => ForgeInstaller::install(manager, source, game_version, loader_version),
-            LoaderKind::NeoForge => NeoForgeInstaller::install(manager, source, game_version, loader_version),
+            LoaderKind::Fabric => {
+                FabricInstaller::install(manager, source, game_version, loader_version)
+            }
+            LoaderKind::Quilt => {
+                QuiltInstaller::install(manager, source, game_version, loader_version)
+            }
+            LoaderKind::Forge => {
+                ForgeInstaller::install(manager, source, game_version, loader_version)
+            }
+            LoaderKind::NeoForge => {
+                NeoForgeInstaller::install(manager, source, game_version, loader_version)
+            }
         }
     }
 }

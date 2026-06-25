@@ -1,6 +1,6 @@
 use super::model::{
-    DownloadCatalog, DownloadCenterError, DownloadSourceKind, ForgeRoot, GameEntry,
-    InstallerEntry, LoaderEntry, MetaLoaderVersion, MojangManifest, NeoForgeApiResult,
+    DownloadCatalog, DownloadCenterError, DownloadSourceKind, ForgeRoot, GameEntry, InstallerEntry,
+    LoaderEntry, MetaLoaderVersion, MojangManifest, NeoForgeApiResult,
 };
 use super::resolver::DownloadResolver;
 use reqwest::blocking::Client;
@@ -108,9 +108,9 @@ impl DownloadCatalogService {
         let root: ForgeRoot = DownloadResolver::get_json(client, &url)?;
 
         let artifact = root.artifact.unwrap_or_else(|| "forge".to_string());
-        let webpath = root
-            .webpath
-            .unwrap_or_else(|| "https://maven.minecraftforge.net/net/minecraftforge/forge/".to_string());
+        let webpath = root.webpath.unwrap_or_else(|| {
+            "https://maven.minecraftforge.net/net/minecraftforge/forge/".to_string()
+        });
 
         let mcversion = root.mcversion.unwrap_or_default();
         let number = root.number.unwrap_or_default();
