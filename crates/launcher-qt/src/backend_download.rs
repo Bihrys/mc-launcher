@@ -173,6 +173,122 @@ impl qobject::LauncherBackend {
         QString::from(&text)
     }
 
+    pub fn start_fetch_installer_metadata(
+        mut self: Pin<&mut Self>,
+        source: QString,
+        game_version: QString,
+    ) {
+        let requested_source = source.to_string();
+        let game_version = game_version.to_string();
+
+        if game_version.trim().is_empty() {
+            self.as_mut()
+                .set_output(QString::from("还没有选择 Minecraft 版本。"));
+            return;
+        }
+
+        let settings = load_launcher_settings_value();
+        apply_download_runtime_settings(&settings);
+        let source = resolve_download_source(&settings, &requested_source, false);
+        let status_path = installer_metadata_task_status_path();
+
+        if task_status_is_active(&status_path) {
+            self.as_mut().set_output(QString::from(
+                "安装器元数据正在加载中。请等待当前任务完成。",
+            ));
+            return;
+        }
+
+        write_installer_metadata_task_status(
+            &status_path,
+            true,
+            5,
+            "正在加载安装器列表",
+            &format!("Minecraft {game_version}"),
+            false,
+            "",
+        );
+
+        self.as_mut().set_output(QString::from(&format!(
+            "正在后台加载 Minecraft {game_version} 的 Fabric / Quilt / Forge / NeoForge 安装器列表。"
+        )));
+
+        thread::spawn(move || {
+            write_installer_metadata_task_status(
+                &status_path,
+                true,
+                30,
+                "正在请求安装器元数据",
+                "正在连接 Fabric / Quilt / Forge / NeoForge 元数据源。",
+                false,
+                "",
+            );
+
+            match DownloadService::fetch_installer_metadata_json(&source, &game_version) {
+                Ok(json) => {
+                    write_installer_metadata_task_status(
+                        &status_path,
+                        false,
+                        100,
+                        "安装器列表加载完成",
+                        "可以选择加载器并开始安装。",
+                        true,
+                        &json,
+                    );
+                }
+                Err(err) => {
+                    let fallback = serde_json::json!({
+                        "gameVersion": game_version,
+                        "fabricLoaders": [],
+                        "quiltLoaders": [],
+                        "forgeInstallers": [],
+                        "neoforgeInstallers": [],
+                        "warnings": [err.to_string()]
+                    })
+                    .to_string();
+
+                    write_installer_metadata_task_status(
+                        &status_path,
+                        false,
+                        0,
+                        "安装器列表加载失败",
+                        &err.to_string(),
+                        true,
+                        &fallback,
+                    );
+                }
+            }
+        });
+    }
+
+    pub fn poll_installer_metadata_task(mut self: Pin<&mut Self>) -> QString {
+        let path = installer_metadata_task_status_path();
+        let text = read_installer_metadata_task_status_text(&path);
+
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) {
+            let title = value
+                .get("title")
+                .and_then(|value| value.as_str())
+                .unwrap_or("安装器列表");
+
+            let message = value
+                .get("message")
+                .and_then(|value| value.as_str())
+                .unwrap_or_default();
+
+            if value
+                .get("active")
+                .and_then(|value| value.as_bool())
+                .unwrap_or(false)
+            {
+                self.as_mut()
+                    .set_output(QString::from(&format!("{title}\n\n{message}")));
+            }
+        }
+
+        QString::from(&text)
+    }
+
     pub fn install_game_version(
         mut self: Pin<&mut Self>,
         source: QString,
@@ -582,4 +698,66 @@ fn read_download_task_status_text(path: &Path) -> String {
         })
         .to_string(),
     )
+}
+
+
+fn installer_metadata_task_status_path() -> PathBuf {
+    if let Some(value) = std::env::var_os("XDG_CACHE_HOME") {
+        if !value.is_empty() {
+            return PathBuf::from(value)
+                .join("mc-launcher")
+                .join("installer-metadata-task.json");
+        }
+    }
+
+    if let Some(home) = std::env::var_os("HOME") {
+        return PathBuf::from(home)
+            .join(".cache")
+            .join("mc-launcher")
+            .join("installer-metadata-task.json");
+    }
+
+    std::env::temp_dir()
+        .join("mc-launcher")
+        .join("installer-metadata-task.json")
+}
+
+fn read_installer_metadata_task_status_text(path: &Path) -> String {
+    read_status_text(
+        path,
+        &serde_json::json!({
+            "active": false,
+            "percent": 0,
+            "title": "空闲",
+            "message": "还没有安装器元数据任务。",
+            "metadataReady": false,
+            "metadataJson": ""
+        })
+        .to_string(),
+    )
+}
+
+fn write_installer_metadata_task_status(
+    path: &Path,
+    active: bool,
+    percent: u32,
+    title: &str,
+    message: &str,
+    metadata_ready: bool,
+    metadata_json: &str,
+) {
+    if let Some(parent) = path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+
+    let payload = serde_json::json!({
+        "active": active,
+        "percent": percent.min(100),
+        "title": title,
+        "message": message,
+        "metadataReady": metadata_ready,
+        "metadataJson": metadata_json
+    });
+
+    let _ = fs::write(path, payload.to_string());
 }
