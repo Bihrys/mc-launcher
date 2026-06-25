@@ -158,6 +158,18 @@ pub mod qobject {
         fn poll_download_catalog_task(self: Pin<&mut LauncherBackend>) -> QString;
 
         #[qinvokable]
+        #[cxx_name = "startFetchInstallerMetadata"]
+        fn start_fetch_installer_metadata(
+            self: Pin<&mut LauncherBackend>,
+            source: QString,
+            game_version: QString,
+        );
+
+        #[qinvokable]
+        #[cxx_name = "pollInstallerMetadataTask"]
+        fn poll_installer_metadata_task(self: Pin<&mut LauncherBackend>) -> QString;
+
+        #[qinvokable]
         #[cxx_name = "installGameVersion"]
         fn install_game_version(
             self: Pin<&mut LauncherBackend>,

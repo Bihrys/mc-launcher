@@ -12,6 +12,16 @@ impl DownloadService {
         DownloadCatalogService::fetch_json(DownloadSourceKind::from_raw(source))
     }
 
+    pub fn fetch_installer_metadata_json(
+        source: &str,
+        game_version: &str,
+    ) -> Result<String, DownloadCenterError> {
+        DownloadCatalogService::fetch_installer_metadata_json(
+            DownloadSourceKind::from_raw(source),
+            game_version,
+        )
+    }
+
     pub fn install_game_version_with_manager(
         manager: &DownloadManager,
         source: &str,

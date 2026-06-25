@@ -12,6 +12,70 @@ impl DownloadCatalogService {
         Ok(serde_json::to_string(&Self::fetch(source)?)?)
     }
 
+    pub fn fetch_installer_metadata_json(
+        source: DownloadSourceKind,
+        game_version: &str,
+    ) -> Result<String, DownloadCenterError> {
+        let client = DownloadResolver::http_client()?;
+        let mut warnings = Vec::new();
+
+        let fabric_loaders = match Self::fetch_meta_loaders(
+            &client,
+            source,
+            "https://meta.fabricmc.net/v2/versions/loader",
+        ) {
+            Ok(value) => value,
+            Err(err) => {
+                warnings.push(format!("Fabric loader 列表获取失败：{err}"));
+                Vec::new()
+            }
+        };
+
+        let quilt_loaders = match Self::fetch_meta_loaders(
+            &client,
+            source,
+            "https://meta.quiltmc.org/v3/versions/loader",
+        ) {
+            Ok(value) => value,
+            Err(err) => {
+                warnings.push(format!("Quilt loader 列表获取失败：{err}"));
+                Vec::new()
+            }
+        };
+
+        let forge_installers = match Self::fetch_forge_installers(&client, source) {
+            Ok(value) => value
+                .into_iter()
+                .filter(|item| item.game_version == game_version)
+                .collect::<Vec<_>>(),
+            Err(err) => {
+                warnings.push(format!("Forge installer 列表获取失败：{err}"));
+                Vec::new()
+            }
+        };
+
+        let neoforge_installers = match Self::fetch_neoforge_installers(&client, source) {
+            Ok(value) => value
+                .into_iter()
+                .filter(|item| item.game_version == game_version)
+                .collect::<Vec<_>>(),
+            Err(err) => {
+                warnings.push(format!("NeoForge installer 列表获取失败：{err}"));
+                Vec::new()
+            }
+        };
+
+        Ok(serde_json::json!({
+            "gameVersion": game_version,
+            "fabricLoaders": fabric_loaders,
+            "quiltLoaders": quilt_loaders,
+            "forgeInstallers": forge_installers,
+            "neoforgeInstallers": neoforge_installers,
+            "warnings": warnings
+        })
+        .to_string())
+    }
+
     pub fn fetch(source: DownloadSourceKind) -> Result<DownloadCatalog, DownloadCenterError> {
         let client = DownloadResolver::http_client()?;
 
