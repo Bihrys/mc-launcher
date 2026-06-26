@@ -13,14 +13,24 @@ Item {
     width: parent ? parent.width : 180
     height: 40
 
+    function styleValue(name, fallback) {
+        if (root.style !== undefined && root.style !== null) {
+            var value = root.style[name]
+            if (value !== undefined && value !== null) {
+                return value
+            }
+        }
+        return fallback
+    }
+
     HmclSvgIcon {
         anchors.left: parent.left
         anchors.leftMargin: 12
         anchors.verticalCenter: parent.verticalCenter
         icon: root.iconKind
         iconSize: 18
-        iconColor: root.style.cTextOnSurface
-        animationsEnabled: root.style.animationsEnabled
+        iconColor: root.styleValue("cTextOnSurface", "#222222")
+        animationsEnabled: !!root.styleValue("animationsEnabled", true)
     }
 
     Text {
@@ -30,7 +40,7 @@ Item {
         anchors.rightMargin: 12
         anchors.verticalCenter: parent.verticalCenter
         text: root.title
-        color: root.style.cTextOnSurface
+        color: root.styleValue("cTextOnSurface", "#222222")
         font.pixelSize: 12
         elide: Text.ElideRight
     }

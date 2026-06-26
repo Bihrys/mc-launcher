@@ -4,20 +4,32 @@ import "../icons"
 
 Item {
     id: root
+
     property var style
     property string title: ""
     property string subtitle: ""
     property string iconKind: ""
     property bool selected: false
     property bool enabledItem: true
+
     signal clicked()
 
     width: parent ? parent.width : 220
     height: subtitle.length > 0 ? 48 : 40
 
+    function styleValue(name, fallback) {
+        if (root.style !== undefined && root.style !== null) {
+            var value = root.style[name]
+            if (value !== undefined && value !== null) {
+                return value
+            }
+        }
+        return fallback
+    }
+
     Rectangle {
         anchors.fill: parent
-        color: root.selected ? root.style.cNavSelected : mouse.containsMouse ? root.style.cNavHover : "transparent"
+        color: root.selected ? root.styleValue("cNavSelected", "transparent") : mouse.containsMouse ? root.styleValue("cNavHover", "transparent") : "transparent"
     }
 
     RowLayout {
@@ -25,18 +37,35 @@ Item {
         anchors.leftMargin: 12
         anchors.rightMargin: 8
         spacing: 8
+
         SvgIcon {
             visible: root.iconKind.length > 0
             icon: root.iconKind
             iconSize: 20
-            iconColor: root.selected ? root.style.cButtonSelected : root.style.cTextOnSurfaceVariant
-            animationsEnabled: root.style.animationsEnabled
+            iconColor: root.selected ? root.styleValue("cButtonSelected", "#2f6fed") : root.styleValue("cTextOnSurfaceVariant", "#666666")
+            animationsEnabled: !!root.styleValue("animationsEnabled", true)
         }
+
         ColumnLayout {
             Layout.fillWidth: true
             spacing: 1
-            Text { text: root.title; color: root.style.cTextOnSurface; font.pixelSize: 13; elide: Text.ElideRight; Layout.fillWidth: true }
-            Text { visible: root.subtitle.length > 0; text: root.subtitle; color: root.style.cTextOnSurfaceVariant; font.pixelSize: 11; elide: Text.ElideRight; Layout.fillWidth: true }
+
+            Text {
+                text: root.title
+                color: root.styleValue("cTextOnSurface", "#222222")
+                font.pixelSize: 13
+                elide: Text.ElideRight
+                Layout.fillWidth: true
+            }
+
+            Text {
+                visible: root.subtitle.length > 0
+                text: root.subtitle
+                color: root.styleValue("cTextOnSurfaceVariant", "#666666")
+                font.pixelSize: 11
+                elide: Text.ElideRight
+                Layout.fillWidth: true
+            }
         }
     }
 

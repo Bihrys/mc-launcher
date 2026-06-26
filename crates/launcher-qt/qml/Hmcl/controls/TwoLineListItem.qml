@@ -3,35 +3,50 @@ import QtQuick.Layouts
 
 ColumnLayout {
     id: root
+
     property var style
     property string title: ""
     property string subtitle: ""
     property string tag: ""
+
     spacing: 1
+
+    function styleValue(name, fallback) {
+        if (root.style !== undefined && root.style !== null) {
+            var value = root.style[name]
+            if (value !== undefined && value !== null) {
+                return value
+            }
+        }
+        return fallback
+    }
 
     RowLayout {
         Layout.fillWidth: true
         spacing: 6
+
         Text {
             Layout.fillWidth: true
             text: root.title
-            color: root.style.cTextOnSurface
+            color: root.styleValue("cTextOnSurface", "#222222")
             font.pixelSize: 15
             elide: Text.ElideRight
         }
+
         Rectangle {
             visible: root.tag.length > 0
             radius: 7
-            color: root.style.cSurfaceContainerHigh
-            border.color: root.style.cBorder
+            color: root.styleValue("cSurfaceContainerHigh", "#f0f0f0")
+            border.color: root.styleValue("cBorder", "#dddddd")
             border.width: 1
             Layout.preferredHeight: 18
             Layout.preferredWidth: tagText.implicitWidth + 12
+
             Text {
                 id: tagText
                 anchors.centerIn: parent
                 text: root.tag
-                color: root.style.cTextOnSurfaceVariant
+                color: root.styleValue("cTextOnSurfaceVariant", "#666666")
                 font.pixelSize: 10
             }
         }
@@ -40,7 +55,7 @@ ColumnLayout {
     Text {
         Layout.fillWidth: true
         text: root.subtitle
-        color: root.style.cTextOnSurfaceVariant
+        color: root.styleValue("cTextOnSurfaceVariant", "#666666")
         font.pixelSize: 12
         elide: Text.ElideRight
     }

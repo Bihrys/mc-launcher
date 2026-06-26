@@ -11,8 +11,6 @@ MDListCell {
     property string tag: ""
     property bool selected: false
     property bool canUpdate: false
-    property var style
-
     signal selectRequested()
     signal openRequested()
     signal launchRequested()
