@@ -27,6 +27,8 @@ pub mod qobject {
         #[qproperty(QString, download_catalog_json, cxx_name = "downloadCatalogJson")]
         #[qproperty(QString, download_task_json, cxx_name = "downloadTaskJson")]
         #[qproperty(QString, installed_versions_json, cxx_name = "installedVersionsJson")]
+        #[qproperty(QString, instance_list_json, cxx_name = "instanceListJson")]
+        #[qproperty(QString, instance_detail_json, cxx_name = "instanceDetailJson")]
         #[qproperty(QString, selected_game_version, cxx_name = "selectedGameVersion")]
         #[qproperty(QString, launch_task_json, cxx_name = "launchTaskJson")]
         #[qproperty(QString, launcher_settings_json, cxx_name = "launcherSettingsJson")]
@@ -201,6 +203,74 @@ pub mod qobject {
         fn refresh_installed_versions(self: Pin<&mut LauncherBackend>) -> QString;
 
         #[qinvokable]
+        #[cxx_name = "refreshInstances"]
+        fn refresh_instances(self: Pin<&mut LauncherBackend>) -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "refreshInstanceDetail"]
+        fn refresh_instance_detail(self: Pin<&mut LauncherBackend>, version_id: QString) -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "selectInstance"]
+        fn select_instance(self: Pin<&mut LauncherBackend>, version_id: QString);
+
+        #[qinvokable]
+        #[cxx_name = "renameInstance"]
+        fn rename_instance(
+            self: Pin<&mut LauncherBackend>,
+            version_id: QString,
+            new_name: QString,
+        ) -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "duplicateInstance"]
+        fn duplicate_instance(
+            self: Pin<&mut LauncherBackend>,
+            version_id: QString,
+            new_name: QString,
+            copy_saves: QString,
+        ) -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "deleteInstance"]
+        fn delete_instance(self: Pin<&mut LauncherBackend>, version_id: QString) -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "openInstanceFolder"]
+        fn open_instance_folder(
+            self: Pin<&mut LauncherBackend>,
+            version_id: QString,
+            folder_key: QString,
+        ) -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "generateInstanceLaunchCommand"]
+        fn generate_instance_launch_command(
+            self: Pin<&mut LauncherBackend>,
+            version_id: QString,
+        ) -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "cleanInstance"]
+        fn clean_instance(self: Pin<&mut LauncherBackend>, version_id: QString) -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "clearInstanceAssets"]
+        fn clear_instance_assets(self: Pin<&mut LauncherBackend>, version_id: QString) -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "clearInstanceLibraries"]
+        fn clear_instance_libraries(self: Pin<&mut LauncherBackend>, version_id: QString) -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "saveInstanceSettings"]
+        fn save_instance_settings(
+            self: Pin<&mut LauncherBackend>,
+            version_id: QString,
+            settings_json: QString,
+        ) -> QString;
+
+        #[qinvokable]
         #[cxx_name = "selectGameVersion"]
         fn select_game_version(self: Pin<&mut LauncherBackend>, version_id: QString);
 
@@ -253,6 +323,8 @@ pub struct LauncherBackendRust {
     download_catalog_json: QString,
     download_task_json: QString,
     installed_versions_json: QString,
+    instance_list_json: QString,
+    instance_detail_json: QString,
     selected_game_version: QString,
     launch_task_json: QString,
     launcher_settings_json: QString,

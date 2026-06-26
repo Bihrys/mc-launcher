@@ -13,10 +13,10 @@ Rectangle {
 
     signal navigate(string page)
     signal navigateSettingsSection(string section)
-    signal prepareAccount()
-    signal prepareSettings()
-    signal prepareDownload()
-    signal prepareVersion()
+    signal prepareAccount
+    signal prepareSettings
+    signal prepareDownload
+    signal prepareVersion
 
     width: 200
     color: "transparent"
@@ -52,12 +52,8 @@ Rectangle {
 
             HmclAccountItem {
                 style: root.style
-                accountName: root.backend.currentAccountName.length > 0
-                             ? root.backend.currentAccountName
-                             : "未登录"
-                accountType: root.backend.currentAccountKind.length > 0
-                             ? root.backend.currentAccountKind
-                             : "添加账户"
+                accountName: root.backend.currentAccountName.length > 0 ? root.backend.currentAccountName : "未登录"
+                accountType: root.backend.currentAccountKind.length > 0 ? root.backend.currentAccountKind : "添加账户"
                 avatarUrl: root.backend.currentAccountAvatarUrl
                 active: root.currentPage === "account"
                 onEntered: root.prepareAccount()
@@ -66,15 +62,13 @@ Rectangle {
 
             HmclClassTitle {
                 style: root.style
-                title: "版本"
+                title: "游戏"
             }
 
             HmclListItem {
                 style: root.style
-                title: root.backend.selectedGameVersion.length > 0 ? "管理" : "未安装游戏"
-                subtitle: root.backend.selectedGameVersion.length > 0
-                          ? root.backend.selectedGameVersion
-                          : "安装新游戏"
+                title: root.backend.selectedGameVersion.length > 0 ? "实例管理" : "未安装游戏"
+                subtitle: root.backend.selectedGameVersion.length > 0 ? root.backend.selectedGameVersion : "安装新游戏"
                 imageSource: root.selectedVersionIconSource()
                 active: root.currentPage === "main"
                 onEntered: root.prepareVersion()
@@ -83,7 +77,7 @@ Rectangle {
 
             HmclListItem {
                 style: root.style
-                title: "版本管理"
+                title: "实例列表"
                 iconKind: "FORMAT_LIST_BULLETED"
                 active: root.currentPage === "versions"
                 onEntered: root.prepareVersion()
@@ -111,8 +105,8 @@ Rectangle {
                 active: root.currentPage === "settings"
                 onEntered: root.prepareSettings()
                 onClicked: {
-                    root.prepareSettings()
-                    root.navigateSettingsSection("global")
+                    root.prepareSettings();
+                    root.navigateSettingsSection("global");
                 }
             }
 
@@ -131,35 +125,34 @@ Rectangle {
                 active: root.currentPage === "feedback"
                 onEntered: root.prepareSettings()
                 onClicked: {
-                    root.prepareSettings()
-                    root.navigateSettingsSection("feedback")
+                    root.prepareSettings();
+                    root.navigateSettingsSection("feedback");
                 }
             }
         }
     }
 
     function selectedVersionIconSource() {
-        var fallback = root.iconBase + "grass.png"
-        var selected = root.backend.selectedGameVersion
+        var fallback = root.iconBase + "grass.png";
+        var selected = root.backend.selectedGameVersion;
 
         if (!selected || selected.length === 0) {
-            return fallback
+            return fallback;
         }
 
         try {
-            var payload = JSON.parse(root.backend.installedVersionsJson || "{}")
-            var versions = payload.versions || []
+            var payload = JSON.parse(root.backend.installedVersionsJson || "{}");
+            var versions = payload.versions || [];
 
             for (var i = 0; i < versions.length; i++) {
-                var version = versions[i]
+                var version = versions[i];
                 if (version.id === selected || version.selected === true) {
-                    return root.iconBase + String(version.iconName || "grass") + ".png"
+                    return root.iconBase + String(version.iconName || "grass") + ".png";
                 }
             }
-        } catch (e) {
-        }
+        } catch (e) {}
 
-        return fallback
+        return fallback;
     }
 
     component HmclClassTitle: Item {
@@ -206,8 +199,8 @@ Rectangle {
         property string avatarUrl: ""
         property bool active: false
 
-        signal clicked()
-        signal entered()
+        signal clicked
+        signal entered
 
         width: parent ? parent.width : 200
         height: 58
@@ -242,8 +235,8 @@ Rectangle {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onPressed: function(event) {
-                accountRipple.press(event.x, event.y)
+            onPressed: function (event) {
+                accountRipple.press(event.x, event.y);
             }
             onEntered: item.entered()
             onClicked: item.clicked()
@@ -272,9 +265,7 @@ Rectangle {
             Text {
                 anchors.centerIn: parent
                 visible: !avatarImage.visible
-                text: item.accountName.length > 0
-                      ? item.accountName.substring(0, 1).toUpperCase()
-                      : "?"
+                text: item.accountName.length > 0 ? item.accountName.substring(0, 1).toUpperCase() : "?"
                 color: item.style.cTextOnSurfaceVariant
                 font.pixelSize: 16
                 font.bold: true
@@ -318,8 +309,8 @@ Rectangle {
         property string imageSource: ""
         property bool active: false
 
-        signal clicked()
-        signal entered()
+        signal clicked
+        signal entered
 
         width: parent ? parent.width : 200
         height: subtitle.length > 0 ? 58 : 52
@@ -355,8 +346,8 @@ Rectangle {
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onEntered: item.entered()
-            onPressed: function(event) {
-                ripple.press(event.x, event.y)
+            onPressed: function (event) {
+                ripple.press(event.x, event.y);
             }
             onClicked: item.clicked()
         }

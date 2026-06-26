@@ -4,6 +4,7 @@ pub mod avatar;
 pub mod download;
 pub mod download_center;
 pub mod game_download;
+pub mod instance_manager;
 pub mod java;
 pub mod java_download;
 pub mod launch;
@@ -35,6 +36,14 @@ pub use game_download::{
     InstallResult, fetch_download_catalog_json, install_game_version,
     install_game_version_with_manager,
 };
+
+pub use instance_manager::{
+    GameInstanceDetail, GameInstanceSummary, InstanceFolder, InstanceLoader, InstanceSettings,
+    clean_instance, clear_assets, clear_libraries, delete_instance, duplicate_instance,
+    instance_detail, instance_detail_json, instances, instances_json, open_instance_folder,
+    rename_instance, save_instance_settings_json, select_instance,
+};
+
 pub use java::{JavaRuntime, detect_java_runtimes};
 pub use java_download::{JavaDownloadResult, download_java_runtime};
 

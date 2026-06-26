@@ -15,6 +15,7 @@ Item {
     property string requestedSettingsSection: "global"
     property var activeDownloadPage: null
     property bool settingsPageLoaded: false
+    property string activeInstanceVersion: ""
     readonly property var appStyle: style
     readonly property real uiScale: Math.max(0.78, Math.min(1.18, Math.min(root.width / 1280, root.height / 720)))
     property string launcherTheme: appSettings.launcherTheme
@@ -54,6 +55,7 @@ Item {
 
         root.backend.refreshAccounts()
         root.backend.refreshInstalledVersions()
+        root.backend.refreshInstances()
         root.applyLauncherSettings(root.backend.refreshLauncherSettings())
         root.pollLaunchTask()
         root.forceActiveFocus()
@@ -181,6 +183,17 @@ Item {
         id: versionsState
         key: "versions"
         title: "版本管理"
+        showBrand: false
+        backable: true
+        refreshable: false
+        animate: true
+    }
+
+
+    PageState {
+        id: instanceState
+        key: "instance"
+        title: "实例管理"
         showBrand: false
         backable: true
         refreshable: false
@@ -407,6 +420,29 @@ Item {
                     anchors.fill: parent
                     style: root.appStyle
                     backend: root.backend
+                    onOpenInstance: function(versionId) {
+                        root.navigateInstance(versionId)
+                    }
+                }
+            }
+        }
+    }
+
+
+    Component {
+        id: instancePageComponent
+
+        HmclAnimatedPage {
+            anchors.fill: parent
+            style: root.appStyle
+            leftWidth: 0
+
+            centerComponent: Component {
+                InstancePage {
+                    anchors.fill: parent
+                    style: root.appStyle
+                    backend: root.backend
+                    versionId: root.activeInstanceVersion
                 }
             }
         }
@@ -492,6 +528,14 @@ Item {
         root.forceActiveFocus()
     }
 
+
+    function navigateInstance(versionId) {
+        root.activeInstanceVersion = versionId
+        instanceState.title = versionId && versionId.length > 0 ? versionId : "实例管理"
+        decoratorNavigator.navigate("instance", instancePageComponent, instanceState)
+        root.forceActiveFocus()
+    }
+
     function navigateSettingsSection(section) {
         root.requestedSettingsSection = section
         root.prepareSettingsPage()
@@ -528,7 +572,13 @@ Item {
             }
             break
         case "versions":
+            root.backend.refreshInstances()
             root.backend.refreshInstalledVersions()
+            break
+        case "instance":
+            if (root.activeInstanceVersion.length > 0) {
+                root.backend.refreshInstanceDetail(root.activeInstanceVersion)
+            }
             break
         case "account":
             root.backend.refreshAccounts()
@@ -550,6 +600,8 @@ Item {
             return downloadPageComponent
         case "versions":
             return versionsPageComponent
+        case "instance":
+            return instancePageComponent
         case "settings":
             return settingsPageComponent
         case "java":
@@ -569,6 +621,8 @@ Item {
             return downloadState
         case "versions":
             return versionsState
+        case "instance":
+            return instanceState
         case "settings":
             return settingsState
         case "java":
@@ -733,6 +787,7 @@ Item {
                 && page !== "account"
                 && page !== "download"
                 && page !== "versions"
+                && page !== "instance"
                 && page !== "settings"
                 && page !== "java"
     }
@@ -742,7 +797,9 @@ Item {
         case "account":
             return "账户管理"
         case "versions":
-            return "版本管理"
+            return "实例管理"
+        case "instance":
+            return root.activeInstanceVersion.length > 0 ? root.activeInstanceVersion : "实例管理"
         case "download":
             return "下载"
         case "settings":

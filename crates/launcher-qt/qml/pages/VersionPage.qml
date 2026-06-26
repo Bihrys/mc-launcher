@@ -9,322 +9,255 @@ Item {
     required property var style
     required property var backend
 
+    signal openInstance(string versionId)
+
+    readonly property string iconBase: "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/"
+    property string minecraftRoot: ""
+    property string profileRoot: ""
+    property string selectedInstance: ""
+    property bool searchMode: false
+    property string searchText: ""
+    property bool loading: false
+
     ListModel {
-        id: versionModel
+        id: profileModel
     }
 
-    property string minecraftRoot: ""
-    property string selectedVersion: ""
+    ListModel {
+        id: instanceModel
+    }
 
-    Component.onCompleted: root.reloadVersions()
+    ListModel {
+        id: filteredInstanceModel
+    }
+
+    Component.onCompleted: root.reloadInstances()
 
     onVisibleChanged: {
         if (visible) {
-            root.reloadVersions()
+            root.reloadInstances()
         }
     }
+
+    onSearchTextChanged: root.rebuildFilteredInstances()
 
     Connections {
         target: root.backend
 
+        function onInstanceListJsonChanged() {
+            root.applyInstancesJson(root.backend.instanceListJson)
+        }
+
         function onInstalledVersionsJsonChanged() {
-            root.applyVersionsJson(root.backend.installedVersionsJson)
+            if (!root.backend.instanceListJson || root.backend.instanceListJson.length === 0) {
+                root.reloadInstances()
+            }
         }
     }
 
-    ColumnLayout {
+    RowLayout {
         anchors.fill: parent
-        anchors.margins: 24
-        anchors.bottomMargin: 96
-        spacing: 18
-
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 12
-
-            Column {
-                Layout.fillWidth: true
-                spacing: 4
-
-                Text {
-                    text: "版本管理"
-                    color: root.style.cTextOnSurface
-                    font.pixelSize: 24
-                    font.bold: true
-                }
-
-                Text {
-                    text: root.minecraftRoot.length > 0
-                          ? "Minecraft 根目录：" + root.minecraftRoot
-                          : "管理已安装版本，选择后即可启动。"
-                    color: root.style.cTextOnSurfaceVariant
-                    font.pixelSize: 12
-                    elide: Text.ElideLeft
-                    width: parent.width
-                }
-            }
-
-            ActionButton {
-                style: root.style
-                text: "刷新"
-                primary: false
-                onClicked: root.reloadVersions()
-            }
-
-            ActionButton {
-                style: root.style
-                text: "启动所选版本"
-                primary: true
-                onClicked: root.backend.launchSelectedVersion()
-            }
-        }
+        spacing: 0
 
         Rectangle {
-            Layout.fillWidth: true
-            Layout.maximumWidth: 960
+            Layout.preferredWidth: root.style.sidebarWidthValue
             Layout.fillHeight: true
-            radius: root.style.radiusValue
-            color: root.style.cSurfaceContainerHigh
-            border.color: root.style.cBorder
-            border.width: 1
+            color: "transparent"
 
-            RowLayout {
+            ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 14
-                spacing: 14
+                spacing: 0
 
-                Rectangle {
-                    Layout.preferredWidth: 360
+                ScrollView {
+                    Layout.fillWidth: true
                     Layout.fillHeight: true
-                    radius: root.style.radiusValue
-                    color: root.style.cSurfaceContainer
-                    border.color: root.style.cBorder
-                    border.width: 1
                     clip: true
+                    contentWidth: availableWidth
+                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 10
-                        spacing: 8
+                    Column {
+                        width: root.style.sidebarWidthValue
+                        spacing: 0
 
-                        Text {
-                            text: "已安装版本"
-                            color: root.style.cTextOnSurface
-                            font.pixelSize: 16
-                            font.bold: true
+                        Item { width: 1; height: 12 }
+
+                        ClassTitle {
+                            style: root.style
+                            title: "游戏目录"
                         }
 
-                        Text {
-                            Layout.fillWidth: true
-                            text: versionModel.count > 0
-                                  ? "点击版本选择。双击可生成启动命令预览。"
-                                  : "还没有已安装版本。请先到下载页安装。"
-                            color: root.style.cTextOnSurfaceVariant
-                            font.pixelSize: 12
-                            wrapMode: Text.WordWrap
+                        Repeater {
+                            model: profileModel
+
+                            delegate: NavRow {
+                                style: root.style
+                                title: name
+                                subtitle: path
+                                iconKind: "DRESSER"
+                                active: index === 0
+                            }
                         }
 
-                        ListView {
-                            id: versionList
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            clip: true
-                            model: versionModel
-                            spacing: 8
-                            boundsBehavior: Flickable.StopAtBounds
-                            ScrollBar.vertical: ScrollBar {
-                                policy: ScrollBar.AsNeeded
-                            }
-
-                            delegate: Rectangle {
-                                id: item
-
-                                width: versionList.width
-                                height: 78
-                                radius: 8
-                                color: selected
-                                       ? root.style.cNavSelected
-                                       : mouse.containsMouse ? root.style.cNavHover : "transparent"
-                                border.width: selected ? 1 : 0
-                                border.color: root.style.cBorder
-
-                                Behavior on color {
-                                    ColorAnimation {
-                                        duration: root.style.animationsEnabled ? root.style.motionShort4 : 0
-                                        easing.type: Easing.OutCubic
-                                    }
-                                }
-
-                                MouseArea {
-                                    id: mouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-
-                                    onClicked: {
-                                        root.backend.selectGameVersion(versionId)
-                                        root.reloadVersions()
-                                    }
-
-                                    onDoubleClicked: {
-                                        root.backend.generateLaunchCommand(versionId)
-                                    }
-                                }
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: 10
-                                    spacing: 10
-
-                                    Item {
-                                        Layout.preferredWidth: 46
-                                        Layout.preferredHeight: 46
-
-                                        HmclImageContainer {
-                                            anchors.centerIn: parent
-                                            style: root.style
-                                            source: "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/" + iconName + ".png"
-                                            imageSize: 32
-                                            animationsEnabled: root.style.animationsEnabled
-                                        }
-
-                                        Rectangle {
-                                            anchors.right: parent.right
-                                            anchors.bottom: parent.bottom
-                                            width: 15
-                                            height: 15
-                                            radius: 7.5
-                                            visible: selected
-                                            color: root.style.cButtonSelected
-
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: "✓"
-                                                color: root.style.cButtonSelectedText
-                                                font.pixelSize: 9
-                                                font.bold: true
-                                            }
-                                        }
-                                    }
-
-                                    Column {
-                                        Layout.fillWidth: true
-                                        spacing: 4
-
-                                        Text {
-                                            width: parent.width
-                                            text: versionId
-                                            color: root.style.cTextOnSurface
-                                            font.pixelSize: 15
-                                            font.bold: selected
-                                            elide: Text.ElideRight
-                                        }
-
-                                        Text {
-                                            width: parent.width
-                                            text: versionType
-                                                  + (inheritsFrom.length > 0 ? " · inherits " + inheritsFrom : "")
-                                                  + (javaMajor > 0 ? " · Java " + javaMajor : "")
-                                            color: root.style.cTextOnSurfaceVariant
-                                            font.pixelSize: 11
-                                            elide: Text.ElideRight
-                                        }
-
-                                        Text {
-                                            width: parent.width
-                                            text: hasClientJar ? "client jar 已存在" : "无 client jar，可能是 loader profile"
-                                            color: root.style.cTextOnSurfaceVariant
-                                            font.pixelSize: 10
-                                            elide: Text.ElideRight
-                                        }
-                                    }
-
-                                    SmallButton {
-                                        style: root.style
-                                        text: "命令"
-                                        onClicked: root.backend.generateLaunchCommand(versionId)
-                                    }
-
-                                    SmallButton {
-                                        style: root.style
-                                        text: "删除"
-                                        onClicked: {
-                                            root.backend.deleteGameVersion(versionId)
-                                            root.reloadVersions()
-                                        }
-                                    }
-                                }
-                            }
+                        NavRow {
+                            style: root.style
+                            title: "新建游戏目录"
+                            subtitle: "Profile"
+                            iconKind: "ADD_CIRCLE"
+                            active: false
                         }
                     }
                 }
 
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    radius: root.style.radiusValue
-                    color: root.style.cSurfaceContainer
-                    border.color: root.style.cBorder
-                    border.width: 1
+                    Layout.preferredHeight: 40 * 3 + 24
+                    color: "transparent"
 
-                    ColumnLayout {
+                    Column {
                         anchors.fill: parent
-                        anchors.margins: 14
-                        spacing: 10
+                        anchors.topMargin: 12
+                        anchors.bottomMargin: 12
+                        spacing: 0
 
-                        Text {
-                            text: "启动输出"
-                            color: root.style.cTextOnSurface
-                            font.pixelSize: 16
-                            font.bold: true
+                        NavRow {
+                            style: root.style
+                            title: "安装新游戏"
+                            iconKind: "ADD_CIRCLE"
+                            active: false
+                            onClicked: root.backend.output = "请回到下载页安装新游戏。"
                         }
 
-                        Text {
-                            Layout.fillWidth: true
-                            text: root.selectedVersion.length > 0
-                                  ? "当前选择：" + root.selectedVersion
-                                  : "还没有选择版本。"
-                            color: root.style.cTextOnSurfaceVariant
-                            font.pixelSize: 12
-                            wrapMode: Text.WordWrap
+                        NavRow {
+                            style: root.style
+                            title: "导入整合包"
+                            iconKind: "PACKAGE2"
+                            active: false
+                            onClicked: root.backend.output = "拖入整合包或在下载页安装整合包。"
                         }
 
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 110
-                            radius: root.style.radiusValue
-                            color: root.style.cSurfaceContainerHigh
-                            border.color: root.style.cBorder
-                            border.width: 1
+                        NavRow {
+                            style: root.style
+                            title: "全局游戏设置"
+                            iconKind: "SETTINGS"
+                            active: false
+                            onClicked: root.backend.output = "全局设置位于设置页。"
+                        }
+                    }
+                }
+            }
+        }
+
+        Item {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+
+            Rectangle {
+                anchors.fill: parent
+                anchors.margins: 10
+                radius: root.style.radiusValue
+                color: root.style.cSurfaceContainerHigh
+                border.width: 1
+                border.color: root.style.cBorder
+                clip: true
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 0
+
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 48
+
+                        Loader {
+                            anchors.fill: parent
+                            sourceComponent: root.searchMode ? searchToolbar : normalToolbar
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 1
+                        color: root.style.cBorder
+                        opacity: 0.55
+                    }
+
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+
+                        HmclBusySpinner {
+                            anchors.centerIn: parent
+                            visible: root.loading
+                            style: root.style
+                        }
+
+                        Column {
+                            anchors.centerIn: parent
+                            visible: !root.loading && filteredInstanceModel.count === 0
+                            spacing: 12
+
+                            HmclSvgIcon {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                icon: "ADD_CIRCLE"
+                                iconSize: 48
+                                iconColor: root.style.cTextOnSurfaceVariant
+                                animationsEnabled: root.style.animationsEnabled
+                            }
 
                             Text {
-                                anchors.fill: parent
-                                anchors.margins: 12
-                                text: "启动前会按 HMCL 思路执行：解析 version.json → 处理 inheritsFrom → 合并 libraries/arguments → 生成 classpath → 解压 natives → 写 launch 脚本 → 启动 Java 进程。"
+                                width: 360
+                                horizontalAlignment: Text.AlignHCenter
+                                text: root.searchText.length > 0 ? "没有匹配的实例" : "还没有游戏实例"
+                                color: root.style.cTextOnSurface
+                                font.pixelSize: 16
+                                font.bold: true
+                            }
+
+                            Text {
+                                width: 360
+                                horizontalAlignment: Text.AlignHCenter
+                                text: root.searchText.length > 0 ? "清空搜索内容后重新查看列表。" : "到下载页安装游戏，或导入已有整合包。"
                                 color: root.style.cTextOnSurfaceVariant
                                 font.pixelSize: 12
                                 wrapMode: Text.WordWrap
-                                verticalAlignment: Text.AlignVCenter
                             }
                         }
 
-                        ScrollView {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
+                        ListView {
+                            id: listView
+                            anchors.fill: parent
+                            visible: !root.loading && filteredInstanceModel.count > 0
                             clip: true
-                            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                            ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                            model: filteredInstanceModel
+                            spacing: 0
+                            boundsBehavior: Flickable.StopAtBounds
+                            ScrollBar.vertical: ScrollBar {
+                                policy: ScrollBar.AsNeeded
+                            }
 
-                            TextArea {
-                                width: parent.width
-                                readOnly: true
-                                wrapMode: TextEdit.Wrap
-                                selectByMouse: true
-                                text: root.backend.output
-                                placeholderText: "启动输出会显示在这里。"
-                                color: root.style.cTextOnSurface
-                                placeholderTextColor: root.style.cTextOnSurfaceVariant
-                                background: Item {}
+                            delegate: GameListCellQt {
+                                width: listView.width
+                                style: root.style
+                                iconSource: root.iconBase + iconName + ".png"
+                                title: model.title
+                                subtitle: model.subtitle
+                                tag: model.tag
+                                selected: model.selected
+                                canUpdate: model.isModpack
+
+                                onSelectRequested: {
+                                    root.backend.selectInstance(model.id)
+                                    root.reloadInstances()
+                                }
+
+                                onOpenRequested: root.openInstance(model.id)
+                                onLaunchRequested: {
+                                    root.backend.selectInstance(model.id)
+                                    root.backend.startLaunchSelectedVersion("keep")
+                                }
+                                onManageRequested: root.openInstance(model.id)
+                                onUpdateRequested: root.openInstance(model.id)
                             }
                         }
                     }
@@ -333,72 +266,496 @@ Item {
         }
     }
 
-    function reloadVersions() {
-        var raw = root.backend.refreshInstalledVersions()
-        root.applyVersionsJson(raw)
+    Component {
+        id: normalToolbar
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 10
+            anchors.rightMargin: 10
+            spacing: 0
+
+            ToolButtonLike {
+                style: root.style
+                text: "刷新"
+                iconKind: "REFRESH"
+                onClicked: root.reloadInstances()
+            }
+
+            ToolButtonLike {
+                style: root.style
+                text: "搜索"
+                iconKind: "SEARCH"
+                onClicked: root.searchMode = true
+            }
+
+            Item { Layout.fillWidth: true }
+
+            Text {
+                text: root.minecraftRoot.length > 0 ? root.minecraftRoot : ""
+                color: root.style.cTextOnSurfaceVariant
+                font.pixelSize: 11
+                elide: Text.ElideLeft
+                Layout.maximumWidth: 360
+            }
+        }
     }
 
-    function applyVersionsJson(raw) {
+    Component {
+        id: searchToolbar
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 10
+            anchors.rightMargin: 10
+            spacing: 8
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 34
+                radius: 3
+                color: root.style.cButtonSurface
+                border.width: 1
+                border.color: searchInput.activeFocus ? root.style.cButtonSelected : root.style.cBorder
+
+                TextField {
+                    id: searchInput
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 10
+                    text: root.searchText
+                    placeholderText: "搜索"
+                    color: root.style.cTextOnSurface
+                    placeholderTextColor: root.style.cTextOnSurfaceVariant
+                    selectByMouse: true
+                    background: Item {}
+                    onTextChanged: root.searchText = text
+                    Component.onCompleted: forceActiveFocus()
+                    Keys.onEscapePressed: {
+                        root.searchMode = false
+                        root.searchText = ""
+                    }
+                }
+            }
+
+            ToolButtonLike {
+                style: root.style
+                text: ""
+                iconKind: "CLOSE"
+                onClicked: {
+                    root.searchMode = false
+                    root.searchText = ""
+                }
+            }
+        }
+    }
+
+    function reloadInstances() {
+        root.loading = true
+        var raw = root.backend.refreshInstances()
+        root.applyInstancesJson(raw)
+        root.loading = false
+    }
+
+    function applyInstancesJson(raw) {
         if (!raw || raw.length === 0) {
             return
         }
 
         var payload = JSON.parse(raw)
-
-        versionModel.clear()
+        instanceModel.clear()
+        profileModel.clear()
 
         root.minecraftRoot = payload.minecraftRoot || ""
-        root.selectedVersion = payload.selectedVersion || ""
+        root.profileRoot = payload.profileRoot || ""
+        root.selectedInstance = payload.selectedInstance || ""
 
-        if (!payload.versions) {
-            return
-        }
-
-        for (var i = 0; i < payload.versions.length; i++) {
-            var version = payload.versions[i]
-
-            versionModel.append({
-                "versionId": version.id || "",
-                "versionType": version.versionType || "",
-                "inheritsFrom": version.inheritsFrom || "",
-                "mainClass": version.mainClass || "",
-                "javaMajor": version.javaMajor || 0,
-                "hasClientJar": !!version.hasClientJar,
-                "hasVersionJson": !!version.hasVersionJson,
-                "selected": !!version.selected,
-                "iconName": version.iconName || "grass",
-                "path": version.path || ""
+        var profiles = payload.profiles || []
+        for (var p = 0; p < profiles.length; p++) {
+            profileModel.append({
+                "id": profiles[p].id || "default",
+                "name": profiles[p].name || "默认游戏目录",
+                "path": profiles[p].path || ""
             })
         }
+        if (profileModel.count === 0) {
+            profileModel.append({
+                "id": "default",
+                "name": "默认游戏目录",
+                "path": root.minecraftRoot
+            })
+        }
+
+        var instances = payload.instances || []
+        for (var i = 0; i < instances.length; i++) {
+            var item = instances[i]
+            instanceModel.append({
+                "id": item.id || "",
+                "title": item.title || item.id || "",
+                "tag": item.tag || "",
+                "subtitle": item.subtitle || item.gameVersion || "",
+                "iconName": item.iconName || "grass",
+                "selected": !!item.selected,
+                "isModpack": !!item.isModpack,
+                "isIsolated": !!item.isIsolated,
+                "path": item.path || "",
+                "runDirectory": item.runDirectory || ""
+            })
+        }
+
+        root.rebuildFilteredInstances()
     }
 
-    component ActionButton: Rectangle {
-        id: button
+    function rebuildFilteredInstances() {
+        filteredInstanceModel.clear()
+        var needle = root.searchText.toLowerCase()
 
+        for (var i = 0; i < instanceModel.count; i++) {
+            var item = instanceModel.get(i)
+            var text = (item.id + " " + item.title + " " + item.subtitle + " " + item.tag).toLowerCase()
+            if (needle.length === 0 || text.indexOf(needle) >= 0) {
+                filteredInstanceModel.append(item)
+            }
+        }
+    }
+
+    component ClassTitle: Item {
+        id: item
         required property var style
-        property string text: ""
-        property bool primary: false
+        property string title: ""
+        width: parent ? parent.width : 200
+        height: 34
 
+        Column {
+            anchors.fill: parent
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
+            anchors.topMargin: 8
+            anchors.bottomMargin: 8
+
+            Text {
+                width: parent.width
+                height: 16
+                text: item.title
+                color: item.style.cTextOnSurface
+                font.pixelSize: 12
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
+            }
+
+            Rectangle {
+                width: parent.width
+                height: 1
+                color: item.style.cTextOnSurfaceVariant
+                opacity: 0.65
+            }
+        }
+    }
+
+    component NavRow: Item {
+        id: item
+        required property var style
+        property string title: ""
+        property string subtitle: ""
+        property string iconKind: "FORMAT_LIST_BULLETED"
+        property bool active: false
         signal clicked()
 
-        width: Math.max(126, label.implicitWidth + 28)
-        height: 38
-        radius: 19
+        width: parent ? parent.width : 200
+        height: subtitle.length > 0 ? 58 : 40
 
-        color: primary
-               ? mouse.containsMouse ? style.cLaunchButtonHover : style.cLaunchButton
-               : mouse.containsMouse ? style.cButtonHover : style.cButtonSurface
+        Rectangle {
+            anchors.fill: parent
+            color: item.active ? item.style.cNavSelected : "transparent"
+        }
 
-        border.width: primary ? 0 : 1
-        border.color: style.cBorder
+        HmclRipple {
+            id: ripple
+            anchors.fill: parent
+            hovered: mouse.containsMouse
+            hoverColor: item.style.cTextOnSurface
+            hoverOpacity: 0.04
+            rippleColor: item.style.cTextOnSurfaceVariant
+            rippleOpacity: 0.10
+            animationsEnabled: item.style.animationsEnabled
+        }
 
-        Text {
-            id: label
+        MouseArea {
+            id: mouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onPressed: function(event) { ripple.press(event.x, event.y) }
+            onClicked: item.clicked()
+        }
+
+        HmclSvgIcon {
+            anchors.left: parent.left
+            anchors.leftMargin: 20
+            anchors.verticalCenter: parent.verticalCenter
+            icon: item.iconKind
+            iconSize: 20
+            iconColor: item.style.cTextOnSurface
+            animationsEnabled: item.style.animationsEnabled
+        }
+
+        Column {
+            anchors.left: parent.left
+            anchors.leftMargin: 58
+            anchors.right: parent.right
+            anchors.rightMargin: 16
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 3
+
+            Text {
+                width: parent.width
+                text: item.title
+                color: item.style.cTextOnSurface
+                font.pixelSize: 13
+                font.bold: item.active
+                elide: Text.ElideRight
+            }
+
+            Text {
+                visible: item.subtitle.length > 0
+                width: parent.width
+                text: item.subtitle
+                color: item.style.cTextOnSurfaceVariant
+                font.pixelSize: 10
+                elide: Text.ElideLeft
+            }
+        }
+    }
+
+    component ToolButtonLike: Rectangle {
+        id: button
+        required property var style
+        property string text: ""
+        property string iconKind: "REFRESH"
+        signal clicked()
+
+        width: Math.max(40, icon.width + label.implicitWidth + (button.text.length > 0 ? 24 : 16))
+        height: 36
+        radius: 3
+        color: mouse.containsMouse ? button.style.cButtonHover : "transparent"
+
+        HmclRipple {
+            id: ripple
+            anchors.fill: parent
+            hovered: mouse.containsMouse
+            hoverColor: button.style.cTextOnSurface
+            hoverOpacity: 0.04
+            rippleColor: button.style.cTextOnSurfaceVariant
+            rippleOpacity: 0.10
+            animationsEnabled: button.style.animationsEnabled
+        }
+
+        Row {
             anchors.centerIn: parent
-            text: button.text
-            color: button.primary ? button.style.cLaunchButtonText : button.style.cTextOnSurface
-            font.pixelSize: 13
-            font.bold: button.primary
+            spacing: button.text.length > 0 ? 6 : 0
+
+            HmclSvgIcon {
+                id: icon
+                anchors.verticalCenter: parent.verticalCenter
+                icon: button.iconKind
+                iconSize: 20
+                iconColor: button.style.cTextOnSurface
+                animationsEnabled: button.style.animationsEnabled
+            }
+
+            Text {
+                id: label
+                anchors.verticalCenter: parent.verticalCenter
+                visible: button.text.length > 0
+                text: button.text
+                color: button.style.cTextOnSurface
+                font.pixelSize: 13
+            }
+        }
+
+        MouseArea {
+            id: mouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onPressed: function(event) { ripple.press(event.x, event.y) }
+            onClicked: button.clicked()
+        }
+    }
+
+    component GameListCellQt: Item {
+        id: item
+        required property var style
+        property string title: ""
+        property string subtitle: ""
+        property string tag: ""
+        property string iconSource: ""
+        property bool selected: false
+        property bool canUpdate: false
+
+        signal selectRequested()
+        signal openRequested()
+        signal launchRequested()
+        signal manageRequested()
+        signal updateRequested()
+
+        height: 64
+
+        Rectangle {
+            anchors.fill: parent
+            color: mouse.containsMouse ? item.style.cNavHover : "transparent"
+
+            Behavior on color {
+                ColorAnimation {
+                    duration: item.style.animationsEnabled ? item.style.motionShort4 : 0
+                    easing.type: Easing.OutCubic
+                }
+            }
+        }
+
+        HmclRipple {
+            id: ripple
+            anchors.fill: parent
+            hovered: mouse.containsMouse
+            hoverColor: item.style.cTextOnSurface
+            hoverOpacity: 0.04
+            rippleColor: item.style.cTextOnSurfaceVariant
+            rippleOpacity: 0.10
+            animationsEnabled: item.style.animationsEnabled
+        }
+
+        MouseArea {
+            id: mouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onPressed: function(event) { ripple.press(event.x, event.y) }
+            onClicked: function(event) {
+                if (event.button === Qt.RightButton) {
+                    item.manageRequested()
+                } else {
+                    item.openRequested()
+                }
+            }
+        }
+
+        RadioButton {
+            id: selectedButton
+            anchors.left: parent.left
+            anchors.leftMargin: 10
+            anchors.verticalCenter: parent.verticalCenter
+            checked: item.selected
+            onClicked: item.selectRequested()
+        }
+
+        HmclImageContainer {
+            anchors.left: parent.left
+            anchors.leftMargin: 56
+            anchors.verticalCenter: parent.verticalCenter
+            style: item.style
+            source: item.iconSource
+            imageSize: 32
+            animationsEnabled: item.style.animationsEnabled
+        }
+
+        Column {
+            anchors.left: parent.left
+            anchors.leftMargin: 96
+            anchors.right: rightButtons.left
+            anchors.rightMargin: 8
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 4
+
+            Row {
+                width: parent.width
+                spacing: 6
+
+                Text {
+                    text: item.title
+                    color: item.style.cTextOnSurface
+                    font.pixelSize: 14
+                    font.bold: true
+                    elide: Text.ElideRight
+                    width: Math.min(implicitWidth, parent.width - tagChip.width - 10)
+                }
+
+                Rectangle {
+                    id: tagChip
+                    visible: item.tag.length > 0
+                    width: tagText.implicitWidth + 10
+                    height: 18
+                    radius: 2
+                    color: item.style.cNavSelected
+
+                    Text {
+                        id: tagText
+                        anchors.centerIn: parent
+                        text: item.tag
+                        color: item.style.cTextOnSurface
+                        font.pixelSize: 10
+                    }
+                }
+            }
+
+            Text {
+                width: parent.width
+                text: item.subtitle
+                color: item.style.cTextOnSurfaceVariant
+                font.pixelSize: 12
+                elide: Text.ElideRight
+            }
+        }
+
+        Row {
+            id: rightButtons
+            anchors.right: parent.right
+            anchors.rightMargin: 8
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 0
+
+            IconButton {
+                style: item.style
+                iconKind: "UPDATE"
+                visible: item.canUpdate
+                onClicked: item.updateRequested()
+            }
+
+            IconButton {
+                style: item.style
+                iconKind: "ROCKET_LAUNCH"
+                onClicked: item.launchRequested()
+            }
+
+            IconButton {
+                style: item.style
+                iconKind: "MORE_VERT"
+                onClicked: item.manageRequested()
+            }
+        }
+    }
+
+    component IconButton: Item {
+        id: button
+        required property var style
+        property string iconKind: "MORE_VERT"
+        signal clicked()
+
+        width: 36
+        height: 36
+
+        Rectangle {
+            anchors.fill: parent
+            radius: width / 2
+            color: mouse.containsMouse ? button.style.cButtonHover : "transparent"
+        }
+
+        HmclSvgIcon {
+            anchors.centerIn: parent
+            icon: button.iconKind
+            iconSize: 20
+            iconColor: button.style.cTextOnSurface
+            animationsEnabled: button.style.animationsEnabled
         }
 
         MouseArea {
@@ -410,36 +767,43 @@ Item {
         }
     }
 
-    component SmallButton: Rectangle {
-        id: button
-
+    component HmclBusySpinner: Item {
+        id: spinner
         required property var style
-        property string text: ""
+        width: 48
+        height: 48
 
-        signal clicked()
-
-        width: Math.max(52, label.implicitWidth + 18)
-        height: 28
-        radius: 14
-
-        color: mouse.containsMouse ? style.cButtonHover : style.cButtonSurface
-        border.width: 1
-        border.color: style.cBorder
-
-        Text {
-            id: label
-            anchors.centerIn: parent
-            text: button.text
-            color: button.style.cTextOnSurface
-            font.pixelSize: 12
-        }
-
-        MouseArea {
-            id: mouse
+        Canvas {
+            id: canvas
             anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: button.clicked()
+            property real angle: 0
+            onPaint: {
+                var ctx = getContext("2d")
+                ctx.clearRect(0, 0, width, height)
+                ctx.save()
+                ctx.translate(width / 2, height / 2)
+                ctx.rotate(angle)
+                ctx.lineWidth = 3
+                ctx.lineCap = "round"
+                ctx.strokeStyle = spinner.style.cTextOnSurfaceVariant
+                ctx.globalAlpha = 0.88
+                ctx.beginPath()
+                ctx.arc(0, 0, Math.min(width, height) / 2 - 5, -Math.PI * 0.15, Math.PI * 1.25)
+                ctx.stroke()
+                ctx.restore()
+            }
+
+            NumberAnimation on angle {
+                from: 0
+                to: Math.PI * 2
+                duration: 900
+                loops: Animation.Infinite
+                running: spinner.visible
+                easing.type: Easing.Linear
+                onRunningChanged: canvas.requestPaint()
+            }
+
+            onAngleChanged: requestPaint()
         }
     }
 }

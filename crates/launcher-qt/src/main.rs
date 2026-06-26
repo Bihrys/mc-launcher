@@ -1,6 +1,7 @@
 pub mod backend;
 mod backend_account;
 mod backend_download;
+mod backend_instance;
 mod backend_java;
 mod backend_launch;
 mod backend_settings;
