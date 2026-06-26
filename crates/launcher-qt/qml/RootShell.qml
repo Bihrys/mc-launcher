@@ -325,6 +325,9 @@ Item {
                     onPrepareSettings: root.prepareSettingsPage()
                     onPrepareDownload: root.prepareDownloadPage()
                     onPrepareVersion: root.prepareVersionPage()
+                    onOpenSelectedInstance: function(versionId) {
+                        root.navigateInstance(versionId)
+                    }
                 }
             }
 
@@ -530,8 +533,15 @@ Item {
 
 
     function navigateInstance(versionId) {
-        root.activeInstanceVersion = versionId
-        instanceState.title = versionId && versionId.length > 0 ? versionId : "实例管理"
+        var targetVersion = versionId && versionId.length > 0 ? versionId : root.backend.selectedGameVersion
+
+        if (!targetVersion || targetVersion.length === 0) {
+            root.navigate("versions")
+            return
+        }
+
+        root.activeInstanceVersion = targetVersion
+        instanceState.title = targetVersion
         decoratorNavigator.navigate("instance", instancePageComponent, instanceState)
         root.forceActiveFocus()
     }

@@ -17,6 +17,7 @@ Rectangle {
     signal prepareSettings
     signal prepareDownload
     signal prepareVersion
+    signal openSelectedInstance(string versionId)
 
     width: 200
     color: "transparent"
@@ -70,9 +71,15 @@ Rectangle {
                 title: root.backend.selectedGameVersion.length > 0 ? "实例管理" : "未安装游戏"
                 subtitle: root.backend.selectedGameVersion.length > 0 ? root.backend.selectedGameVersion : "安装新游戏"
                 imageSource: root.selectedVersionIconSource()
-                active: root.currentPage === "main"
+                active: root.currentPage === "main" || root.currentPage === "instance"
                 onEntered: root.prepareVersion()
-                onClicked: root.navigate("versions")
+                onClicked: {
+                    if (root.backend.selectedGameVersion.length > 0) {
+                        root.openSelectedInstance(root.backend.selectedGameVersion)
+                    } else {
+                        root.navigate("download")
+                    }
+                }
             }
 
             HmclListItem {

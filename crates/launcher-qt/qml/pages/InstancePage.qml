@@ -160,7 +160,7 @@ Item {
                         NavTab {
                             style: root.style
                             title: "管理"
-                            iconKind: "MORE_VERT"
+                            iconKind: "MENU"
                             active: root.actionMenuOpen
                             onClicked: {
                                 root.actionMenuOpen = !root.actionMenuOpen
@@ -392,6 +392,7 @@ Item {
             folderModel.append({
                 "key": folders[i].key || "",
                 "title": folders[i].title || "",
+                "folderTitle": folders[i].title || "",
                 "path": folders[i].path || "",
                 "exists": !!folders[i].exists,
                 "itemCount": folders[i].itemCount || 0
@@ -825,6 +826,9 @@ Item {
                 Repeater {
                     model: loaderModel
                     delegate: ListCard {
+                        required property string kind
+                        required property string version
+
                         Layout.fillWidth: true
                         style: tab.style
                         iconKind: "DEPLOYED_CODE"
@@ -898,19 +902,7 @@ Item {
                     onAction: tab.rootPage.backend.openInstanceFolder(tab.rootPage.versionId, tab.folderKey)
                 }
 
-                SettingsCard {
-                    Layout.fillWidth: true
-                    style: tab.style
-                    title: "说明"
-
-                    Text {
-                        Layout.fillWidth: true
-                        text: "此页按 HMCL 的实例管理结构进入实例子页面，再从左侧切换 Mod、资源包、世界等实例内容。Qt 端当前直接打开对应文件夹，由文件系统负责新增、删除和替换内容。"
-                        color: tab.style.cTextOnSurfaceVariant
-                        font.pixelSize: 12
-                        wrapMode: Text.WordWrap
-                    }
-                }
+                Item { Layout.fillWidth: true; Layout.preferredHeight: 1 }
             }
         }
     }
@@ -1123,12 +1115,16 @@ Item {
             Repeater {
                 model: panel.model
                 delegate: PopupItem {
+                    required property string key
+                    required property string folderTitle
+                    required property int itemCount
+
                     Layout.fillWidth: true
                     style: panel.style
-                    title: model.title
-                    subtitle: model.itemCount + " 项"
-                    iconKind: model.key === "mods" ? "EXTENSION" : model.key === "resourcepacks" ? "TEXTURE" : model.key === "saves" ? "PUBLIC" : "FOLDER_OPEN"
-                    onClicked: panel.triggered(model.key)
+                    title: folderTitle
+                    subtitle: itemCount + " 项"
+                    iconKind: key === "mods" ? "EXTENSION" : key === "resourcepacks" ? "TEXTURE" : key === "saves" ? "PUBLIC" : "FOLDER_OPEN"
+                    onClicked: panel.triggered(key)
                 }
             }
         }
