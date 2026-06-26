@@ -182,7 +182,7 @@ Item {
     PageState {
         id: versionsState
         key: "versions"
-        title: "版本管理"
+        title: "实例列表"
         showBrand: false
         backable: true
         refreshable: false

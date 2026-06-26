@@ -647,6 +647,20 @@ fn detect_version_icon(id: &str, json: &Value) -> String {
         return "april_fools".to_string();
     }
 
+    let version_type = json
+        .get("type")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+
+    if version_type == "snapshot" || is_snapshot_like_version(id) {
+        return "command".to_string();
+    }
+
+    if version_type.starts_with("old_") || is_old_like_version(id) {
+        return "craft_table".to_string();
+    }
+
     for (needle, icon) in [
         ("cleanroom", "cleanroom"),
         ("legacyfabric", "legacyfabric"),
@@ -672,6 +686,39 @@ fn detect_version_icon(id: &str, json: &Value) -> String {
     }
 
     "grass".to_string()
+}
+
+
+fn is_snapshot_like_version(id: &str) -> bool {
+    let lower = id.to_ascii_lowercase();
+    let bytes = lower.as_bytes();
+
+    if bytes.len() >= 6
+        && bytes[0].is_ascii_digit()
+        && bytes[1].is_ascii_digit()
+        && bytes[2] == b'w'
+        && bytes[3].is_ascii_digit()
+        && bytes[4].is_ascii_digit()
+        && bytes[5].is_ascii_lowercase()
+    {
+        return true;
+    }
+
+    lower.contains("snapshot") || lower.contains("pre") || lower.contains("rc")
+}
+
+fn is_old_like_version(id: &str) -> bool {
+    let lower = id.to_ascii_lowercase();
+
+    lower.starts_with("old_")
+        || lower.starts_with("rd-")
+        || lower.starts_with("c0.")
+        || lower.starts_with("a1.")
+        || lower.starts_with("b1.")
+        || lower.starts_with("inf-")
+        || lower.contains("classic")
+        || lower.contains("indev")
+        || lower.contains("infdev")
 }
 
 fn is_april_fools_version(id: &str) -> bool {

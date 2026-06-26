@@ -141,6 +141,18 @@ Rectangle {
         }
 
         try {
+            var instancesPayload = JSON.parse(root.backend.instanceListJson || "{}");
+            var instances = instancesPayload.instances || [];
+
+            for (var a = 0; a < instances.length; a++) {
+                var instance = instances[a];
+                if (instance.id === selected || instance.selected === true) {
+                    return root.iconBase + String(instance.iconName || "grass") + ".png";
+                }
+            }
+        } catch (e) {}
+
+        try {
             var payload = JSON.parse(root.backend.installedVersionsJson || "{}");
             var versions = payload.versions || [];
 

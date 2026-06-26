@@ -18,18 +18,14 @@ Item {
     property bool searchMode: false
     property string searchText: ""
     property bool loading: false
+    property bool menuOpen: false
+    property string menuInstanceId: ""
+    property real menuX: 0
+    property real menuY: 0
 
-    ListModel {
-        id: profileModel
-    }
-
-    ListModel {
-        id: instanceModel
-    }
-
-    ListModel {
-        id: filteredInstanceModel
-    }
+    ListModel { id: profileModel }
+    ListModel { id: instanceModel }
+    ListModel { id: filteredInstanceModel }
 
     Component.onCompleted: root.reloadInstances()
 
@@ -91,9 +87,13 @@ Item {
                             model: profileModel
 
                             delegate: NavRow {
+                                required property string profileName
+                                required property string profilePath
+                                required property int index
+
                                 style: root.style
-                                title: name
-                                subtitle: path
+                                title: profileName
+                                subtitle: profilePath
                                 iconKind: "DRESSER"
                                 active: index === 0
                             }
@@ -102,7 +102,6 @@ Item {
                         NavRow {
                             style: root.style
                             title: "新建游戏目录"
-                            subtitle: "Profile"
                             iconKind: "ADD_CIRCLE"
                             active: false
                         }
@@ -175,13 +174,6 @@ Item {
                         }
                     }
 
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 1
-                        color: root.style.cBorder
-                        opacity: 0.55
-                    }
-
                     Item {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
@@ -232,36 +224,89 @@ Item {
                             model: filteredInstanceModel
                             spacing: 0
                             boundsBehavior: Flickable.StopAtBounds
-                            ScrollBar.vertical: ScrollBar {
-                                policy: ScrollBar.AsNeeded
-                            }
+                            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
                             delegate: GameListCellQt {
+                                id: cell
+
+                                required property string roleInstanceId
+                                required property string roleTitle
+                                required property string roleSubtitle
+                                required property string roleTag
+                                required property string roleIconName
+                                required property bool roleSelected
+                                required property bool roleCanUpdate
+
                                 width: listView.width
                                 style: root.style
-                                iconSource: root.iconBase + iconName + ".png"
-                                title: model.title
-                                subtitle: model.subtitle
-                                tag: model.tag
-                                selected: model.selected
-                                canUpdate: model.isModpack
+                                iconSource: root.iconBase + roleIconName + ".png"
+                                title: roleTitle
+                                subtitle: roleSubtitle
+                                tag: roleTag
+                                selected: roleSelected
+                                canUpdate: roleCanUpdate
 
                                 onSelectRequested: {
-                                    root.backend.selectInstance(model.id)
+                                    root.backend.selectInstance(roleInstanceId)
                                     root.reloadInstances()
                                 }
 
-                                onOpenRequested: root.openInstance(model.id)
+                                onOpenRequested: root.openInstance(roleInstanceId)
                                 onLaunchRequested: {
-                                    root.backend.selectInstance(model.id)
+                                    root.backend.selectInstance(roleInstanceId)
                                     root.backend.startLaunchSelectedVersion("keep")
                                 }
-                                onManageRequested: root.openInstance(model.id)
-                                onUpdateRequested: root.openInstance(model.id)
+                                onManageRequested: function(localX, localY) {
+                                    var pos = cell.mapToItem(root, localX, localY)
+                                    root.openGameMenu(roleInstanceId, pos.x, pos.y)
+                                }
+                                onUpdateRequested: root.openInstance(roleInstanceId)
                             }
                         }
                     }
                 }
+            }
+        }
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        visible: root.menuOpen
+        z: 900
+        color: "transparent"
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: root.menuOpen = false
+        }
+
+        Rectangle {
+            id: contextMenu
+            x: root.menuX
+            y: root.menuY
+            width: 250
+            height: menuColumn.implicitHeight + 8
+            radius: 2
+            color: root.style.cSurface
+            border.width: 1
+            border.color: root.style.cBorder
+            clip: true
+
+            Column {
+                id: menuColumn
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.topMargin: 4
+                anchors.bottomMargin: 4
+                spacing: 0
+
+                MenuRow { style: root.style; title: "测试游戏"; iconKind: "ROCKET_LAUNCH"; onClicked: root.menuLaunch() }
+                MenuRow { style: root.style; title: "生成启动脚本"; iconKind: "SCRIPT"; onClicked: root.menuScript() }
+                MenuSeparator { style: root.style }
+                MenuRow { style: root.style; title: "管理"; iconKind: "SETTINGS"; onClicked: root.menuManage() }
+                MenuSeparator { style: root.style }
+                MenuRow { style: root.style; title: "打开游戏文件夹"; iconKind: "FOLDER_OPEN"; onClicked: root.menuOpenFolder() }
             }
         }
     }
@@ -271,8 +316,8 @@ Item {
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
+            anchors.leftMargin: 5
+            anchors.rightMargin: 5
             spacing: 0
 
             ToolButtonLike {
@@ -290,14 +335,6 @@ Item {
             }
 
             Item { Layout.fillWidth: true }
-
-            Text {
-                text: root.minecraftRoot.length > 0 ? root.minecraftRoot : ""
-                color: root.style.cTextOnSurfaceVariant
-                font.pixelSize: 11
-                elide: Text.ElideLeft
-                Layout.maximumWidth: 360
-            }
         }
     }
 
@@ -306,9 +343,9 @@ Item {
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 10
-            anchors.rightMargin: 10
-            spacing: 8
+            anchors.leftMargin: 5
+            anchors.rightMargin: 5
+            spacing: 5
 
             Rectangle {
                 Layout.fillWidth: true
@@ -351,6 +388,7 @@ Item {
     }
 
     function reloadInstances() {
+        root.menuOpen = false
         root.loading = true
         var raw = root.backend.refreshInstances()
         root.applyInstancesJson(raw)
@@ -373,16 +411,16 @@ Item {
         var profiles = payload.profiles || []
         for (var p = 0; p < profiles.length; p++) {
             profileModel.append({
-                "id": profiles[p].id || "default",
-                "name": profiles[p].name || "默认游戏目录",
-                "path": profiles[p].path || ""
+                "profileId": profiles[p].id || "default",
+                "profileName": profiles[p].name || "默认游戏目录",
+                "profilePath": profiles[p].path || ""
             })
         }
         if (profileModel.count === 0) {
             profileModel.append({
-                "id": "default",
-                "name": "默认游戏目录",
-                "path": root.minecraftRoot
+                "profileId": "default",
+                "profileName": "默认游戏目录",
+                "profilePath": root.minecraftRoot
             })
         }
 
@@ -390,16 +428,14 @@ Item {
         for (var i = 0; i < instances.length; i++) {
             var item = instances[i]
             instanceModel.append({
-                "id": item.id || "",
-                "title": item.title || item.id || "",
-                "tag": item.tag || "",
-                "subtitle": item.subtitle || item.gameVersion || "",
-                "iconName": item.iconName || "grass",
-                "selected": !!item.selected,
-                "isModpack": !!item.isModpack,
-                "isIsolated": !!item.isIsolated,
-                "path": item.path || "",
-                "runDirectory": item.runDirectory || ""
+                "roleInstanceId": item.id || "",
+                "roleTitle": item.title || item.id || "",
+                "roleTag": item.tag || "",
+                "roleSubtitle": item.subtitle || item.gameVersion || "",
+                "roleIconName": item.iconName || "grass",
+                "roleSelected": !!item.selected,
+                "roleCanUpdate": !!item.isModpack,
+                "roleSearchText": ((item.id || "") + " " + (item.title || "") + " " + (item.subtitle || "") + " " + (item.tag || "")).toLowerCase()
             })
         }
 
@@ -412,11 +448,55 @@ Item {
 
         for (var i = 0; i < instanceModel.count; i++) {
             var item = instanceModel.get(i)
-            var text = (item.id + " " + item.title + " " + item.subtitle + " " + item.tag).toLowerCase()
-            if (needle.length === 0 || text.indexOf(needle) >= 0) {
-                filteredInstanceModel.append(item)
+            if (needle.length === 0 || item.roleSearchText.indexOf(needle) >= 0) {
+                filteredInstanceModel.append({
+                    "roleInstanceId": item.roleInstanceId,
+                    "roleTitle": item.roleTitle,
+                    "roleTag": item.roleTag,
+                    "roleSubtitle": item.roleSubtitle,
+                    "roleIconName": item.roleIconName,
+                    "roleSelected": item.roleSelected,
+                    "roleCanUpdate": item.roleCanUpdate,
+                    "roleSearchText": item.roleSearchText
+                })
             }
         }
+    }
+
+    function openGameMenu(instanceId, x, y) {
+        root.menuInstanceId = instanceId
+        root.menuX = Math.max(8, Math.min(x - 250, root.width - 260))
+        root.menuY = Math.max(8, Math.min(y - 8, root.height - 220))
+        root.menuOpen = true
+    }
+
+    function closeGameMenu() {
+        root.menuOpen = false
+    }
+
+    function menuLaunch() {
+        var id = root.menuInstanceId
+        root.closeGameMenu()
+        root.backend.selectInstance(id)
+        root.backend.startLaunchSelectedVersion("keep")
+    }
+
+    function menuScript() {
+        var id = root.menuInstanceId
+        root.closeGameMenu()
+        root.backend.generateInstanceLaunchCommand(id)
+    }
+
+    function menuManage() {
+        var id = root.menuInstanceId
+        root.closeGameMenu()
+        root.openInstance(id)
+    }
+
+    function menuOpenFolder() {
+        var id = root.menuInstanceId
+        root.closeGameMenu()
+        root.backend.openInstanceFolder(id, "game")
     }
 
     component ClassTitle: Item {
@@ -432,6 +512,7 @@ Item {
             anchors.rightMargin: 16
             anchors.topMargin: 8
             anchors.bottomMargin: 8
+            spacing: 0
 
             Text {
                 width: parent.width
@@ -535,8 +616,8 @@ Item {
         signal clicked()
 
         width: Math.max(40, icon.width + label.implicitWidth + (button.text.length > 0 ? 24 : 16))
-        height: 36
-        radius: 3
+        height: 37
+        radius: 5
         color: mouse.containsMouse ? button.style.cButtonHover : "transparent"
 
         HmclRipple {
@@ -596,10 +677,10 @@ Item {
         signal selectRequested()
         signal openRequested()
         signal launchRequested()
-        signal manageRequested()
+        signal manageRequested(real x, real y)
         signal updateRequested()
 
-        height: 64
+        height: 49
 
         Rectangle {
             anchors.fill: parent
@@ -633,25 +714,25 @@ Item {
             onPressed: function(event) { ripple.press(event.x, event.y) }
             onClicked: function(event) {
                 if (event.button === Qt.RightButton) {
-                    item.manageRequested()
+                    item.manageRequested(event.x, event.y)
                 } else {
                     item.openRequested()
                 }
             }
         }
 
-        RadioButton {
-            id: selectedButton
+        HmclRadioCircle {
             anchors.left: parent.left
             anchors.leftMargin: 10
             anchors.verticalCenter: parent.verticalCenter
+            style: item.style
             checked: item.selected
             onClicked: item.selectRequested()
         }
 
         HmclImageContainer {
             anchors.left: parent.left
-            anchors.leftMargin: 56
+            anchors.leftMargin: 48
             anchors.verticalCenter: parent.verticalCenter
             style: item.style
             source: item.iconSource
@@ -661,29 +742,31 @@ Item {
 
         Column {
             anchors.left: parent.left
-            anchors.leftMargin: 96
+            anchors.leftMargin: 88
             anchors.right: rightButtons.left
             anchors.rightMargin: 8
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 4
+            spacing: 1
 
             Row {
                 width: parent.width
-                spacing: 6
+                height: 20
+                spacing: 8
 
                 Text {
                     text: item.title
                     color: item.style.cTextOnSurface
-                    font.pixelSize: 14
-                    font.bold: true
+                    font.pixelSize: 15
+                    font.bold: false
                     elide: Text.ElideRight
-                    width: Math.min(implicitWidth, parent.width - tagChip.width - 10)
+                    verticalAlignment: Text.AlignVCenter
+                    width: Math.min(implicitWidth, parent.width - (tagChip.visible ? tagChip.width + 10 : 0))
                 }
 
                 Rectangle {
                     id: tagChip
                     visible: item.tag.length > 0
-                    width: tagText.implicitWidth + 10
+                    width: tagText.implicitWidth + 8
                     height: 18
                     radius: 2
                     color: item.style.cNavSelected
@@ -693,17 +776,19 @@ Item {
                         anchors.centerIn: parent
                         text: item.tag
                         color: item.style.cTextOnSurface
-                        font.pixelSize: 10
+                        font.pixelSize: 12
                     }
                 }
             }
 
             Text {
                 width: parent.width
+                height: 17
                 text: item.subtitle
                 color: item.style.cTextOnSurfaceVariant
                 font.pixelSize: 12
                 elide: Text.ElideRight
+                verticalAlignment: Text.AlignVCenter
             }
         }
 
@@ -730,8 +815,56 @@ Item {
             IconButton {
                 style: item.style
                 iconKind: "MORE_VERT"
-                onClicked: item.manageRequested()
+                onClicked: {
+                    var p = rightButtons.mapToItem(item, rightButtons.width, rightButtons.height / 2)
+                    item.manageRequested(p.x, p.y)
+                }
             }
+        }
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: 1
+            color: item.style.cBorder
+            opacity: 0.75
+        }
+    }
+
+    component HmclRadioCircle: Item {
+        id: radio
+        required property var style
+        property bool checked: false
+        signal clicked()
+
+        width: 28
+        height: 28
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: 18
+            height: 18
+            radius: 9
+            color: "transparent"
+            border.width: 2
+            border.color: radio.checked ? radio.style.cPrimary : radio.style.cTextOnSurfaceVariant
+        }
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: 9
+            height: 9
+            radius: 5
+            visible: radio.checked
+            color: radio.style.cPrimary
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: radio.clicked()
         }
     }
 
@@ -741,8 +874,8 @@ Item {
         property string iconKind: "MORE_VERT"
         signal clicked()
 
-        width: 36
-        height: 36
+        width: 30
+        height: 30
 
         Rectangle {
             anchors.fill: parent
@@ -765,6 +898,60 @@ Item {
             cursorShape: Qt.PointingHandCursor
             onClicked: button.clicked()
         }
+    }
+
+    component MenuRow: Item {
+        id: row
+        required property var style
+        property string title: ""
+        property string iconKind: "SETTINGS"
+        signal clicked()
+
+        width: parent ? parent.width : 250
+        height: 32
+
+        Rectangle {
+            anchors.fill: parent
+            color: mouse.containsMouse ? row.style.cNavHover : "transparent"
+        }
+
+        HmclSvgIcon {
+            anchors.left: parent.left
+            anchors.leftMargin: 12
+            anchors.verticalCenter: parent.verticalCenter
+            icon: row.iconKind
+            iconSize: 18
+            iconColor: row.style.cTextOnSurface
+            animationsEnabled: row.style.animationsEnabled
+        }
+
+        Text {
+            anchors.left: parent.left
+            anchors.leftMargin: 42
+            anchors.right: parent.right
+            anchors.rightMargin: 12
+            anchors.verticalCenter: parent.verticalCenter
+            text: row.title
+            color: row.style.cTextOnSurface
+            font.pixelSize: 13
+            elide: Text.ElideRight
+        }
+
+        MouseArea {
+            id: mouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: row.clicked()
+        }
+    }
+
+    component MenuSeparator: Rectangle {
+        required property var style
+        width: parent ? parent.width : 250
+        height: 1
+        color: style.cBorder
+        opacity: 0.75
     }
 
     component HmclBusySpinner: Item {
@@ -800,7 +987,6 @@ Item {
                 loops: Animation.Infinite
                 running: spinner.visible
                 easing.type: Easing.Linear
-                onRunningChanged: canvas.requestPaint()
             }
 
             onAngleChanged: requestPaint()
