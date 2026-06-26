@@ -105,12 +105,133 @@ Item {
         onTriggered: root.pollDownloadTask()
     }
 
-    Item {
+    RowLayout {
         anchors.fill: parent
-        clip: true
+        spacing: 0
 
-        GameDownloadPane {
-            anchors.fill: parent
+        Rectangle {
+            Layout.preferredWidth: root.showDownloadSidebar() ? 200 : 0
+            Layout.fillHeight: true
+            visible: root.showDownloadSidebar()
+            color: "transparent"
+            clip: true
+
+            Column {
+                anchors.fill: parent
+                anchors.margins: 12
+                spacing: 6
+
+                HmclClassTitle {
+                    width: parent.width
+                    text: "游戏"
+                }
+
+                DownloadNavItem {
+                    width: parent.width
+                    style: root.style
+                    iconSource: "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/grass.png"
+                    title: "游戏"
+                    subtitle: "Minecraft"
+                    selected: root.currentTab === "game"
+                    onClicked: root.currentTab = "game"
+                }
+
+                DownloadNavItem {
+                    width: parent.width
+                    style: root.style
+                    iconKind: "PACKAGE2"
+                    title: "整合包"
+                    subtitle: "Modpack"
+                    selected: root.currentTab === "modpack"
+                    onClicked: root.currentTab = "modpack"
+                }
+
+                HmclClassTitle {
+                    width: parent.width
+                    text: "内容"
+                }
+
+                DownloadNavItem {
+                    width: parent.width
+                    style: root.style
+                    iconKind: "EXTENSION"
+                    title: "Mod"
+                    subtitle: "CurseForge / Modrinth"
+                    selected: root.currentTab === "mod"
+                    onClicked: root.currentTab = "mod"
+                }
+
+                DownloadNavItem {
+                    width: parent.width
+                    style: root.style
+                    iconKind: "TEXTURE"
+                    title: "资源包"
+                    subtitle: "Resource Pack"
+                    selected: root.currentTab === "resourcepack"
+                    onClicked: root.currentTab = "resourcepack"
+                }
+
+                DownloadNavItem {
+                    width: parent.width
+                    style: root.style
+                    iconKind: "WB_SUNNY"
+                    title: "光影包"
+                    subtitle: "Shader"
+                    selected: root.currentTab === "shader"
+                    onClicked: root.currentTab = "shader"
+                }
+
+                DownloadNavItem {
+                    width: parent.width
+                    style: root.style
+                    iconKind: "PUBLIC"
+                    title: "世界"
+                    subtitle: "World"
+                    selected: root.currentTab === "world"
+                    onClicked: root.currentTab = "world"
+                }
+
+                Item {
+                    width: parent.width
+                    height: 4
+                }
+
+                Rectangle {
+                    width: parent.width
+                    height: 1
+                    color: root.style.cBorder
+                }
+
+                Text {
+                    width: parent.width
+                    text: root.catalog
+                          ? "最新正式版 " + root.catalog.latestRelease + "\n最新快照 " + root.catalog.latestSnapshot
+                          : ""
+                    color: root.style.cTextOnSurfaceVariant
+                    font.pixelSize: 11
+                    wrapMode: Text.WordWrap
+                }
+            }
+        }
+
+        Item {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            clip: true
+
+            GameDownloadPane {
+                anchors.fill: parent
+                visible: root.currentTab === "game"
+                opacity: visible ? 1 : 0
+            }
+
+            DownloadPlaceholderPane {
+                anchors.fill: parent
+                visible: root.currentTab !== "game"
+                opacity: visible ? 1 : 0
+                title: root.placeholderTitle(root.currentTab)
+                message: ""
+            }
         }
     }
 
@@ -144,6 +265,10 @@ Item {
 
             onCloseRequested: root.downloadDialogOpen = false
         }
+    }
+
+    function showDownloadSidebar() {
+        return !root.installerPaneOpen && !root.loaderVersionPaneOpen
     }
 
     function handleBack() {
@@ -1027,7 +1152,7 @@ Item {
                     HmclButton {
                         Layout.preferredWidth: 72
                         style: root.style
-                        text: root.catalogTaskStatus.active ? "加载中" : "刷新"
+                        text: "刷新"
                         primary: true
                         buttonEnabled: !root.catalogTaskStatus.active
                         onClicked: root.startRefreshCatalog()
@@ -1035,48 +1160,10 @@ Item {
                 }
             }
 
-            Rectangle {
+            Item {
                 Layout.fillWidth: true
-                Layout.preferredHeight: root.catalogTaskStatus.active ? 52 : 0
-                visible: root.catalogTaskStatus.active
-                radius: 4
-                color: root.style.cSurfaceContainer
-                border.color: root.style.cBorder
-                border.width: 1
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 10
-
-                    BusyIndicator {
-                        Layout.preferredWidth: 28
-                        Layout.preferredHeight: 28
-                        running: true
-                    }
-
-                    Column {
-                        Layout.fillWidth: true
-                        spacing: 2
-
-                        Text {
-                            width: parent.width
-                            text: root.catalogTaskStatus.title || "正在获取原版版本清单"
-                            color: root.style.cTextOnSurface
-                            font.pixelSize: 13
-                            font.bold: true
-                            elide: Text.ElideRight
-                        }
-
-                        Text {
-                            width: parent.width
-                            text: root.catalogTaskStatus.message || ""
-                            color: root.style.cTextOnSurfaceVariant
-                            font.pixelSize: 11
-                            elide: Text.ElideRight
-                        }
-                    }
-                }
+                Layout.preferredHeight: 0
+                visible: false
             }
 
             Rectangle {
@@ -1096,6 +1183,7 @@ Item {
                     model: visibleVersionModel
                     spacing: 0
                     clip: true
+                    visible: !root.catalogTaskStatus.active
 
                     delegate: Item {
                         id: versionDelegate
@@ -1122,6 +1210,15 @@ Item {
                             onClicked: root.openInstallerForVersion(versionDelegate.index)
                         }
                     }
+                }
+
+                HmclSpinner {
+                    anchors.centerIn: parent
+                    width: 50
+                    height: 50
+                    style: root.style
+                    visible: root.catalogTaskStatus.active
+                    running: visible
                 }
 
                 Text {
@@ -1183,7 +1280,7 @@ Item {
                     HmclButton {
                         Layout.preferredWidth: 72
                         style: root.style
-                        text: root.installerMetadataTaskStatus.active ? "加载中" : "刷新"
+                        text: "刷新"
                         primary: true
                         buttonEnabled: !root.installerMetadataTaskStatus.active
                         onClicked: root.startFetchLoaderMetadata(root.loaderVersionKind)
@@ -1241,10 +1338,11 @@ Item {
                     }
                 }
 
-                BusyIndicator {
+                HmclSpinner {
                     anchors.centerIn: parent
-                    width: 42
-                    height: 42
+                    width: 50
+                    height: 50
+                    style: root.style
                     visible: root.installerMetadataTaskStatus.active
                     running: visible
                 }
@@ -1525,6 +1623,15 @@ Item {
 
         Rectangle {
             anchors.fill: parent
+            anchors.leftMargin: 1
+            anchors.topMargin: 2
+            radius: 4
+            color: Qt.rgba(0, 0, 0, card.style.darkMode ? 0.34 : 0.20)
+            visible: !card.disabledCard
+        }
+
+        Rectangle {
+            anchors.fill: parent
             radius: 4
             color: mouse.containsMouse && !card.disabledCard
                    ? Qt.rgba(card.style.cTextOnSurface.r, card.style.cTextOnSurface.g, card.style.cTextOnSurface.b, 0.06)
@@ -1635,6 +1742,83 @@ Item {
             enabled: !card.disabledCard
             cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
             onClicked: card.installClicked()
+        }
+    }
+
+    component HmclSpinner: Item {
+        id: spinner
+
+        required property var style
+        property bool running: true
+        property real startAngle: 45
+        property real arcLength: 5
+        property real strokeWidth: 4
+
+        implicitWidth: 50
+        implicitHeight: 50
+
+        Canvas {
+            id: canvas
+            anchors.fill: parent
+            antialiasing: true
+
+            onPaint: {
+                var ctx = getContext("2d")
+                ctx.reset()
+                var w = width
+                var h = height
+                var sw = spinner.strokeWidth
+                var radius = Math.max(1, Math.min(w, h) / 2 - sw)
+                var cx = w / 2
+                var cy = h / 2
+                var start = (spinner.startAngle - 90) * Math.PI / 180
+                var span = Math.max(1, spinner.arcLength) * Math.PI / 180
+
+                ctx.lineWidth = sw
+                ctx.lineCap = "round"
+                ctx.strokeStyle = spinner.style.cPrimaryContainer
+                ctx.beginPath()
+                ctx.arc(cx, cy, radius, start, start + span, false)
+                ctx.stroke()
+            }
+        }
+
+        onStartAngleChanged: canvas.requestPaint()
+        onArcLengthChanged: canvas.requestPaint()
+        onVisibleChanged: canvas.requestPaint()
+        onWidthChanged: canvas.requestPaint()
+        onHeightChanged: canvas.requestPaint()
+
+        SequentialAnimation {
+            running: spinner.running && spinner.visible && spinner.style.animationsEnabled
+            loops: Animation.Infinite
+
+            ParallelAnimation {
+                NumberAnimation { target: spinner; property: "arcLength"; from: 5; to: 250; duration: 400; easing.type: Easing.Linear }
+                NumberAnimation { target: spinner; property: "startAngle"; from: 45; to: 90; duration: 400; easing.type: Easing.Linear }
+            }
+            PauseAnimation { duration: 300 }
+            ParallelAnimation {
+                NumberAnimation { target: spinner; property: "arcLength"; from: 250; to: 5; duration: 400; easing.type: Easing.Linear }
+                NumberAnimation { target: spinner; property: "startAngle"; from: 90; to: 435; duration: 400; easing.type: Easing.Linear }
+            }
+            ParallelAnimation {
+                NumberAnimation { target: spinner; property: "arcLength"; from: 5; to: 250; duration: 400; easing.type: Easing.Linear }
+                NumberAnimation { target: spinner; property: "startAngle"; from: 495; to: 540; duration: 400; easing.type: Easing.Linear }
+            }
+            PauseAnimation { duration: 300 }
+            ParallelAnimation {
+                NumberAnimation { target: spinner; property: "arcLength"; from: 250; to: 5; duration: 400; easing.type: Easing.Linear }
+                NumberAnimation { target: spinner; property: "startAngle"; from: 540; to: 885; duration: 400; easing.type: Easing.Linear }
+            }
+        }
+
+        RotationAnimation on rotation {
+            from: 0
+            to: 360
+            duration: 5600
+            loops: Animation.Infinite
+            running: spinner.running && spinner.visible && !spinner.style.animationsEnabled
         }
     }
 
