@@ -390,7 +390,7 @@ Item {
         var folders = payload.folders || []
         for (var i = 0; i < folders.length; i++) {
             folderModel.append({
-                "key": folders[i].key || "",
+                "folderKey": folders[i].key || "",
                 "title": folders[i].title || "",
                 "folderTitle": folders[i].title || "",
                 "path": folders[i].path || "",
@@ -422,11 +422,11 @@ Item {
     function folderByKey(key) {
         for (var i = 0; i < folderModel.count; i++) {
             var folder = folderModel.get(i)
-            if (folder.key === key) {
+            if (folder.folderKey === key) {
                 return folder
             }
         }
-        return { "key": key, "title": key, "path": "", "exists": false, "itemCount": 0 }
+        return { "folderKey": key, "title": key, "path": "", "exists": false, "itemCount": 0 }
     }
 
     function launchInstance() {
@@ -1115,7 +1115,7 @@ Item {
             Repeater {
                 model: panel.model
                 delegate: PopupItem {
-                    required property string key
+                    required property string folderKey
                     required property string folderTitle
                     required property int itemCount
 
@@ -1123,8 +1123,8 @@ Item {
                     style: panel.style
                     title: folderTitle
                     subtitle: itemCount + " 项"
-                    iconKind: key === "mods" ? "EXTENSION" : key === "resourcepacks" ? "TEXTURE" : key === "saves" ? "PUBLIC" : "FOLDER_OPEN"
-                    onClicked: panel.triggered(key)
+                    iconKind: folderKey === "mods" ? "EXTENSION" : folderKey === "resourcepacks" ? "TEXTURE" : folderKey === "saves" ? "PUBLIC" : "FOLDER_OPEN"
+                    onClicked: panel.triggered(folderKey)
                 }
             }
         }
@@ -1179,7 +1179,16 @@ Item {
         Layout.preferredHeight: 40
         height: 40
         HmclRipple { id: ripple; anchors.fill: parent; hovered: mouse.containsMouse; hoverColor: item.style.cTextOnSurface; hoverOpacity: 0.04; rippleColor: item.style.cTextOnSurfaceVariant; rippleOpacity: 0.10; animationsEnabled: item.style.animationsEnabled }
-        MouseArea { id: mouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onPressed: function(event) { ripple.press(event.x, event.y) }; onClicked: item.clicked() }
+        MouseArea {
+            id: mouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onPressed: function(event) {
+                ripple.press(event.x, event.y)
+            }
+            onClicked: item.clicked()
+        }
         HmclSvgIcon { anchors.left: parent.left; anchors.leftMargin: 12; anchors.verticalCenter: parent.verticalCenter; icon: item.iconKind; iconSize: 18; iconColor: item.style.cTextOnSurface; animationsEnabled: item.style.animationsEnabled }
         Text { anchors.left: parent.left; anchors.leftMargin: 44; anchors.right: parent.right; anchors.rightMargin: 12; anchors.verticalCenter: parent.verticalCenter; text: item.subtitle.length > 0 ? item.title + "    " + item.subtitle : item.title; color: item.style.cTextOnSurface; font.pixelSize: 12; elide: Text.ElideRight }
     }
@@ -1193,7 +1202,16 @@ Item {
         Layout.fillWidth: true
         Layout.preferredHeight: 40
         HmclRipple { id: ripple; anchors.fill: parent; hovered: mouse.containsMouse; hoverColor: item.style.cTextOnSurface; hoverOpacity: 0.04; rippleColor: item.style.cTextOnSurfaceVariant; rippleOpacity: 0.10; animationsEnabled: item.style.animationsEnabled }
-        MouseArea { id: mouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onPressed: function(event) { ripple.press(event.x, event.y) }; onClicked: item.clicked() }
+        MouseArea {
+            id: mouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onPressed: function(event) {
+                ripple.press(event.x, event.y)
+            }
+            onClicked: item.clicked()
+        }
         HmclSvgIcon { anchors.left: parent.left; anchors.leftMargin: 12; anchors.verticalCenter: parent.verticalCenter; icon: item.iconKind; iconSize: 18; iconColor: item.style.cTextOnSurface; animationsEnabled: item.style.animationsEnabled }
         Text { anchors.left: parent.left; anchors.leftMargin: 44; anchors.right: parent.right; anchors.rightMargin: 12; anchors.verticalCenter: parent.verticalCenter; text: item.title; color: item.style.cTextOnSurface; font.pixelSize: 12; elide: Text.ElideRight }
     }

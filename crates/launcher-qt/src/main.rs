@@ -7,11 +7,11 @@ mod backend_launch;
 mod backend_settings;
 mod json_models;
 mod task_bridge;
+mod viewmodel;
+mod model;
+mod bridge;
 
-use std::pin::Pin;
-
-use cxx_qt::casting::Upcast;
-use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QQmlEngine, QString, QUrl};
+use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QString, QUrl};
 
 fn main() {
     let mut app = QGuiApplication::new();
@@ -40,16 +40,6 @@ fn main() {
         engine_ref
             .as_mut()
             .load(&QUrl::from("qrc:/qt/qml/com/bihrys/launcher/qml/main.qml"));
-    }
-
-    if let Some(mut engine_ref) = engine.as_mut() {
-        let engine_ref: Pin<&mut QQmlEngine> = engine_ref.as_mut().upcast_pin();
-
-        engine_ref
-            .on_quit(|_| {
-                println!("QML quit");
-            })
-            .release();
     }
 
     if let Some(mut app_ref) = app.as_mut() {

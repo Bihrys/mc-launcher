@@ -4,7 +4,7 @@ use cxx_qt_lib::QString;
 
 impl qobject::LauncherBackend {
     pub fn refresh_instances(mut self: Pin<&mut Self>) -> QString {
-        match launcher_core::instances_json() {
+        match launcher_app::InstanceService::list_json() {
             Ok(json) => {
                 self.as_mut().set_instance_list_json(QString::from(&json));
 
@@ -38,7 +38,7 @@ impl qobject::LauncherBackend {
     pub fn refresh_instance_detail(mut self: Pin<&mut Self>, version_id: QString) -> QString {
         let version_id = version_id.to_string();
 
-        match launcher_core::instance_detail_json(&version_id) {
+        match launcher_app::InstanceService::detail_json(&version_id) {
             Ok(json) => {
                 self.as_mut().set_instance_detail_json(QString::from(&json));
                 QString::from(&json)
@@ -71,7 +71,7 @@ impl qobject::LauncherBackend {
     pub fn select_instance(mut self: Pin<&mut Self>, version_id: QString) {
         let version_id = version_id.to_string();
 
-        match launcher_core::select_instance(&version_id) {
+        match launcher_app::InstanceService::select(&version_id) {
             Ok(id) => {
                 self.as_mut().set_selected_game_version(QString::from(&id));
                 self.as_mut().set_output(QString::from(&format!("已选择实例：{id}")));
@@ -93,7 +93,7 @@ impl qobject::LauncherBackend {
         let version_id = version_id.to_string();
         let new_name = new_name.to_string();
 
-        match launcher_core::rename_instance(&version_id, &new_name) {
+        match launcher_app::InstanceService::rename(&version_id, &new_name) {
             Ok(id) => {
                 self.as_mut().set_selected_game_version(QString::from(&id));
                 self.as_mut().set_output(QString::from(&format!(
@@ -124,7 +124,7 @@ impl qobject::LauncherBackend {
             "true" | "1" | "yes" | "y"
         );
 
-        match launcher_core::duplicate_instance(&version_id, &new_name, copy_saves) {
+        match launcher_app::InstanceService::duplicate(&version_id, &new_name, copy_saves) {
             Ok(id) => {
                 self.as_mut().set_output(QString::from(&format!(
                     "实例已复制。\n\n{} -> {}",
@@ -144,7 +144,7 @@ impl qobject::LauncherBackend {
     pub fn delete_instance(mut self: Pin<&mut Self>, version_id: QString) -> QString {
         let version_id = version_id.to_string();
 
-        match launcher_core::delete_instance(&version_id) {
+        match launcher_app::InstanceService::delete(&version_id) {
             Ok(()) => {
                 self.as_mut()
                     .set_output(QString::from(&format!("实例已删除：{version_id}")));
@@ -170,7 +170,7 @@ impl qobject::LauncherBackend {
         let folder_key = folder_key.to_string();
         let sub = folder_key_to_subdir(&folder_key);
 
-        match launcher_core::open_instance_folder(&version_id, sub) {
+        match launcher_app::InstanceService::open_folder(&version_id, Some(sub)) {
             Ok(path) => {
                 let text = format!("已打开文件夹。\n\n{}", path.display());
                 self.as_mut().set_output(QString::from(&text));
@@ -206,7 +206,7 @@ impl qobject::LauncherBackend {
     pub fn clean_instance(mut self: Pin<&mut Self>, version_id: QString) -> QString {
         let version_id = version_id.to_string();
 
-        match launcher_core::clean_instance(&version_id) {
+        match launcher_app::InstanceService::clean(&version_id) {
             Ok(count) => {
                 let text = format!("清理完成。\n\n已删除 {count} 个日志/缓存目录或文件。");
                 self.as_mut().set_output(QString::from(&text));
@@ -224,7 +224,7 @@ impl qobject::LauncherBackend {
     pub fn clear_instance_assets(mut self: Pin<&mut Self>, version_id: QString) -> QString {
         let version_id = version_id.to_string();
 
-        match launcher_core::clear_assets() {
+        match launcher_app::InstanceService::clear_assets() {
             Ok(()) => {
                 let text = "已删除全局 assets 目录。重新启动或修复游戏时会重新下载。".to_string();
                 self.as_mut().set_output(QString::from(&text));
@@ -242,7 +242,7 @@ impl qobject::LauncherBackend {
     pub fn clear_instance_libraries(mut self: Pin<&mut Self>, version_id: QString) -> QString {
         let version_id = version_id.to_string();
 
-        match launcher_core::clear_libraries() {
+        match launcher_app::InstanceService::clear_libraries() {
             Ok(()) => {
                 let text = "已删除全局 libraries 目录。重新启动或修复游戏时会重新下载。".to_string();
                 self.as_mut().set_output(QString::from(&text));
@@ -265,7 +265,7 @@ impl qobject::LauncherBackend {
         let version_id = version_id.to_string();
         let settings_json = settings_json.to_string();
 
-        match launcher_core::save_instance_settings_json(&version_id, &settings_json) {
+        match launcher_app::InstanceService::save_settings_json(&version_id, &settings_json) {
             Ok(json) => {
                 self.as_mut().set_instance_detail_json(QString::from(&json));
                 self.as_mut().set_output(QString::from("实例设置已保存。"));

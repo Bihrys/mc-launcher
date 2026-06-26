@@ -36,49 +36,63 @@ Item {
     property string loadedLoaderMetadataJson: ""
 
     property var downloadTaskStatus: ({
-        "active": false,
-        "cancelled": false,
-        "percent": 0,
-        "title": "空闲",
-        "message": "还没有下载任务。",
-        "totalFiles": 0,
-        "finishedFiles": 0,
-        "totalBytes": 0,
-        "downloadedBytes": 0,
-        "currentFile": "",
-        "speed": 0,
-        "status": "idle"
-    })
+            "active": false,
+            "cancelled": false,
+            "percent": 0,
+            "title": "空闲",
+            "message": "还没有下载任务。",
+            "totalFiles": 0,
+            "finishedFiles": 0,
+            "totalBytes": 0,
+            "downloadedBytes": 0,
+            "currentFile": "",
+            "speed": 0,
+            "status": "idle"
+        })
 
     property var installerMetadataTaskStatus: ({
-        "active": false,
-        "percent": 0,
-        "title": "空闲",
-        "message": "还没有版本加载任务。",
-        "metadataReady": false,
-        "metadataJson": ""
-    })
+            "active": false,
+            "percent": 0,
+            "title": "空闲",
+            "message": "还没有版本加载任务。",
+            "metadataReady": false,
+            "metadataJson": ""
+        })
 
     property var catalogTaskStatus: ({
-        "active": false,
-        "percent": 0,
-        "title": "空闲",
-        "message": "还没有版本列表刷新任务。",
-        "catalogReady": false,
-        "catalogJson": ""
-    })
+            "active": false,
+            "percent": 0,
+            "title": "空闲",
+            "message": "还没有版本列表刷新任务。",
+            "catalogReady": false,
+            "catalogJson": ""
+        })
 
-    ListModel { id: allVersionsModel }
-    ListModel { id: visibleVersionModel }
+    ListModel {
+        id: allVersionsModel
+    }
+    ListModel {
+        id: visibleVersionModel
+    }
 
-    ListModel { id: fabricLoaderModel }
-    ListModel { id: quiltLoaderModel }
-    ListModel { id: forgeInstallerModel }
-    ListModel { id: neoforgeInstallerModel }
-    ListModel { id: visibleLoaderVersionModel }
+    ListModel {
+        id: fabricLoaderModel
+    }
+    ListModel {
+        id: quiltLoaderModel
+    }
+    ListModel {
+        id: forgeInstallerModel
+    }
+    ListModel {
+        id: neoforgeInstallerModel
+    }
+    ListModel {
+        id: visibleLoaderVersionModel
+    }
 
     Component.onCompleted: {
-        root.startRefreshCatalog()
+        root.startRefreshCatalog();
     }
 
     Timer {
@@ -204,9 +218,7 @@ Item {
 
                 Text {
                     width: parent.width
-                    text: root.catalog
-                          ? "最新正式版 " + root.catalog.latestRelease + "\n最新快照 " + root.catalog.latestSnapshot
-                          : ""
+                    text: root.catalog ? "最新正式版 " + root.catalog.latestRelease + "\n最新快照 " + root.catalog.latestSnapshot : ""
                     color: root.style.cTextOnSurfaceVariant
                     font.pixelSize: 11
                     wrapMode: Text.WordWrap
@@ -245,7 +257,7 @@ Item {
             anchors.fill: parent
             onClicked: {
                 if (!root.downloadTaskStatus.active) {
-                    root.downloadDialogOpen = false
+                    root.downloadDialogOpen = false;
                 }
             }
         }
@@ -258,9 +270,9 @@ Item {
             status: root.downloadTaskStatus
 
             onCancelRequested: {
-                root.downloadCancelDismissed = true
-                root.downloadDialogOpen = false
-                root.backend.cancelDownloadTask()
+                root.downloadCancelDismissed = true;
+                root.downloadDialogOpen = false;
+                root.backend.cancelDownloadTask();
             }
 
             onCloseRequested: root.downloadDialogOpen = false
@@ -268,44 +280,44 @@ Item {
     }
 
     function showDownloadSidebar() {
-        return !root.installerPaneOpen && !root.loaderVersionPaneOpen
+        return !root.installerPaneOpen && !root.loaderVersionPaneOpen;
     }
 
     function handleBack() {
         if (root.loaderVersionPaneOpen) {
-            root.loaderVersionPaneOpen = false
-            root.installerPaneOpen = false
-            root.loaderVersionKind = ""
-            visibleLoaderVersionModel.clear()
-            return true
+            root.loaderVersionPaneOpen = false;
+            root.installerPaneOpen = false;
+            root.loaderVersionKind = "";
+            visibleLoaderVersionModel.clear();
+            return true;
         }
 
         if (root.installerPaneOpen) {
-            root.closeInstallerPane()
-            return true
+            root.closeInstallerPane();
+            return true;
         }
 
-        return false
+        return false;
     }
 
     function startRefreshCatalog() {
-        allVersionsModel.clear()
-        visibleVersionModel.clear()
-        fabricLoaderModel.clear()
-        quiltLoaderModel.clear()
-        forgeInstallerModel.clear()
-        neoforgeInstallerModel.clear()
-        visibleLoaderVersionModel.clear()
+        allVersionsModel.clear();
+        visibleVersionModel.clear();
+        fabricLoaderModel.clear();
+        quiltLoaderModel.clear();
+        forgeInstallerModel.clear();
+        neoforgeInstallerModel.clear();
+        visibleLoaderVersionModel.clear();
 
-        root.selectedGameVersion = ""
-        root.selectedGameReleaseTime = ""
-        root.loadedCatalogJson = ""
-        root.loadedLoaderMetadataJson = ""
-        root.catalog = null
-        root.allForgeInstallers = []
-        root.allNeoForgeInstallers = []
-        root.loaderVersionPaneOpen = false
-        root.loaderVersionKind = ""
+        root.selectedGameVersion = "";
+        root.selectedGameReleaseTime = "";
+        root.loadedCatalogJson = "";
+        root.loadedLoaderMetadataJson = "";
+        root.catalog = null;
+        root.allForgeInstallers = [];
+        root.allNeoForgeInstallers = [];
+        root.loaderVersionPaneOpen = false;
+        root.loaderVersionKind = "";
 
         root.catalogTaskStatus = {
             "active": true,
@@ -314,46 +326,43 @@ Item {
             "message": "正在连接 Minecraft 版本源。",
             "catalogReady": false,
             "catalogJson": ""
-        }
+        };
 
-        root.backend.startRefreshDownloadCatalog(root.downloadSource)
-        root.pollDownloadCatalogTask()
+        root.backend.startRefreshDownloadCatalog(root.downloadSource);
+        root.pollDownloadCatalogTask();
     }
 
     function pollDownloadCatalogTask() {
-        var raw = root.backend.pollDownloadCatalogTask()
+        var raw = root.backend.pollDownloadCatalogTask();
 
         if (!raw || raw.length === 0) {
-            return
+            return;
         }
 
         try {
-            var status = JSON.parse(raw)
-            root.catalogTaskStatus = status
+            var status = JSON.parse(raw);
+            root.catalogTaskStatus = status;
 
-            if (status.catalogReady
-                    && status.catalogJson
-                    && status.catalogJson.length > 0
-                    && status.catalogJson !== root.loadedCatalogJson) {
-                root.loadedCatalogJson = status.catalogJson
-                root.parseCatalog(status.catalogJson)
+            if (status.catalogReady && status.catalogJson && status.catalogJson.length > 0 && status.catalogJson !== root.loadedCatalogJson) {
+                root.loadedCatalogJson = status.catalogJson;
+                root.parseCatalog(status.catalogJson);
             }
         } catch (e) {
-            console.log("Failed to parse download catalog task status", e)
+            console.log("Failed to parse download catalog task status", e);
         }
     }
 
     function startFetchInstallerMetadata() {
         if (root.selectedGameVersion.length === 0) {
-            return
+            return;
         }
 
-        fabricLoaderModel.clear()
-        quiltLoaderModel.clear()
-        forgeInstallerModel.clear()
-        neoforgeInstallerModel.clear()
-        root.allForgeInstallers = []
-        root.allNeoForgeInstallers = []
+        fabricLoaderModel.clear();
+        quiltLoaderModel.clear();
+        forgeInstallerModel.clear();
+        neoforgeInstallerModel.clear();
+        root.allForgeInstallers = [];
+        root.allNeoForgeInstallers = [];
 
         root.installerMetadataTaskStatus = {
             "active": true,
@@ -362,37 +371,37 @@ Item {
             "message": "Minecraft " + root.selectedGameVersion,
             "metadataReady": false,
             "metadataJson": ""
-        }
+        };
 
-        root.backend.startFetchInstallerMetadata(root.downloadSource, root.selectedGameVersion)
-        installerMetadataPoller.restart()
+        root.backend.startFetchInstallerMetadata(root.downloadSource, root.selectedGameVersion);
+        installerMetadataPoller.restart();
     }
 
     function startFetchLoaderMetadata(kind) {
         if (root.selectedGameVersion.length === 0 || kind.length === 0) {
-            return
+            return;
         }
 
-        visibleLoaderVersionModel.clear()
-        root.loaderSearchText = ""
+        visibleLoaderVersionModel.clear();
+        root.loaderSearchText = "";
 
         if (kind === "fabric") {
-            fabricLoaderModel.clear()
-            root.selectedFabricVersion = ""
+            fabricLoaderModel.clear();
+            root.selectedFabricVersion = "";
         } else if (kind === "quilt") {
-            quiltLoaderModel.clear()
-            root.selectedQuiltVersion = ""
+            quiltLoaderModel.clear();
+            root.selectedQuiltVersion = "";
         } else if (kind === "forge") {
-            forgeInstallerModel.clear()
-            root.selectedForgeVersion = ""
+            forgeInstallerModel.clear();
+            root.selectedForgeVersion = "";
         } else if (kind === "neoforge") {
-            neoforgeInstallerModel.clear()
-            root.selectedNeoForgeVersion = ""
+            neoforgeInstallerModel.clear();
+            root.selectedNeoForgeVersion = "";
         }
 
-        root.loadedLoaderMetadataJson = ""
-        root.loaderVersionKind = kind
-        root.loaderVersionPaneOpen = true
+        root.loadedLoaderMetadataJson = "";
+        root.loaderVersionKind = kind;
+        root.loaderVersionPaneOpen = true;
 
         root.installerMetadataTaskStatus = {
             "active": true,
@@ -401,142 +410,137 @@ Item {
             "message": "Minecraft " + root.selectedGameVersion,
             "metadataReady": false,
             "metadataJson": ""
-        }
+        };
 
-        root.backend.startFetchLoaderMetadata(root.downloadSource, root.selectedGameVersion, kind)
-        installerMetadataPoller.restart()
+        root.backend.startFetchLoaderMetadata(root.downloadSource, root.selectedGameVersion, kind);
+        installerMetadataPoller.restart();
     }
 
     function pollInstallerMetadataTask() {
-        var raw = root.backend.pollInstallerMetadataTask()
+        var raw = root.backend.pollInstallerMetadataTask();
 
         if (!raw || raw.length === 0) {
-            return
+            return;
         }
 
         try {
-            var status = JSON.parse(raw)
-            root.installerMetadataTaskStatus = status
+            var status = JSON.parse(raw);
+            root.installerMetadataTaskStatus = status;
 
             if (!status.active && status.metadataReady) {
-                installerMetadataPoller.stop()
+                installerMetadataPoller.stop();
 
-                if (status.metadataJson
-                        && status.metadataJson.length > 0
-                        && status.metadataJson !== root.loadedLoaderMetadataJson) {
-                    root.loadedLoaderMetadataJson = status.metadataJson
-                    root.parseInstallerMetadata(status.metadataJson)
+                if (status.metadataJson && status.metadataJson.length > 0 && status.metadataJson !== root.loadedLoaderMetadataJson) {
+                    root.loadedLoaderMetadataJson = status.metadataJson;
+                    root.parseInstallerMetadata(status.metadataJson);
                 }
             }
         } catch (e) {
-            console.log("Failed to parse installer metadata task", e)
+            console.log("Failed to parse installer metadata task", e);
         }
     }
 
     function parseInstallerMetadata(raw) {
         try {
-            var data = JSON.parse(raw)
-            var kind = data.loaderKind || root.loaderVersionKind
+            var data = JSON.parse(raw);
+            var kind = data.loaderKind || root.loaderVersionKind;
 
             if (!kind || kind === "fabric") {
-                fabricLoaderModel.clear()
+                fabricLoaderModel.clear();
             }
             if (!kind || kind === "quilt") {
-                quiltLoaderModel.clear()
+                quiltLoaderModel.clear();
             }
             if (!kind || kind === "forge") {
-                forgeInstallerModel.clear()
+                forgeInstallerModel.clear();
             }
             if (!kind || kind === "neoforge") {
-                neoforgeInstallerModel.clear()
+                neoforgeInstallerModel.clear();
             }
 
-            var fabric = data.fabricLoaders || []
+            var fabric = data.fabricLoaders || [];
             for (var f = 0; f < fabric.length; f++) {
                 fabricLoaderModel.append({
                     "version": fabric[f].version || "",
                     "stable": !!fabric[f].stable
-                })
+                });
             }
 
-            var quilt = data.quiltLoaders || []
+            var quilt = data.quiltLoaders || [];
             for (var q = 0; q < quilt.length; q++) {
                 quiltLoaderModel.append({
                     "version": quilt[q].version || "",
                     "stable": !!quilt[q].stable
-                })
+                });
             }
 
-            var forge = data.forgeInstallers || []
+            var forge = data.forgeInstallers || [];
             for (var i = 0; i < forge.length; i++) {
                 forgeInstallerModel.append({
                     "loaderVersion": forge[i].loaderVersion || "",
                     "gameVersion": forge[i].gameVersion || root.selectedGameVersion,
                     "releaseTime": forge[i].releaseTime || ""
-                })
+                });
             }
 
-            var neo = data.neoforgeInstallers || []
+            var neo = data.neoforgeInstallers || [];
             for (var n = 0; n < neo.length; n++) {
                 neoforgeInstallerModel.append({
                     "loaderVersion": neo[n].loaderVersion || "",
                     "gameVersion": neo[n].gameVersion || root.selectedGameVersion,
                     "releaseTime": neo[n].releaseTime || ""
-                })
+                });
             }
 
-            root.rebuildVisibleLoaderVersions()
+            root.rebuildVisibleLoaderVersions();
         } catch (e) {
-            console.log("Failed to parse installer metadata", e)
+            console.log("Failed to parse installer metadata", e);
         }
     }
 
     function pollDownloadTask() {
-        var raw = root.backend.pollDownloadTask()
+        var raw = root.backend.pollDownloadTask();
 
         if (!raw || raw.length === 0) {
-            return
+            return;
         }
 
         try {
-            root.downloadTaskStatus = JSON.parse(raw)
+            root.downloadTaskStatus = JSON.parse(raw);
 
-            if (root.downloadTaskStatus.active
-                    && root.downloadTaskStatus.status !== "cancelling"
-                    && root.downloadTaskStatus.status !== "cancelled"
-                    && !root.downloadCancelDismissed) {
-                root.downloadDialogOpen = true
+            if (root.downloadTaskStatus.active && root.downloadTaskStatus.status !== "cancelling" && root.downloadTaskStatus.status !== "cancelled" && !root.downloadCancelDismissed) {
+                root.downloadDialogOpen = true;
             }
 
             if (root.downloadTaskStatus.status === "finished" && !root.downloadFinishHandled) {
-                root.downloadFinishHandled = true
-                root.backend.refreshInstalledVersions()
+                root.downloadFinishHandled = true;
+                root.backend.refreshInstalledVersions();
             }
 
             if (!root.downloadTaskStatus.active) {
-                root.downloadCancelDismissed = false
+                root.downloadCancelDismissed = false;
             }
         } catch (e) {
-            console.log("Failed to parse download task status", e)
+            console.log("Failed to parse download task status", e);
         }
     }
 
     function parseCatalog(raw) {
         try {
-            var data = JSON.parse(raw)
-            root.catalog = data
+            var data = JSON.parse(raw);
+            root.catalog = data;
 
-            allVersionsModel.clear()
-            fabricLoaderModel.clear()
-            quiltLoaderModel.clear()
-            forgeInstallerModel.clear()
-            neoforgeInstallerModel.clear()
-            visibleLoaderVersionModel.clear()
+            allVersionsModel.clear();
+            fabricLoaderModel.clear();
+            quiltLoaderModel.clear();
+            forgeInstallerModel.clear();
+            neoforgeInstallerModel.clear();
+            visibleLoaderVersionModel.clear();
 
-            var versions = data.gameVersions || []
+            var versions = data.gameVersions || [];
             for (var i = 0; i < versions.length; i++) {
-                var item = versions[i]
-                var group = root.groupForVersion(item.id || "", item.versionType || "")
+                var item = versions[i];
+                var group = root.groupForVersion(item.id || "", item.versionType || "");
                 allVersionsModel.append({
                     "versionId": item.id || "",
                     "versionType": item.versionType || "",
@@ -544,56 +548,56 @@ Item {
                     "group": group,
                     "iconSource": root.iconForVersionGroup(group),
                     "tagText": root.tagForVersionGroup(group)
-                })
+                });
             }
 
-            var fabric = data.fabricLoaders || []
+            var fabric = data.fabricLoaders || [];
             for (var f = 0; f < fabric.length; f++) {
                 fabricLoaderModel.append({
                     "version": fabric[f].version || "",
                     "stable": !!fabric[f].stable
-                })
+                });
             }
 
-            var quilt = data.quiltLoaders || []
+            var quilt = data.quiltLoaders || [];
             for (var q = 0; q < quilt.length; q++) {
                 quiltLoaderModel.append({
                     "version": quilt[q].version || "",
                     "stable": !!quilt[q].stable
-                })
+                });
             }
 
-            root.allForgeInstallers = data.forgeInstallers || []
-            root.allNeoForgeInstallers = data.neoforgeInstallers || []
+            root.allForgeInstallers = data.forgeInstallers || [];
+            root.allNeoForgeInstallers = data.neoforgeInstallers || [];
 
-            root.rebuildVisibleVersions()
+            root.rebuildVisibleVersions();
 
             if (visibleVersionModel.count > 0) {
-                root.selectVersion(0)
+                root.selectVersion(0);
             }
 
-            root.installerPaneOpen = false
-            root.loaderVersionPaneOpen = false
-            root.loaderVersionKind = ""
+            root.installerPaneOpen = false;
+            root.loaderVersionPaneOpen = false;
+            root.loaderVersionKind = "";
         } catch (e) {
-            console.log("Failed to parse download catalog", e)
+            console.log("Failed to parse download catalog", e);
         }
     }
 
     function rebuildVisibleVersions() {
-        visibleVersionModel.clear()
+        visibleVersionModel.clear();
 
-        var query = root.searchText.toLowerCase()
+        var query = root.searchText.toLowerCase();
 
         for (var i = 0; i < allVersionsModel.count; i++) {
-            var item = allVersionsModel.get(i)
+            var item = allVersionsModel.get(i);
 
             if (root.versionFilter !== "all" && item.group !== root.versionFilter) {
-                continue
+                continue;
             }
 
             if (query.length > 0 && String(item.versionId).toLowerCase().indexOf(query) < 0) {
-                continue
+                continue;
             }
 
             visibleVersionModel.append({
@@ -604,240 +608,239 @@ Item {
                 "group": item.group,
                 "iconSource": item.iconSource,
                 "tagText": item.tagText
-            })
+            });
         }
     }
 
     function openInstallerForVersion(visibleIndex) {
-        root.selectVersion(visibleIndex)
+        root.selectVersion(visibleIndex);
 
-        root.installerPaneOpen = true
-        root.loaderVersionPaneOpen = false
-        root.loaderVersionKind = ""
-        root.installVersionName = root.selectedGameVersion
-        root.selectedLoaderKind = "vanilla"
-        root.selectedFabricVersion = ""
-        root.selectedQuiltVersion = ""
-        root.selectedForgeVersion = ""
-        root.selectedNeoForgeVersion = ""
-
+        root.installerPaneOpen = true;
+        root.loaderVersionPaneOpen = false;
+        root.loaderVersionKind = "";
+        root.installVersionName = root.selectedGameVersion;
+        root.selectedLoaderKind = "vanilla";
+        root.selectedFabricVersion = "";
+        root.selectedQuiltVersion = "";
+        root.selectedForgeVersion = "";
+        root.selectedNeoForgeVersion = "";
     }
 
     function closeInstallerPane() {
-        root.installerPaneOpen = false
-        root.loaderVersionPaneOpen = false
-        root.loaderVersionKind = ""
+        root.installerPaneOpen = false;
+        root.loaderVersionPaneOpen = false;
+        root.loaderVersionKind = "";
     }
 
     function closeLoaderVersionPane() {
-        root.loaderVersionPaneOpen = false
-        root.loaderVersionKind = ""
+        root.loaderVersionPaneOpen = false;
+        root.loaderVersionKind = "";
     }
 
     function selectInstaller(kind) {
         if (kind === "vanilla") {
-            root.selectedLoaderKind = "vanilla"
-            root.selectedFabricVersion = ""
-            root.selectedQuiltVersion = ""
-            root.selectedForgeVersion = ""
-            root.selectedNeoForgeVersion = ""
-            root.installVersionName = root.selectedGameVersion
-            return
+            root.selectedLoaderKind = "vanilla";
+            root.selectedFabricVersion = "";
+            root.selectedQuiltVersion = "";
+            root.selectedForgeVersion = "";
+            root.selectedNeoForgeVersion = "";
+            root.installVersionName = root.selectedGameVersion;
+            return;
         }
 
-        root.startFetchLoaderMetadata(kind)
+        root.startFetchLoaderMetadata(kind);
     }
 
     function chooseLoaderVersion(kind, index) {
-        var version = ""
+        var version = "";
 
         if (kind === "fabric" && index >= 0 && index < fabricLoaderModel.count) {
-            version = fabricLoaderModel.get(index).version || ""
-            root.selectedFabricVersion = version
+            version = fabricLoaderModel.get(index).version || "";
+            root.selectedFabricVersion = version;
         } else if (kind === "quilt" && index >= 0 && index < quiltLoaderModel.count) {
-            version = quiltLoaderModel.get(index).version || ""
-            root.selectedQuiltVersion = version
+            version = quiltLoaderModel.get(index).version || "";
+            root.selectedQuiltVersion = version;
         } else if (kind === "forge" && index >= 0 && index < forgeInstallerModel.count) {
-            version = forgeInstallerModel.get(index).loaderVersion || ""
-            root.selectedForgeVersion = version
+            version = forgeInstallerModel.get(index).loaderVersion || "";
+            root.selectedForgeVersion = version;
         } else if (kind === "neoforge" && index >= 0 && index < neoforgeInstallerModel.count) {
-            version = neoforgeInstallerModel.get(index).loaderVersion || ""
-            root.selectedNeoForgeVersion = version
+            version = neoforgeInstallerModel.get(index).loaderVersion || "";
+            root.selectedNeoForgeVersion = version;
         }
 
         if (version.length === 0) {
-            return
+            return;
         }
 
-        root.clearOtherLoaderSelections(kind)
-        root.selectedLoaderKind = kind
-        root.installVersionName = root.buildInstallVersionName()
-        root.closeLoaderVersionPane()
+        root.clearOtherLoaderSelections(kind);
+        root.selectedLoaderKind = kind;
+        root.installVersionName = root.buildInstallVersionName();
+        root.closeLoaderVersionPane();
     }
 
     function clearOtherLoaderSelections(kind) {
         if (kind !== "fabric") {
-            root.selectedFabricVersion = ""
+            root.selectedFabricVersion = "";
         }
         if (kind !== "quilt") {
-            root.selectedQuiltVersion = ""
+            root.selectedQuiltVersion = "";
         }
         if (kind !== "forge") {
-            root.selectedForgeVersion = ""
+            root.selectedForgeVersion = "";
         }
         if (kind !== "neoforge") {
-            root.selectedNeoForgeVersion = ""
+            root.selectedNeoForgeVersion = "";
         }
     }
 
     function firstInstallerVersion(kind) {
         if (kind === "fabric" && fabricLoaderModel.count > 0) {
-            return fabricLoaderModel.get(0).version || ""
+            return fabricLoaderModel.get(0).version || "";
         }
 
         if (kind === "quilt" && quiltLoaderModel.count > 0) {
-            return quiltLoaderModel.get(0).version || ""
+            return quiltLoaderModel.get(0).version || "";
         }
 
         if (kind === "forge" && forgeInstallerModel.count > 0) {
-            return forgeInstallerModel.get(0).loaderVersion || ""
+            return forgeInstallerModel.get(0).loaderVersion || "";
         }
 
         if (kind === "neoforge" && neoforgeInstallerModel.count > 0) {
-            return neoforgeInstallerModel.get(0).loaderVersion || ""
+            return neoforgeInstallerModel.get(0).loaderVersion || "";
         }
 
-        return ""
+        return "";
     }
 
     function loaderModelCount(kind) {
         if (kind === "fabric") {
-            return fabricLoaderModel.count
+            return fabricLoaderModel.count;
         }
         if (kind === "quilt") {
-            return quiltLoaderModel.count
+            return quiltLoaderModel.count;
         }
         if (kind === "forge") {
-            return forgeInstallerModel.count
+            return forgeInstallerModel.count;
         }
         if (kind === "neoforge") {
-            return neoforgeInstallerModel.count
+            return neoforgeInstallerModel.count;
         }
-        return 0
+        return 0;
     }
 
     function loaderVersionValueAt(kind, index) {
         if (index < 0) {
-            return ""
+            return "";
         }
         if (kind === "fabric" && index < fabricLoaderModel.count) {
-            return fabricLoaderModel.get(index).version || ""
+            return fabricLoaderModel.get(index).version || "";
         }
         if (kind === "quilt" && index < quiltLoaderModel.count) {
-            return quiltLoaderModel.get(index).version || ""
+            return quiltLoaderModel.get(index).version || "";
         }
         if (kind === "forge" && index < forgeInstallerModel.count) {
-            return forgeInstallerModel.get(index).loaderVersion || ""
+            return forgeInstallerModel.get(index).loaderVersion || "";
         }
         if (kind === "neoforge" && index < neoforgeInstallerModel.count) {
-            return neoforgeInstallerModel.get(index).loaderVersion || ""
+            return neoforgeInstallerModel.get(index).loaderVersion || "";
         }
-        return ""
+        return "";
     }
 
     function loaderSubtitleAt(kind, index) {
         if (kind === "fabric" && index < fabricLoaderModel.count) {
-            return fabricLoaderModel.get(index).stable ? "稳定版" : "实验版"
+            return fabricLoaderModel.get(index).stable ? "稳定版" : "实验版";
         }
         if (kind === "quilt" && index < quiltLoaderModel.count) {
-            return quiltLoaderModel.get(index).stable ? "稳定版" : "实验版"
+            return quiltLoaderModel.get(index).stable ? "稳定版" : "实验版";
         }
         if (kind === "forge" && index < forgeInstallerModel.count) {
-            return forgeInstallerModel.get(index).releaseTime || "Forge installer"
+            return forgeInstallerModel.get(index).releaseTime || "Forge installer";
         }
         if (kind === "neoforge" && index < neoforgeInstallerModel.count) {
-            return neoforgeInstallerModel.get(index).releaseTime || "NeoForge installer"
+            return neoforgeInstallerModel.get(index).releaseTime || "NeoForge installer";
         }
-        return ""
+        return "";
     }
 
     function rebuildVisibleLoaderVersions() {
-        visibleLoaderVersionModel.clear()
+        visibleLoaderVersionModel.clear();
 
-        var kind = root.loaderVersionKind
-        var query = root.loaderSearchText.toLowerCase()
-        var count = root.loaderModelCount(kind)
+        var kind = root.loaderVersionKind;
+        var query = root.loaderSearchText.toLowerCase();
+        var count = root.loaderModelCount(kind);
 
         for (var i = 0; i < count; i++) {
-            var version = root.loaderVersionValueAt(kind, i)
+            var version = root.loaderVersionValueAt(kind, i);
             if (version.length === 0) {
-                continue
+                continue;
             }
             if (query.length > 0 && version.toLowerCase().indexOf(query) < 0) {
-                continue
+                continue;
             }
 
             visibleLoaderVersionModel.append({
                 "sourceIndex": i,
                 "version": version,
                 "subtitle": root.loaderSubtitleAt(kind, i)
-            })
+            });
         }
     }
 
     function selectVisibleLoaderVersion(visibleIndex) {
         if (visibleIndex < 0 || visibleIndex >= visibleLoaderVersionModel.count) {
-            return
+            return;
         }
 
-        var item = visibleLoaderVersionModel.get(visibleIndex)
-        root.chooseLoaderVersion(root.loaderVersionKind, item.sourceIndex)
+        var item = visibleLoaderVersionModel.get(visibleIndex);
+        root.chooseLoaderVersion(root.loaderVersionKind, item.sourceIndex);
     }
 
     function setSelectedLoaderVersionFromIndex(kind, index) {
         if (index < 0) {
-            return
+            return;
         }
 
         if (kind === "fabric" && index < fabricLoaderModel.count) {
-            root.selectedFabricVersion = fabricLoaderModel.get(index).version || ""
+            root.selectedFabricVersion = fabricLoaderModel.get(index).version || "";
         } else if (kind === "quilt" && index < quiltLoaderModel.count) {
-            root.selectedQuiltVersion = quiltLoaderModel.get(index).version || ""
+            root.selectedQuiltVersion = quiltLoaderModel.get(index).version || "";
         } else if (kind === "forge" && index < forgeInstallerModel.count) {
-            root.selectedForgeVersion = forgeInstallerModel.get(index).loaderVersion || ""
+            root.selectedForgeVersion = forgeInstallerModel.get(index).loaderVersion || "";
         } else if (kind === "neoforge" && index < neoforgeInstallerModel.count) {
-            root.selectedNeoForgeVersion = neoforgeInstallerModel.get(index).loaderVersion || ""
+            root.selectedNeoForgeVersion = neoforgeInstallerModel.get(index).loaderVersion || "";
         }
 
-        root.installVersionName = root.buildInstallVersionName()
+        root.installVersionName = root.buildInstallVersionName();
     }
 
     function buildInstallVersionName() {
         if (root.selectedLoaderKind === "vanilla") {
-            return root.selectedGameVersion
+            return root.selectedGameVersion;
         }
 
-        return root.selectedGameVersion + "-" + root.loaderTitle(root.selectedLoaderKind)
+        return root.selectedGameVersion + "-" + root.loaderTitle(root.selectedLoaderKind);
     }
 
     function loaderTitle(kind) {
         switch (kind) {
         case "fabric":
-            return "Fabric"
+            return "Fabric";
         case "quilt":
-            return "Quilt"
+            return "Quilt";
         case "forge":
-            return "Forge"
+            return "Forge";
         case "neoforge":
-            return "NeoForge"
+            return "NeoForge";
         case "fabric-api":
-            return "Fabric API"
+            return "Fabric API";
         case "quilt-api":
-            return "Quilt API"
+            return "Quilt API";
         case "optifine":
-            return "OptiFine"
+            return "OptiFine";
         default:
-            return "Minecraft"
+            return "Minecraft";
         }
     }
 
@@ -845,216 +848,207 @@ Item {
         switch (kind) {
         case "fabric":
         case "fabric-api":
-            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/fabric.png"
+            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/fabric.png";
         case "quilt":
         case "quilt-api":
-            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/quilt.png"
+            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/quilt.png";
         case "forge":
-            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/forge.png"
+            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/forge.png";
         case "neoforge":
-            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/neoforge.png"
+            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/neoforge.png";
         case "optifine":
-            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/optifine.png"
+            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/optifine.png";
         default:
-            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/grass.png"
+            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/grass.png";
         }
     }
 
     function installerCardWidth(containerWidth) {
-        return 180
+        return 180;
     }
 
     function installerStatus(kind) {
         if (kind === "vanilla") {
-            return "版本 " + root.selectedGameVersion
+            return "版本 " + root.selectedGameVersion;
         }
 
         if (kind === "fabric") {
-            return root.selectedFabricVersion.length > 0 ? "版本 " + root.selectedFabricVersion : "不安装"
+            return root.selectedFabricVersion.length > 0 ? "版本 " + root.selectedFabricVersion : "不安装";
         }
 
         if (kind === "quilt") {
-            return root.selectedQuiltVersion.length > 0 ? "版本 " + root.selectedQuiltVersion : "不安装"
+            return root.selectedQuiltVersion.length > 0 ? "版本 " + root.selectedQuiltVersion : "不安装";
         }
 
         if (kind === "forge") {
-            return root.selectedForgeVersion.length > 0 ? "版本 " + root.selectedForgeVersion : "不安装"
+            return root.selectedForgeVersion.length > 0 ? "版本 " + root.selectedForgeVersion : "不安装";
         }
 
         if (kind === "neoforge") {
-            return root.selectedNeoForgeVersion.length > 0 ? "版本 " + root.selectedNeoForgeVersion : "不安装"
+            return root.selectedNeoForgeVersion.length > 0 ? "版本 " + root.selectedNeoForgeVersion : "不安装";
         }
 
         if (kind === "fabric-api" || kind === "quilt-api" || kind === "optifine") {
-            return "后续安装器扩展"
+            return "后续安装器扩展";
         }
 
-        return "不安装"
+        return "不安装";
     }
 
     function installerSelected(kind) {
         if (kind === "vanilla") {
-            return true
+            return true;
         }
 
-        return root.selectedLoaderKind === kind
+        return root.selectedLoaderKind === kind;
     }
 
     function removeInstaller(kind) {
         if (root.selectedLoaderKind === kind) {
-            root.selectedLoaderKind = "vanilla"
-            root.selectedFabricVersion = ""
-            root.selectedQuiltVersion = ""
-            root.selectedForgeVersion = ""
-            root.selectedNeoForgeVersion = ""
-            root.installVersionName = root.selectedGameVersion
+            root.selectedLoaderKind = "vanilla";
+            root.selectedFabricVersion = "";
+            root.selectedQuiltVersion = "";
+            root.selectedForgeVersion = "";
+            root.selectedNeoForgeVersion = "";
+            root.installVersionName = root.selectedGameVersion;
         }
     }
 
     function selectVersion(visibleIndex) {
         if (visibleIndex < 0 || visibleIndex >= visibleVersionModel.count) {
-            return
+            return;
         }
 
-        var item = visibleVersionModel.get(visibleIndex)
-        root.selectedGameVersion = item.versionId
-        root.selectedGameReleaseTime = item.releaseTime
-        root.rebuildLoaderModels()
+        var item = visibleVersionModel.get(visibleIndex);
+        root.selectedGameVersion = item.versionId;
+        root.selectedGameReleaseTime = item.releaseTime;
+        root.rebuildLoaderModels();
     }
 
     function rebuildLoaderModels() {
-        forgeInstallerModel.clear()
-        neoforgeInstallerModel.clear()
+        forgeInstallerModel.clear();
+        neoforgeInstallerModel.clear();
 
         for (var i = 0; i < root.allForgeInstallers.length; i++) {
-            var forge = root.allForgeInstallers[i]
+            var forge = root.allForgeInstallers[i];
             if (forge.gameVersion === root.selectedGameVersion) {
                 forgeInstallerModel.append({
                     "loaderVersion": forge.loaderVersion || "",
                     "gameVersion": forge.gameVersion || "",
                     "releaseTime": forge.releaseTime || ""
-                })
+                });
             }
         }
 
         for (var n = 0; n < root.allNeoForgeInstallers.length; n++) {
-            var neo = root.allNeoForgeInstallers[n]
+            var neo = root.allNeoForgeInstallers[n];
             if (neo.gameVersion === root.selectedGameVersion) {
                 neoforgeInstallerModel.append({
                     "loaderVersion": neo.loaderVersion || "",
                     "gameVersion": neo.gameVersion || "",
                     "releaseTime": neo.releaseTime || ""
-                })
+                });
             }
         }
     }
 
     function installSelected() {
         if (root.selectedGameVersion.length === 0) {
-            root.backend.output = "请选择 Minecraft 版本。"
-            return
+            root.backend.output = "请选择 Minecraft 版本。";
+            return;
         }
 
-        var loaderVersion = root.selectedLoaderVersion()
+        var loaderVersion = root.selectedLoaderVersion();
 
         if (root.selectedLoaderKind !== "vanilla" && loaderVersion.length === 0) {
-            root.backend.output = "请选择加载器版本。"
-            return
+            root.backend.output = "请选择加载器版本。";
+            return;
         }
 
-        root.downloadFinishHandled = false
-        root.downloadCancelDismissed = false
-        root.downloadDialogOpen = true
+        root.downloadFinishHandled = false;
+        root.downloadCancelDismissed = false;
+        root.downloadDialogOpen = true;
 
-        root.backend.installGameVersion(
-            root.downloadSource,
-            root.selectedGameVersion,
-            root.selectedLoaderKind,
-            loaderVersion
-        )
+        root.backend.installGameVersion(root.downloadSource, root.selectedGameVersion, root.selectedLoaderKind, loaderVersion);
 
-        root.pollDownloadTask()
+        root.pollDownloadTask();
     }
 
     function selectedLoaderVersion() {
         switch (root.selectedLoaderKind) {
         case "fabric":
-            return root.selectedFabricVersion
+            return root.selectedFabricVersion;
         case "quilt":
-            return root.selectedQuiltVersion
+            return root.selectedQuiltVersion;
         case "forge":
-            return root.selectedForgeVersion
+            return root.selectedForgeVersion;
         case "neoforge":
-            return root.selectedNeoForgeVersion
+            return root.selectedNeoForgeVersion;
         default:
-            return ""
+            return "";
         }
     }
 
     function groupForVersion(id, type) {
         if (root.isAprilFoolsVersion(id)) {
-            return "april"
+            return "april";
         }
 
         if (type === "release") {
-            return "release"
+            return "release";
         }
 
         if (type === "snapshot" || type === "pending" || type === "unobfuscated") {
-            return "snapshot"
+            return "snapshot";
         }
 
-        return "old"
+        return "old";
     }
 
     function isAprilFoolsVersion(id) {
-        return id === "20w14∞"
-                || id === "3D Shareware v1.34"
-                || id === "22w13oneBlockAtATime"
-                || id === "23w13a_or_b"
-                || id.indexOf("infinite") >= 0
+        return id === "20w14∞" || id === "3D Shareware v1.34" || id === "22w13oneBlockAtATime" || id === "23w13a_or_b" || id.indexOf("infinite") >= 0;
     }
 
     function iconForVersionGroup(group) {
         switch (group) {
         case "release":
-            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/grass.png"
+            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/grass.png";
         case "snapshot":
-            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/command.png"
+            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/command.png";
         case "april":
-            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/april_fools.png"
+            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/april_fools.png";
         default:
-            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/craft_table.png"
+            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/craft_table.png";
         }
     }
 
     function tagForVersionGroup(group) {
         switch (group) {
         case "release":
-            return "正式版"
+            return "正式版";
         case "snapshot":
-            return "快照版"
+            return "快照版";
         case "april":
-            return "愚人节"
+            return "愚人节";
         default:
-            return "远古版本"
+            return "远古版本";
         }
     }
 
     function placeholderTitle(tab) {
         switch (tab) {
         case "modpack":
-            return "整合包"
+            return "整合包";
         case "mod":
-            return "Mod"
+            return "Mod";
         case "resourcepack":
-            return "资源包"
+            return "资源包";
         case "shader":
-            return "光影包"
+            return "光影包";
         case "world":
-            return "世界"
+            return "世界";
         default:
-            return "下载内容"
+            return "下载内容";
         }
     }
 
@@ -1124,8 +1118,8 @@ Item {
                         placeholderText: "输入版本名称进行搜索"
                         text: root.searchText
                         onTextChanged: {
-                            root.searchText = text
-                            root.rebuildVisibleVersions()
+                            root.searchText = text;
+                            root.rebuildVisibleVersions();
                         }
                     }
 
@@ -1143,9 +1137,9 @@ Item {
                         currentIndex: 0
 
                         onCurrentIndexChanged: {
-                            var values = ["release", "snapshot", "april", "old", "all"]
-                            root.versionFilter = values[currentIndex]
-                            root.rebuildVisibleVersions()
+                            var values = ["release", "snapshot", "april", "old", "all"];
+                            root.versionFilter = values[currentIndex];
+                            root.rebuildVisibleVersions();
                         }
                     }
 
@@ -1265,8 +1259,8 @@ Item {
                         placeholderText: "输入版本名称进行搜索"
                         text: root.loaderSearchText
                         onTextChanged: {
-                            root.loaderSearchText = text
-                            root.rebuildVisibleLoaderVersions()
+                            root.loaderSearchText = text;
+                            root.rebuildVisibleLoaderVersions();
                         }
                     }
 
@@ -1331,8 +1325,7 @@ Item {
                             tagText: root.loaderTitle(root.loaderVersionKind)
                             iconSource: root.loaderIcon(root.loaderVersionKind)
                             subtitle: loaderVersionDelegate.subtitle
-                            selected: root.selectedLoaderKind === root.loaderVersionKind
-                                      && root.selectedLoaderVersion() === loaderVersionDelegate.version
+                            selected: root.selectedLoaderKind === root.loaderVersionKind && root.selectedLoaderVersion() === loaderVersionDelegate.version
                             onClicked: root.selectVisibleLoaderVersion(loaderVersionDelegate.index)
                         }
                     }
@@ -1520,8 +1513,6 @@ Item {
                         iconSource: root.loaderIcon("quilt-api")
                         disabledCard: true
                     }
-
-
                 }
             }
 
@@ -1551,24 +1542,17 @@ Item {
                         id: loaderVersionCombo
                         Layout.fillWidth: true
                         Layout.preferredHeight: 36
-                        model: root.selectedLoaderKind === "fabric" ? fabricLoaderModel
-                               : root.selectedLoaderKind === "quilt" ? quiltLoaderModel
-                               : root.selectedLoaderKind === "forge" ? forgeInstallerModel
-                               : root.selectedLoaderKind === "neoforge" ? neoforgeInstallerModel
-                               : null
-                        textRole: root.selectedLoaderKind === "forge" || root.selectedLoaderKind === "neoforge"
-                                  ? "loaderVersion" : "version"
+                        model: root.selectedLoaderKind === "fabric" ? fabricLoaderModel : root.selectedLoaderKind === "quilt" ? quiltLoaderModel : root.selectedLoaderKind === "forge" ? forgeInstallerModel : root.selectedLoaderKind === "neoforge" ? neoforgeInstallerModel : null
+                        textRole: root.selectedLoaderKind === "forge" || root.selectedLoaderKind === "neoforge" ? "loaderVersion" : "version"
 
-                        onActivated: function(index) {
-                            root.setSelectedLoaderVersionFromIndex(root.selectedLoaderKind, index)
+                        onActivated: function (index) {
+                            root.setSelectedLoaderVersionFromIndex(root.selectedLoaderKind, index);
                         }
                     }
 
                     Text {
                         Layout.preferredWidth: 128
-                        text: root.selectedLoaderVersion().length > 0
-                              ? "当前：" + root.selectedLoaderVersion()
-                              : "无可用版本"
+                        text: root.selectedLoaderVersion().length > 0 ? "当前：" + root.selectedLoaderVersion() : "无可用版本"
                         color: root.style.cTextOnSurfaceVariant
                         font.pixelSize: 11
                         elide: Text.ElideMiddle
@@ -1592,16 +1576,15 @@ Item {
                     primary: true
                     onClicked: {
                         if (root.downloadTaskStatus.active) {
-                            root.downloadDialogOpen = true
+                            root.downloadDialogOpen = true;
                         } else {
-                            root.installSelected()
+                            root.installSelected();
                         }
                     }
                 }
             }
         }
     }
-
 
     component InstallerItemCard: Item {
         id: card
@@ -1615,8 +1598,8 @@ Item {
         property bool removable: false
         property bool disabledCard: false
 
-        signal installClicked()
-        signal removeClicked()
+        signal installClicked
+        signal removeClicked
 
         height: width * 0.7
         opacity: disabledCard ? 0.52 : 1.0
@@ -1633,9 +1616,7 @@ Item {
         Rectangle {
             anchors.fill: parent
             radius: 4
-            color: mouse.containsMouse && !card.disabledCard
-                   ? Qt.rgba(card.style.cTextOnSurface.r, card.style.cTextOnSurface.g, card.style.cTextOnSurface.b, 0.06)
-                   : card.style.cSurface
+            color: mouse.containsMouse && !card.disabledCard ? Qt.rgba(card.style.cTextOnSurface.r, card.style.cTextOnSurface.g, card.style.cTextOnSurface.b, 0.06) : card.style.cSurface
             border.color: "transparent"
             border.width: 0
         }
@@ -1682,9 +1663,7 @@ Item {
                     height: 28
                     radius: 14
                     visible: card.removable
-                    color: removeMouse.containsMouse
-                           ? Qt.rgba(card.style.cTextOnSurface.r, card.style.cTextOnSurface.g, card.style.cTextOnSurface.b, 0.10)
-                           : "transparent"
+                    color: removeMouse.containsMouse ? Qt.rgba(card.style.cTextOnSurface.r, card.style.cTextOnSurface.g, card.style.cTextOnSurface.b, 0.10) : "transparent"
 
                     Text {
                         anchors.centerIn: parent
@@ -1699,8 +1678,8 @@ Item {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            mouse.accepted = true
-                            card.removeClicked()
+                            mouse.accepted = true;
+                            card.removeClicked();
                         }
                     }
                 }
@@ -1710,9 +1689,7 @@ Item {
                     height: 28
                     radius: 14
                     visible: !card.disabledCard
-                    color: installMouse.containsMouse
-                           ? Qt.rgba(card.style.cTextOnSurface.r, card.style.cTextOnSurface.g, card.style.cTextOnSurface.b, 0.10)
-                           : "transparent"
+                    color: installMouse.containsMouse ? Qt.rgba(card.style.cTextOnSurface.r, card.style.cTextOnSurface.g, card.style.cTextOnSurface.b, 0.10) : "transparent"
 
                     Text {
                         anchors.centerIn: parent
@@ -1727,8 +1704,8 @@ Item {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            mouse.accepted = true
-                            card.installClicked()
+                            mouse.accepted = true;
+                            card.installClicked();
                         }
                     }
                 }
@@ -1763,23 +1740,23 @@ Item {
             antialiasing: true
 
             onPaint: {
-                var ctx = getContext("2d")
-                ctx.reset()
-                var w = width
-                var h = height
-                var sw = spinner.strokeWidth
-                var radius = Math.max(1, Math.min(w, h) / 2 - sw)
-                var cx = w / 2
-                var cy = h / 2
-                var start = (spinner.startAngle - 90) * Math.PI / 180
-                var span = Math.max(1, spinner.arcLength) * Math.PI / 180
+                var ctx = getContext("2d");
+                ctx.reset();
+                var w = width;
+                var h = height;
+                var sw = spinner.strokeWidth;
+                var radius = Math.max(1, Math.min(w, h) / 2 - sw);
+                var cx = w / 2;
+                var cy = h / 2;
+                var start = (spinner.startAngle - 90) * Math.PI / 180;
+                var span = Math.max(1, spinner.arcLength) * Math.PI / 180;
 
-                ctx.lineWidth = sw
-                ctx.lineCap = "round"
-                ctx.strokeStyle = spinner.style.cPrimaryContainer
-                ctx.beginPath()
-                ctx.arc(cx, cy, radius, start, start + span, false)
-                ctx.stroke()
+                ctx.lineWidth = sw;
+                ctx.lineCap = "round";
+                ctx.strokeStyle = spinner.style.cPrimaryContainer;
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius, start, start + span, false);
+                ctx.stroke();
             }
         }
 
@@ -1794,22 +1771,82 @@ Item {
             loops: Animation.Infinite
 
             ParallelAnimation {
-                NumberAnimation { target: spinner; property: "arcLength"; from: 5; to: 250; duration: 400; easing.type: Easing.Linear }
-                NumberAnimation { target: spinner; property: "startAngle"; from: 45; to: 90; duration: 400; easing.type: Easing.Linear }
+                NumberAnimation {
+                    target: spinner
+                    property: "arcLength"
+                    from: 5
+                    to: 250
+                    duration: 400
+                    easing.type: Easing.Linear
+                }
+                NumberAnimation {
+                    target: spinner
+                    property: "startAngle"
+                    from: 45
+                    to: 90
+                    duration: 400
+                    easing.type: Easing.Linear
+                }
             }
-            PauseAnimation { duration: 300 }
-            ParallelAnimation {
-                NumberAnimation { target: spinner; property: "arcLength"; from: 250; to: 5; duration: 400; easing.type: Easing.Linear }
-                NumberAnimation { target: spinner; property: "startAngle"; from: 90; to: 435; duration: 400; easing.type: Easing.Linear }
+            PauseAnimation {
+                duration: 300
             }
             ParallelAnimation {
-                NumberAnimation { target: spinner; property: "arcLength"; from: 5; to: 250; duration: 400; easing.type: Easing.Linear }
-                NumberAnimation { target: spinner; property: "startAngle"; from: 495; to: 540; duration: 400; easing.type: Easing.Linear }
+                NumberAnimation {
+                    target: spinner
+                    property: "arcLength"
+                    from: 250
+                    to: 5
+                    duration: 400
+                    easing.type: Easing.Linear
+                }
+                NumberAnimation {
+                    target: spinner
+                    property: "startAngle"
+                    from: 90
+                    to: 435
+                    duration: 400
+                    easing.type: Easing.Linear
+                }
             }
-            PauseAnimation { duration: 300 }
             ParallelAnimation {
-                NumberAnimation { target: spinner; property: "arcLength"; from: 250; to: 5; duration: 400; easing.type: Easing.Linear }
-                NumberAnimation { target: spinner; property: "startAngle"; from: 540; to: 885; duration: 400; easing.type: Easing.Linear }
+                NumberAnimation {
+                    target: spinner
+                    property: "arcLength"
+                    from: 5
+                    to: 250
+                    duration: 400
+                    easing.type: Easing.Linear
+                }
+                NumberAnimation {
+                    target: spinner
+                    property: "startAngle"
+                    from: 495
+                    to: 540
+                    duration: 400
+                    easing.type: Easing.Linear
+                }
+            }
+            PauseAnimation {
+                duration: 300
+            }
+            ParallelAnimation {
+                NumberAnimation {
+                    target: spinner
+                    property: "arcLength"
+                    from: 250
+                    to: 5
+                    duration: 400
+                    easing.type: Easing.Linear
+                }
+                NumberAnimation {
+                    target: spinner
+                    property: "startAngle"
+                    from: 540
+                    to: 885
+                    duration: 400
+                    easing.type: Easing.Linear
+                }
             }
         }
 
@@ -1887,16 +1924,14 @@ Item {
         property string iconKind: ""
         property bool selected: false
 
-        signal clicked()
+        signal clicked
 
         height: 48
 
         Rectangle {
             anchors.fill: parent
             radius: 3
-            color: item.selected
-                   ? Qt.rgba(item.style.cPrimary.r, item.style.cPrimary.g, item.style.cPrimary.b, 0.14)
-                   : (mouse.containsMouse ? Qt.rgba(item.style.cTextOnSurface.r, item.style.cTextOnSurface.g, item.style.cTextOnSurface.b, 0.06) : "transparent")
+            color: item.selected ? Qt.rgba(item.style.cPrimary.r, item.style.cPrimary.g, item.style.cPrimary.b, 0.14) : (mouse.containsMouse ? Qt.rgba(item.style.cTextOnSurface.r, item.style.cTextOnSurface.g, item.style.cTextOnSurface.b, 0.06) : "transparent")
         }
 
         Image {
@@ -1967,16 +2002,14 @@ Item {
         property string iconSource: ""
         property bool selected: false
 
-        signal clicked()
+        signal clicked
 
         height: 56
 
         Rectangle {
             anchors.fill: parent
             radius: 3
-            color: cell.selected
-                   ? Qt.rgba(cell.style.cPrimary.r, cell.style.cPrimary.g, cell.style.cPrimary.b, 0.14)
-                   : (mouse.containsMouse ? Qt.rgba(cell.style.cTextOnSurface.r, cell.style.cTextOnSurface.g, cell.style.cTextOnSurface.b, 0.06) : "transparent")
+            color: cell.selected ? Qt.rgba(cell.style.cPrimary.r, cell.style.cPrimary.g, cell.style.cPrimary.b, 0.14) : (mouse.containsMouse ? Qt.rgba(cell.style.cTextOnSurface.r, cell.style.cTextOnSurface.g, cell.style.cTextOnSurface.b, 0.06) : "transparent")
         }
 
         Image {
@@ -2064,7 +2097,7 @@ Item {
         property string text: ""
         property bool selected: false
 
-        signal clicked()
+        signal clicked
 
         width: label.implicitWidth + 24
         height: 32
@@ -2072,9 +2105,7 @@ Item {
         Rectangle {
             anchors.fill: parent
             radius: 16
-            color: chip.selected
-                   ? Qt.rgba(chip.style.cPrimary.r, chip.style.cPrimary.g, chip.style.cPrimary.b, 0.16)
-                   : (mouse.containsMouse ? Qt.rgba(chip.style.cTextOnSurface.r, chip.style.cTextOnSurface.g, chip.style.cTextOnSurface.b, 0.06) : chip.style.cSurfaceContainer)
+            color: chip.selected ? Qt.rgba(chip.style.cPrimary.r, chip.style.cPrimary.g, chip.style.cPrimary.b, 0.16) : (mouse.containsMouse ? Qt.rgba(chip.style.cTextOnSurface.r, chip.style.cTextOnSurface.g, chip.style.cTextOnSurface.b, 0.06) : chip.style.cSurfaceContainer)
             border.color: chip.selected ? chip.style.cPrimary : chip.style.cBorder
             border.width: 1
         }
@@ -2105,7 +2136,7 @@ Item {
         property bool primary: false
         property bool buttonEnabled: true
 
-        signal clicked()
+        signal clicked
 
         implicitHeight: 36
         height: 36
@@ -2114,9 +2145,7 @@ Item {
         Rectangle {
             anchors.fill: parent
             radius: 3
-            color: button.primary
-                   ? button.style.cPrimary
-                   : (mouse.containsMouse ? button.style.cButtonHover : button.style.cButtonSurface)
+            color: button.primary ? button.style.cPrimary : (mouse.containsMouse ? button.style.cButtonHover : button.style.cButtonSurface)
         }
 
         Text {
@@ -2143,8 +2172,8 @@ Item {
         required property var style
         property var status: ({})
 
-        signal cancelRequested()
-        signal closeRequested()
+        signal cancelRequested
+        signal closeRequested
 
         radius: 4
         color: style.cSurfaceContainerHigh
@@ -2211,9 +2240,9 @@ Item {
                     primary: false
                     onClicked: {
                         if (card.status.active) {
-                            card.cancelRequested()
+                            card.cancelRequested();
                         } else {
-                            card.closeRequested()
+                            card.closeRequested();
                         }
                     }
                 }

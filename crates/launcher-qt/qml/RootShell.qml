@@ -3,7 +3,12 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtCore
 import "components"
-import "pages"
+import "features/versions"
+import "features/settings"
+import "features/java"
+import "features/download"
+import "features/account"
+import "features/main"
 
 Item {
     id: root
@@ -335,7 +340,7 @@ Item {
                 Item {
                     anchors.fill: parent
 
-                    MainPage {
+                    HmclMainPage {
                         anchors.fill: parent
                         style: root.appStyle
                         backend: root.backend
@@ -372,7 +377,7 @@ Item {
             leftWidth: 0
 
             centerComponent: Component {
-                AccountPage {
+                HmclAccountPage {
                     anchors.fill: parent
                     style: root.appStyle
                     backend: root.backend
@@ -390,7 +395,7 @@ Item {
             leftWidth: 0
 
             centerComponent: Component {
-                DownloadPage {
+                HmclDownloadPage {
                     id: downloadPageInstance
                     anchors.fill: parent
                     style: root.appStyle
@@ -419,7 +424,7 @@ Item {
             leftWidth: 0
 
             centerComponent: Component {
-                VersionPage {
+                HmclGameListPage {
                     anchors.fill: parent
                     style: root.appStyle
                     backend: root.backend
@@ -441,7 +446,7 @@ Item {
             leftWidth: 0
 
             centerComponent: Component {
-                InstancePage {
+                HmclVersionPage {
                     anchors.fill: parent
                     style: root.appStyle
                     backend: root.backend
@@ -460,7 +465,7 @@ Item {
             leftWidth: 0
 
             centerComponent: Component {
-                SettingsPage {
+                HmclSettingsPage {
                     anchors.fill: parent
                     style: root.appStyle
                     backend: root.backend
@@ -490,7 +495,7 @@ Item {
             leftWidth: 0
 
             centerComponent: Component {
-                JavaPage {
+                HmclJavaPage {
                     anchors.fill: parent
                     style: root.appStyle
                     backend: root.backend
@@ -508,7 +513,7 @@ Item {
             leftWidth: 0
 
             centerComponent: Component {
-                PlaceholderPage {
+                HmclPlaceholderPage {
                     anchors.fill: parent
                     style: root.appStyle
                     titleText: root.getPageTitle(root.currentPage)

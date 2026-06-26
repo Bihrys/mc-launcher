@@ -1,3 +1,13 @@
+pub mod addon;
+pub mod event;
+pub mod game;
+pub mod install;
+pub mod instance;
+pub mod loader;
+pub mod modpack;
+pub mod platform;
+pub mod profile;
+pub mod settings;
 pub mod account;
 pub mod auth;
 pub mod avatar;
@@ -38,7 +48,7 @@ pub use game_download::{
 };
 
 pub use instance_manager::{
-    GameInstanceDetail, GameInstanceSummary, InstanceFolder, InstanceLoader, InstanceSettings,
+    GameInstanceDetail, GameInstanceSummary, InstanceError, InstanceFolder, InstanceLoader, InstanceSettings,
     clean_instance, clear_assets, clear_libraries, delete_instance, duplicate_instance,
     instance_detail, instance_detail_json, instances, instances_json, open_instance_folder,
     rename_instance, save_instance_settings_json, select_instance,

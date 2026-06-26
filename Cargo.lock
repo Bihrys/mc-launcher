@@ -853,6 +853,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "launcher-app"
+version = "0.1.0"
+dependencies = [
+ "launcher-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "launcher-cli"
 version = "0.1.0"
 dependencies = [
@@ -885,7 +894,9 @@ dependencies = [
  "cxx-qt",
  "cxx-qt-build",
  "cxx-qt-lib",
+ "launcher-app",
  "launcher-core",
+ "serde",
  "serde_json",
 ]
 
