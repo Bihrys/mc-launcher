@@ -1,6 +1,6 @@
 use super::model::{
     DownloadCatalog, DownloadCenterError, DownloadSourceKind, ForgeRoot, GameEntry, InstallerEntry,
-    LoaderEntry, MetaLoaderVersion, MojangManifest, NeoForgeApiResult,
+    LoaderEntry, LoaderKind, MetaLoaderVersion, MojangManifest, NeoForgeApiResult,
 };
 use super::repository::DownloadRepository;
 use super::resolver::DownloadResolver;
@@ -20,7 +20,7 @@ impl DownloadCatalogService {
         source: DownloadSourceKind,
         game_version: &str,
     ) -> Result<String, DownloadCenterError> {
-        let client = DownloadResolver::http_client()?;
+        let client = Self::metadata_http_client()?;
         let mut warnings = Vec::new();
 
         let fabric_loaders = match Self::fetch_meta_loaders(
@@ -71,6 +71,74 @@ impl DownloadCatalogService {
 
         Ok(serde_json::json!({
             "gameVersion": game_version,
+            "fabricLoaders": fabric_loaders,
+            "quiltLoaders": quilt_loaders,
+            "forgeInstallers": forge_installers,
+            "neoforgeInstallers": neoforge_installers,
+            "warnings": warnings
+        })
+        .to_string())
+    }
+
+    pub fn fetch_loader_versions_json(
+        source: DownloadSourceKind,
+        game_version: &str,
+        loader_kind: &str,
+    ) -> Result<String, DownloadCenterError> {
+        let client = Self::metadata_http_client()?;
+        let mut warnings = Vec::new();
+        let loader_kind = LoaderKind::from_raw(loader_kind);
+
+        let mut fabric_loaders = Vec::new();
+        let mut quilt_loaders = Vec::new();
+        let mut forge_installers = Vec::new();
+        let mut neoforge_installers = Vec::new();
+
+        match loader_kind {
+            LoaderKind::Fabric => {
+                match Self::fetch_meta_loaders(
+                    &client,
+                    source,
+                    "https://meta.fabricmc.net/v2/versions/loader",
+                ) {
+                    Ok(value) => fabric_loaders = value,
+                    Err(err) => warnings.push(format!("Fabric loader 列表获取失败：{err}")),
+                }
+            }
+            LoaderKind::Quilt => {
+                match Self::fetch_meta_loaders(
+                    &client,
+                    source,
+                    "https://meta.quiltmc.org/v3/versions/loader",
+                ) {
+                    Ok(value) => quilt_loaders = value,
+                    Err(err) => warnings.push(format!("Quilt loader 列表获取失败：{err}")),
+                }
+            }
+            LoaderKind::Forge => match Self::fetch_forge_installers(&client, source) {
+                Ok(value) => {
+                    forge_installers = value
+                        .into_iter()
+                        .filter(|item| item.game_version == game_version)
+                        .collect();
+                }
+                Err(err) => warnings.push(format!("Forge installer 列表获取失败：{err}")),
+            },
+            LoaderKind::NeoForge => match Self::fetch_neoforge_installers(&client, source) {
+                Ok(value) => {
+                    neoforge_installers = value
+                        .into_iter()
+                        .filter(|item| item.game_version == game_version)
+                        .collect();
+                }
+                Err(err) => warnings.push(format!("NeoForge installer 列表获取失败：{err}")),
+            },
+            LoaderKind::Vanilla => {}
+        }
+
+        Ok(serde_json::json!({
+            "gameVersion": game_version,
+            "loaderKind": loader_kind.as_raw(),
             "fabricLoaders": fabric_loaders,
             "quiltLoaders": quilt_loaders,
             "forgeInstallers": forge_installers,
@@ -224,6 +292,14 @@ impl DownloadCatalogService {
         }
 
         fs::read_to_string(path).ok()
+    }
+
+    fn metadata_http_client() -> Result<Client, DownloadCenterError> {
+        Ok(Client::builder()
+            .user_agent("mc-launcher/0.1 hmcl-installer-metadata")
+            .connect_timeout(Duration::from_secs(3))
+            .timeout(Duration::from_secs(12))
+            .build()?)
     }
 
     fn fetch_meta_loaders(

@@ -191,10 +191,8 @@ impl qobject::LauncherBackend {
         let status_path = installer_metadata_task_status_path();
 
         if task_status_is_active(&status_path) {
-            self.as_mut().set_output(QString::from(
-                "安装器元数据正在加载中。请等待当前任务完成。",
-            ));
-            return;
+            self.as_mut()
+                .set_output(QString::from("正在重新加载安装器元数据。"));
         }
 
         write_installer_metadata_task_status(
@@ -250,6 +248,103 @@ impl qobject::LauncherBackend {
                         false,
                         0,
                         "安装器列表加载失败",
+                        &err.to_string(),
+                        true,
+                        &fallback,
+                    );
+                }
+            }
+        });
+    }
+
+    pub fn start_fetch_loader_metadata(
+        mut self: Pin<&mut Self>,
+        source: QString,
+        game_version: QString,
+        loader_kind: QString,
+    ) {
+        let requested_source = source.to_string();
+        let game_version = game_version.to_string();
+        let loader_kind = loader_kind.to_string();
+
+        if game_version.trim().is_empty() {
+            self.as_mut()
+                .set_output(QString::from("还没有选择 Minecraft 版本。"));
+            return;
+        }
+
+        if loader_kind.trim().is_empty() || loader_kind == "vanilla" {
+            self.as_mut()
+                .set_output(QString::from("原版 Minecraft 不需要加载安装器版本。"));
+            return;
+        }
+
+        let settings = load_launcher_settings_value();
+        apply_download_runtime_settings(&settings);
+        let source = resolve_download_source(&settings, &requested_source, false);
+        let status_path = installer_metadata_task_status_path();
+
+        if task_status_is_active(&status_path) {
+            self.as_mut()
+                .set_output(QString::from("正在重新加载安装器版本列表。"));
+        }
+
+        let loader_title = loader_display_name(&loader_kind);
+
+        write_installer_metadata_task_status(
+            &status_path,
+            true,
+            5,
+            &format!("正在加载 {loader_title} 版本"),
+            &format!("Minecraft {game_version}"),
+            false,
+            "",
+        );
+
+        self.as_mut().set_output(QString::from(&format!(
+            "正在后台加载 Minecraft {game_version} 的 {loader_title} 安装器版本。"
+        )));
+
+        thread::spawn(move || {
+            write_installer_metadata_task_status(
+                &status_path,
+                true,
+                30,
+                &format!("正在请求 {loader_title} 元数据"),
+                "只请求当前点击的加载器，不再阻塞其他卡片。",
+                false,
+                "",
+            );
+
+            match DownloadService::fetch_loader_versions_json(&source, &game_version, &loader_kind) {
+                Ok(json) => {
+                    write_installer_metadata_task_status(
+                        &status_path,
+                        false,
+                        100,
+                        &format!("{loader_title} 版本加载完成"),
+                        "请选择一个版本后返回安装器页面。",
+                        true,
+                        &json,
+                    );
+                }
+                Err(err) => {
+                    let fallback = serde_json::json!({
+                        "gameVersion": game_version,
+                        "loaderKind": loader_kind,
+                        "fabricLoaders": [],
+                        "quiltLoaders": [],
+                        "forgeInstallers": [],
+                        "neoforgeInstallers": [],
+                        "warnings": [err.to_string()]
+                    })
+                    .to_string();
+
+                    write_installer_metadata_task_status(
+                        &status_path,
+                        false,
+                        0,
+                        &format!("{loader_title} 版本加载失败"),
                         &err.to_string(),
                         true,
                         &fallback,
@@ -601,6 +696,16 @@ fn resolve_download_workers(settings: &serde_json::Value) -> usize {
         .map(|value| value as usize)
         .unwrap_or(64)
         .clamp(1, 256)
+}
+
+fn loader_display_name(loader_kind: &str) -> &'static str {
+    match loader_kind.trim().to_ascii_lowercase().as_str() {
+        "fabric" => "Fabric",
+        "quilt" => "Quilt",
+        "forge" => "Forge",
+        "neoforge" => "NeoForge",
+        _ => "加载器",
+    }
 }
 
 fn download_catalog_task_status_path() -> PathBuf {

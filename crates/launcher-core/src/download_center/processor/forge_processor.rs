@@ -121,7 +121,7 @@ impl ForgeProcessor {
         root: &Path,
         installer_path: &Path,
         profile: &Value,
-        version_info: &Value,
+        _version_info: &Value,
         game_version: &str,
         base_version_id: &str,
     ) -> Result<usize, DownloadCenterError> {

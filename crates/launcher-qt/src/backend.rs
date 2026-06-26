@@ -166,6 +166,15 @@ pub mod qobject {
         );
 
         #[qinvokable]
+        #[cxx_name = "startFetchLoaderMetadata"]
+        fn start_fetch_loader_metadata(
+            self: Pin<&mut LauncherBackend>,
+            source: QString,
+            game_version: QString,
+            loader_kind: QString,
+        );
+
+        #[qinvokable]
         #[cxx_name = "pollInstallerMetadataTask"]
         fn poll_installer_metadata_task(self: Pin<&mut LauncherBackend>) -> QString;
 

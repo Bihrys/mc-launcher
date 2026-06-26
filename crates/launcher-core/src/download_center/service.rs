@@ -22,6 +22,18 @@ impl DownloadService {
         )
     }
 
+    pub fn fetch_loader_versions_json(
+        source: &str,
+        game_version: &str,
+        loader_kind: &str,
+    ) -> Result<String, DownloadCenterError> {
+        DownloadCatalogService::fetch_loader_versions_json(
+            DownloadSourceKind::from_raw(source),
+            game_version,
+            loader_kind,
+        )
+    }
+
     pub fn install_game_version_with_manager(
         manager: &DownloadManager,
         source: &str,

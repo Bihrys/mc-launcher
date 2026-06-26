@@ -21,8 +21,11 @@ Item {
     property string selectedForgeVersion: ""
     property string selectedNeoForgeVersion: ""
     property bool installerPaneOpen: false
+    property bool loaderVersionPaneOpen: false
+    property string loaderVersionKind: ""
     property string versionFilter: "release"
     property string searchText: ""
+    property string loaderSearchText: ""
     property var catalog: null
     property var allForgeInstallers: []
     property var allNeoForgeInstallers: []
@@ -30,6 +33,7 @@ Item {
     property bool downloadCancelDismissed: false
     property bool downloadFinishHandled: false
     property string loadedCatalogJson: ""
+    property string loadedLoaderMetadataJson: ""
 
     property var downloadTaskStatus: ({
         "active": false,
@@ -71,6 +75,7 @@ Item {
     ListModel { id: quiltLoaderModel }
     ListModel { id: forgeInstallerModel }
     ListModel { id: neoforgeInstallerModel }
+    ListModel { id: visibleLoaderVersionModel }
 
     Component.onCompleted: {
         root.startRefreshCatalog()
@@ -116,7 +121,7 @@ Item {
 
                 HmclClassTitle {
                     width: parent.width
-                    text: "新游戏"
+                    text: "游戏"
                 }
 
                 DownloadNavItem {
@@ -124,14 +129,9 @@ Item {
                     style: root.style
                     iconSource: "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/grass.png"
                     title: "游戏"
-                    subtitle: "Minecraft / 加载器"
+                    subtitle: "Minecraft"
                     selected: root.currentTab === "game"
                     onClicked: root.currentTab = "game"
-                }
-
-                HmclClassTitle {
-                    width: parent.width
-                    text: "游戏内容"
                 }
 
                 DownloadNavItem {
@@ -142,6 +142,11 @@ Item {
                     subtitle: "Modpack"
                     selected: root.currentTab === "modpack"
                     onClicked: root.currentTab = "modpack"
+                }
+
+                HmclClassTitle {
+                    width: parent.width
+                    text: "内容"
                 }
 
                 DownloadNavItem {
@@ -267,13 +272,17 @@ Item {
         quiltLoaderModel.clear()
         forgeInstallerModel.clear()
         neoforgeInstallerModel.clear()
+        visibleLoaderVersionModel.clear()
 
         root.selectedGameVersion = ""
         root.selectedGameReleaseTime = ""
         root.loadedCatalogJson = ""
+        root.loadedLoaderMetadataJson = ""
         root.catalog = null
         root.allForgeInstallers = []
         root.allNeoForgeInstallers = []
+        root.loaderVersionPaneOpen = false
+        root.loaderVersionKind = ""
 
         root.catalogTaskStatus = {
             "active": true,
@@ -336,6 +345,45 @@ Item {
         installerMetadataPoller.restart()
     }
 
+    function startFetchLoaderMetadata(kind) {
+        if (root.selectedGameVersion.length === 0 || kind.length === 0) {
+            return
+        }
+
+        visibleLoaderVersionModel.clear()
+        root.loaderSearchText = ""
+
+        if (kind === "fabric") {
+            fabricLoaderModel.clear()
+            root.selectedFabricVersion = ""
+        } else if (kind === "quilt") {
+            quiltLoaderModel.clear()
+            root.selectedQuiltVersion = ""
+        } else if (kind === "forge") {
+            forgeInstallerModel.clear()
+            root.selectedForgeVersion = ""
+        } else if (kind === "neoforge") {
+            neoforgeInstallerModel.clear()
+            root.selectedNeoForgeVersion = ""
+        }
+
+        root.loadedLoaderMetadataJson = ""
+        root.loaderVersionKind = kind
+        root.loaderVersionPaneOpen = true
+
+        root.installerMetadataTaskStatus = {
+            "active": true,
+            "percent": 5,
+            "title": "正在加载 " + root.loaderTitle(kind) + " 版本",
+            "message": "Minecraft " + root.selectedGameVersion,
+            "metadataReady": false,
+            "metadataJson": ""
+        }
+
+        root.backend.startFetchLoaderMetadata(root.downloadSource, root.selectedGameVersion, kind)
+        installerMetadataPoller.restart()
+    }
+
     function pollInstallerMetadataTask() {
         var raw = root.backend.pollInstallerMetadataTask()
 
@@ -350,7 +398,10 @@ Item {
             if (!status.active && status.metadataReady) {
                 installerMetadataPoller.stop()
 
-                if (status.metadataJson && status.metadataJson.length > 0) {
+                if (status.metadataJson
+                        && status.metadataJson.length > 0
+                        && status.metadataJson !== root.loadedLoaderMetadataJson) {
+                    root.loadedLoaderMetadataJson = status.metadataJson
                     root.parseInstallerMetadata(status.metadataJson)
                 }
             }
@@ -362,11 +413,20 @@ Item {
     function parseInstallerMetadata(raw) {
         try {
             var data = JSON.parse(raw)
+            var kind = data.loaderKind || root.loaderVersionKind
 
-            fabricLoaderModel.clear()
-            quiltLoaderModel.clear()
-            forgeInstallerModel.clear()
-            neoforgeInstallerModel.clear()
+            if (!kind || kind === "fabric") {
+                fabricLoaderModel.clear()
+            }
+            if (!kind || kind === "quilt") {
+                quiltLoaderModel.clear()
+            }
+            if (!kind || kind === "forge") {
+                forgeInstallerModel.clear()
+            }
+            if (!kind || kind === "neoforge") {
+                neoforgeInstallerModel.clear()
+            }
 
             var fabric = data.fabricLoaders || []
             for (var f = 0; f < fabric.length; f++) {
@@ -384,10 +444,25 @@ Item {
                 })
             }
 
-            root.allForgeInstallers = data.forgeInstallers || []
-            root.allNeoForgeInstallers = data.neoforgeInstallers || []
+            var forge = data.forgeInstallers || []
+            for (var i = 0; i < forge.length; i++) {
+                forgeInstallerModel.append({
+                    "loaderVersion": forge[i].loaderVersion || "",
+                    "gameVersion": forge[i].gameVersion || root.selectedGameVersion,
+                    "releaseTime": forge[i].releaseTime || ""
+                })
+            }
 
-            root.rebuildLoaderModels()
+            var neo = data.neoforgeInstallers || []
+            for (var n = 0; n < neo.length; n++) {
+                neoforgeInstallerModel.append({
+                    "loaderVersion": neo[n].loaderVersion || "",
+                    "gameVersion": neo[n].gameVersion || root.selectedGameVersion,
+                    "releaseTime": neo[n].releaseTime || ""
+                })
+            }
+
+            root.rebuildVisibleLoaderVersions()
         } catch (e) {
             console.log("Failed to parse installer metadata", e)
         }
@@ -433,6 +508,7 @@ Item {
             quiltLoaderModel.clear()
             forgeInstallerModel.clear()
             neoforgeInstallerModel.clear()
+            visibleLoaderVersionModel.clear()
 
             var versions = data.gameVersions || []
             for (var i = 0; i < versions.length; i++) {
@@ -474,6 +550,8 @@ Item {
             }
 
             root.installerPaneOpen = false
+            root.loaderVersionPaneOpen = false
+            root.loaderVersionKind = ""
         } catch (e) {
             console.log("Failed to parse download catalog", e)
         }
@@ -511,6 +589,8 @@ Item {
         root.selectVersion(visibleIndex)
 
         root.installerPaneOpen = true
+        root.loaderVersionPaneOpen = false
+        root.loaderVersionKind = ""
         root.installVersionName = root.selectedGameVersion
         root.selectedLoaderKind = "vanilla"
         root.selectedFabricVersion = ""
@@ -518,44 +598,73 @@ Item {
         root.selectedForgeVersion = ""
         root.selectedNeoForgeVersion = ""
 
-        root.startFetchInstallerMetadata()
     }
 
     function closeInstallerPane() {
         root.installerPaneOpen = false
+        root.loaderVersionPaneOpen = false
+        root.loaderVersionKind = ""
+    }
+
+    function closeLoaderVersionPane() {
+        root.loaderVersionPaneOpen = false
+        root.loaderVersionKind = ""
     }
 
     function selectInstaller(kind) {
         if (kind === "vanilla") {
             root.selectedLoaderKind = "vanilla"
+            root.selectedFabricVersion = ""
+            root.selectedQuiltVersion = ""
+            root.selectedForgeVersion = ""
+            root.selectedNeoForgeVersion = ""
+            root.installVersionName = root.selectedGameVersion
             return
         }
 
-        if (root.installerMetadataTaskStatus.active) {
-            root.backend.output = "安装器列表仍在加载，请稍后。"
-            return
-        }
+        root.startFetchLoaderMetadata(kind)
+    }
 
-        var version = root.firstInstallerVersion(kind)
+    function chooseLoaderVersion(kind, index) {
+        var version = ""
 
-        if (version.length === 0) {
-            root.backend.output = "当前 Minecraft " + root.selectedGameVersion + " 没有可用的 " + root.loaderTitle(kind) + " 安装器。"
-            return
-        }
-
-        root.selectedLoaderKind = kind
-
-        if (kind === "fabric") {
+        if (kind === "fabric" && index >= 0 && index < fabricLoaderModel.count) {
+            version = fabricLoaderModel.get(index).version || ""
             root.selectedFabricVersion = version
-        } else if (kind === "quilt") {
+        } else if (kind === "quilt" && index >= 0 && index < quiltLoaderModel.count) {
+            version = quiltLoaderModel.get(index).version || ""
             root.selectedQuiltVersion = version
-        } else if (kind === "forge") {
+        } else if (kind === "forge" && index >= 0 && index < forgeInstallerModel.count) {
+            version = forgeInstallerModel.get(index).loaderVersion || ""
             root.selectedForgeVersion = version
-        } else if (kind === "neoforge") {
+        } else if (kind === "neoforge" && index >= 0 && index < neoforgeInstallerModel.count) {
+            version = neoforgeInstallerModel.get(index).loaderVersion || ""
             root.selectedNeoForgeVersion = version
         }
 
+        if (version.length === 0) {
+            return
+        }
+
+        root.clearOtherLoaderSelections(kind)
+        root.selectedLoaderKind = kind
         root.installVersionName = root.buildInstallVersionName()
+        root.closeLoaderVersionPane()
+    }
+
+    function clearOtherLoaderSelections(kind) {
+        if (kind !== "fabric") {
+            root.selectedFabricVersion = ""
+        }
+        if (kind !== "quilt") {
+            root.selectedQuiltVersion = ""
+        }
+        if (kind !== "forge") {
+            root.selectedForgeVersion = ""
+        }
+        if (kind !== "neoforge") {
+            root.selectedNeoForgeVersion = ""
+        }
     }
 
     function firstInstallerVersion(kind) {
@@ -576,6 +685,90 @@ Item {
         }
 
         return ""
+    }
+
+    function loaderModelCount(kind) {
+        if (kind === "fabric") {
+            return fabricLoaderModel.count
+        }
+        if (kind === "quilt") {
+            return quiltLoaderModel.count
+        }
+        if (kind === "forge") {
+            return forgeInstallerModel.count
+        }
+        if (kind === "neoforge") {
+            return neoforgeInstallerModel.count
+        }
+        return 0
+    }
+
+    function loaderVersionValueAt(kind, index) {
+        if (index < 0) {
+            return ""
+        }
+        if (kind === "fabric" && index < fabricLoaderModel.count) {
+            return fabricLoaderModel.get(index).version || ""
+        }
+        if (kind === "quilt" && index < quiltLoaderModel.count) {
+            return quiltLoaderModel.get(index).version || ""
+        }
+        if (kind === "forge" && index < forgeInstallerModel.count) {
+            return forgeInstallerModel.get(index).loaderVersion || ""
+        }
+        if (kind === "neoforge" && index < neoforgeInstallerModel.count) {
+            return neoforgeInstallerModel.get(index).loaderVersion || ""
+        }
+        return ""
+    }
+
+    function loaderSubtitleAt(kind, index) {
+        if (kind === "fabric" && index < fabricLoaderModel.count) {
+            return fabricLoaderModel.get(index).stable ? "稳定版" : "实验版"
+        }
+        if (kind === "quilt" && index < quiltLoaderModel.count) {
+            return quiltLoaderModel.get(index).stable ? "稳定版" : "实验版"
+        }
+        if (kind === "forge" && index < forgeInstallerModel.count) {
+            return forgeInstallerModel.get(index).releaseTime || "Forge installer"
+        }
+        if (kind === "neoforge" && index < neoforgeInstallerModel.count) {
+            return neoforgeInstallerModel.get(index).releaseTime || "NeoForge installer"
+        }
+        return ""
+    }
+
+    function rebuildVisibleLoaderVersions() {
+        visibleLoaderVersionModel.clear()
+
+        var kind = root.loaderVersionKind
+        var query = root.loaderSearchText.toLowerCase()
+        var count = root.loaderModelCount(kind)
+
+        for (var i = 0; i < count; i++) {
+            var version = root.loaderVersionValueAt(kind, i)
+            if (version.length === 0) {
+                continue
+            }
+            if (query.length > 0 && version.toLowerCase().indexOf(query) < 0) {
+                continue
+            }
+
+            visibleLoaderVersionModel.append({
+                "sourceIndex": i,
+                "version": version,
+                "subtitle": root.loaderSubtitleAt(kind, i)
+            })
+        }
+    }
+
+    function selectVisibleLoaderVersion(visibleIndex) {
+        if (visibleIndex < 0 || visibleIndex >= visibleLoaderVersionModel.count) {
+            return
+        }
+
+        var item = visibleLoaderVersionModel.get(visibleIndex)
+        root.chooseLoaderVersion(root.loaderVersionKind, item.sourceIndex)
     }
 
     function setSelectedLoaderVersionFromIndex(kind, index) {
@@ -645,30 +838,12 @@ Item {
     }
 
     function installerCardWidth(containerWidth) {
-        var width = Math.max(containerWidth, 1)
-
-        if (width >= 760) {
-            return Math.floor((width - 16 * 3) / 4)
-        }
-
-        if (width >= 560) {
-            return Math.floor((width - 16 * 2) / 3)
-        }
-
-        if (width >= 360) {
-            return Math.floor((width - 16) / 2)
-        }
-
-        return width
+        return Math.min(180, Math.max(containerWidth, 1))
     }
 
     function installerStatus(kind) {
         if (kind === "vanilla") {
             return "版本 " + root.selectedGameVersion
-        }
-
-        if (root.installerMetadataTaskStatus.active) {
-            return "正在加载版本列表"
         }
 
         if (kind === "fabric") {
@@ -867,13 +1042,19 @@ Item {
 
             VersionsPagePane {
                 anchors.fill: parent
-                visible: !root.installerPaneOpen
+                visible: !root.installerPaneOpen && !root.loaderVersionPaneOpen
                 opacity: visible ? 1 : 0
             }
 
             HmclInstallersPagePane {
                 anchors.fill: parent
-                visible: root.installerPaneOpen
+                visible: root.installerPaneOpen && !root.loaderVersionPaneOpen
+                opacity: visible ? 1 : 0
+            }
+
+            LoaderVersionsPagePane {
+                anchors.fill: parent
+                visible: root.loaderVersionPaneOpen
                 opacity: visible ? 1 : 0
             }
 
@@ -1056,6 +1237,160 @@ Item {
         }
     }
 
+    component LoaderVersionsPagePane: Item {
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 8
+            spacing: 8
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 52
+                radius: 4
+                color: root.style.cSurfaceContainerHigh
+                border.color: root.style.cBorder
+                border.width: 1
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 10
+                    spacing: 10
+
+                    Text {
+                        text: root.loaderTitle(root.loaderVersionKind) + " 版本"
+                        color: root.style.cTextOnSurface
+                        font.pixelSize: 13
+                        font.bold: true
+                    }
+
+                    TextField {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 36
+                        placeholderText: "输入版本名称进行搜索"
+                        text: root.loaderSearchText
+                        onTextChanged: {
+                            root.loaderSearchText = text
+                            root.rebuildVisibleLoaderVersions()
+                        }
+                    }
+
+                    HmclButton {
+                        Layout.preferredWidth: 72
+                        style: root.style
+                        text: "返回"
+                        onClicked: root.closeLoaderVersionPane()
+                    }
+
+                    HmclButton {
+                        Layout.preferredWidth: 72
+                        style: root.style
+                        text: root.installerMetadataTaskStatus.active ? "加载中" : "刷新"
+                        primary: true
+                        buttonEnabled: !root.installerMetadataTaskStatus.active
+                        onClicked: root.startFetchLoaderMetadata(root.loaderVersionKind)
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: root.installerMetadataTaskStatus.active ? 52 : 0
+                visible: root.installerMetadataTaskStatus.active
+                radius: 4
+                color: root.style.cSurfaceContainer
+                border.color: root.style.cBorder
+                border.width: 1
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 10
+
+                    BusyIndicator {
+                        Layout.preferredWidth: 28
+                        Layout.preferredHeight: 28
+                        running: true
+                    }
+
+                    Column {
+                        Layout.fillWidth: true
+                        spacing: 2
+
+                        Text {
+                            width: parent.width
+                            text: root.installerMetadataTaskStatus.title || "正在加载版本"
+                            color: root.style.cTextOnSurface
+                            font.pixelSize: 13
+                            font.bold: true
+                            elide: Text.ElideRight
+                        }
+
+                        Text {
+                            width: parent.width
+                            text: root.installerMetadataTaskStatus.message || ""
+                            color: root.style.cTextOnSurfaceVariant
+                            font.pixelSize: 11
+                            elide: Text.ElideRight
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                radius: 4
+                color: root.style.cSurfaceContainerHigh
+                border.color: root.style.cBorder
+                border.width: 1
+                clip: true
+
+                ListView {
+                    id: loaderVersionList
+
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    model: visibleLoaderVersionModel
+                    spacing: 0
+                    clip: true
+
+                    delegate: Item {
+                        id: loaderVersionDelegate
+
+                        required property int index
+                        required property int sourceIndex
+                        required property string version
+                        required property string subtitle
+
+                        width: loaderVersionList.width
+                        height: 64
+
+                        RemoteVersionCell {
+                            anchors.fill: parent
+                            style: root.style
+                            versionId: loaderVersionDelegate.version
+                            tagText: root.loaderTitle(root.loaderVersionKind)
+                            iconSource: root.loaderIcon(root.loaderVersionKind)
+                            subtitle: loaderVersionDelegate.subtitle
+                            selected: root.selectedLoaderKind === root.loaderVersionKind
+                                      && root.selectedLoaderVersion() === loaderVersionDelegate.version
+                            onClicked: root.selectVisibleLoaderVersion(loaderVersionDelegate.index)
+                        }
+                    }
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    visible: visibleLoaderVersionModel.count === 0 && !root.installerMetadataTaskStatus.active
+                    text: "没有匹配的 " + root.loaderTitle(root.loaderVersionKind) + " 版本"
+                    color: root.style.cTextOnSurfaceVariant
+                    font.pixelSize: 13
+                }
+            }
+        }
+    }
+
     component HmclInstallersPagePane: Item {
         ColumnLayout {
             anchors.fill: parent
@@ -1231,8 +1566,8 @@ Item {
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: root.selectedLoaderKind === "vanilla" ? 0 : 54
-                visible: root.selectedLoaderKind !== "vanilla"
+                Layout.preferredHeight: 0
+                visible: false
                 radius: 4
                 color: root.style.cSurfaceContainerHigh
                 border.color: root.style.cBorder
