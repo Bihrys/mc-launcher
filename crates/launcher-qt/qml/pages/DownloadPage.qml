@@ -54,7 +54,7 @@ Item {
         "active": false,
         "percent": 0,
         "title": "空闲",
-        "message": "还没有安装器元数据任务。",
+        "message": "还没有版本加载任务。",
         "metadataReady": false,
         "metadataJson": ""
     })
@@ -105,131 +105,12 @@ Item {
         onTriggered: root.pollDownloadTask()
     }
 
-    RowLayout {
+    Item {
         anchors.fill: parent
-        spacing: 0
+        clip: true
 
-        Rectangle {
-            Layout.preferredWidth: 200
-            Layout.fillHeight: true
-            color: "transparent"
-
-            Column {
-                anchors.fill: parent
-                anchors.margins: 12
-                spacing: 6
-
-                HmclClassTitle {
-                    width: parent.width
-                    text: "游戏"
-                }
-
-                DownloadNavItem {
-                    width: parent.width
-                    style: root.style
-                    iconSource: "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/grass.png"
-                    title: "游戏"
-                    subtitle: "Minecraft"
-                    selected: root.currentTab === "game"
-                    onClicked: root.currentTab = "game"
-                }
-
-                DownloadNavItem {
-                    width: parent.width
-                    style: root.style
-                    iconKind: "PACKAGE2"
-                    title: "整合包"
-                    subtitle: "Modpack"
-                    selected: root.currentTab === "modpack"
-                    onClicked: root.currentTab = "modpack"
-                }
-
-                HmclClassTitle {
-                    width: parent.width
-                    text: "内容"
-                }
-
-                DownloadNavItem {
-                    width: parent.width
-                    style: root.style
-                    iconKind: "EXTENSION"
-                    title: "Mod"
-                    subtitle: "CurseForge / Modrinth"
-                    selected: root.currentTab === "mod"
-                    onClicked: root.currentTab = "mod"
-                }
-
-                DownloadNavItem {
-                    width: parent.width
-                    style: root.style
-                    iconKind: "TEXTURE"
-                    title: "资源包"
-                    subtitle: "Resource Pack"
-                    selected: root.currentTab === "resourcepack"
-                    onClicked: root.currentTab = "resourcepack"
-                }
-
-                DownloadNavItem {
-                    width: parent.width
-                    style: root.style
-                    iconKind: "WB_SUNNY"
-                    title: "光影包"
-                    subtitle: "Shader"
-                    selected: root.currentTab === "shader"
-                    onClicked: root.currentTab = "shader"
-                }
-
-                DownloadNavItem {
-                    width: parent.width
-                    style: root.style
-                    iconKind: "PUBLIC"
-                    title: "世界"
-                    subtitle: "World"
-                    selected: root.currentTab === "world"
-                    onClicked: root.currentTab = "world"
-                }
-
-                Item {
-                    width: parent.width
-                    height: 1
-                }
-
-                Rectangle {
-                    width: parent.width
-                    height: 1
-                    color: root.style.cBorder
-                }
-
-                Text {
-                    width: parent.width
-                    text: root.catalog
-                          ? "最新正式版 " + root.catalog.latestRelease + "\n最新快照 " + root.catalog.latestSnapshot
-                          : "正在等待版本列表"
-                    color: root.style.cTextOnSurfaceVariant
-                    font.pixelSize: 11
-                    wrapMode: Text.WordWrap
-                }
-            }
-        }
-
-        Item {
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            clip: true
-
-            GameDownloadPane {
-                anchors.fill: parent
-                visible: root.currentTab === "game"
-                opacity: visible ? 1 : 0
-            }
-
-            DownloadPlaceholderPane {
-                anchors.fill: parent
-                visible: root.currentTab !== "game"
-                opacity: visible ? 1 : 0
-                title: root.placeholderTitle(root.currentTab)
-                message: "HMCL 这部分连接 CurseForge / Modrinth / 远程整合包仓库。当前先完成游戏和加载器下载主线，内容下载将在同一 DownloadService 框架下继续接入。"
-            }
+        GameDownloadPane {
+            anchors.fill: parent
         }
     }
 
@@ -263,6 +144,23 @@ Item {
 
             onCloseRequested: root.downloadDialogOpen = false
         }
+    }
+
+    function handleBack() {
+        if (root.loaderVersionPaneOpen) {
+            root.loaderVersionPaneOpen = false
+            root.installerPaneOpen = false
+            root.loaderVersionKind = ""
+            visibleLoaderVersionModel.clear()
+            return true
+        }
+
+        if (root.installerPaneOpen) {
+            root.closeInstallerPane()
+            return true
+        }
+
+        return false
     }
 
     function startRefreshCatalog() {
@@ -838,7 +736,7 @@ Item {
     }
 
     function installerCardWidth(containerWidth) {
-        return Math.min(180, Math.max(containerWidth, 1))
+        return 180
     }
 
     function installerStatus(kind) {
@@ -1293,48 +1191,10 @@ Item {
                 }
             }
 
-            Rectangle {
+            Item {
                 Layout.fillWidth: true
-                Layout.preferredHeight: root.installerMetadataTaskStatus.active ? 52 : 0
-                visible: root.installerMetadataTaskStatus.active
-                radius: 4
-                color: root.style.cSurfaceContainer
-                border.color: root.style.cBorder
-                border.width: 1
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.margins: 10
-                    spacing: 10
-
-                    BusyIndicator {
-                        Layout.preferredWidth: 28
-                        Layout.preferredHeight: 28
-                        running: true
-                    }
-
-                    Column {
-                        Layout.fillWidth: true
-                        spacing: 2
-
-                        Text {
-                            width: parent.width
-                            text: root.installerMetadataTaskStatus.title || "正在加载版本"
-                            color: root.style.cTextOnSurface
-                            font.pixelSize: 13
-                            font.bold: true
-                            elide: Text.ElideRight
-                        }
-
-                        Text {
-                            width: parent.width
-                            text: root.installerMetadataTaskStatus.message || ""
-                            color: root.style.cTextOnSurfaceVariant
-                            font.pixelSize: 11
-                            elide: Text.ElideRight
-                        }
-                    }
-                }
+                Layout.preferredHeight: 0
+                visible: false
             }
 
             Rectangle {
@@ -1354,6 +1214,7 @@ Item {
                     model: visibleLoaderVersionModel
                     spacing: 0
                     clip: true
+                    visible: !root.installerMetadataTaskStatus.active
 
                     delegate: Item {
                         id: loaderVersionDelegate
@@ -1378,6 +1239,14 @@ Item {
                             onClicked: root.selectVisibleLoaderVersion(loaderVersionDelegate.index)
                         }
                     }
+                }
+
+                BusyIndicator {
+                    anchors.centerIn: parent
+                    width: 42
+                    height: 42
+                    visible: root.installerMetadataTaskStatus.active
+                    running: visible
                 }
 
                 Text {
@@ -1437,16 +1306,10 @@ Item {
                 }
             }
 
-            Text {
-                id: installerMetadataHint
-
+            Item {
                 Layout.fillWidth: true
-                Layout.preferredHeight: visible ? 22 : 0
-                visible: root.installerMetadataTaskStatus.active
-                text: root.installerMetadataTaskStatus.message
-                color: root.style.cTextOnSurfaceVariant
-                font.pixelSize: 12
-                elide: Text.ElideRight
+                Layout.preferredHeight: 0
+                visible: false
             }
 
             ScrollView {
@@ -1663,19 +1526,17 @@ Item {
         Rectangle {
             anchors.fill: parent
             radius: 4
-            color: card.selected
-                   ? Qt.rgba(card.style.cPrimary.r, card.style.cPrimary.g, card.style.cPrimary.b, 0.12)
-                   : (mouse.containsMouse && !card.disabledCard
-                      ? Qt.rgba(card.style.cTextOnSurface.r, card.style.cTextOnSurface.g, card.style.cTextOnSurface.b, 0.06)
-                      : card.style.cSurfaceContainerHigh)
-            border.color: card.selected ? card.style.cPrimary : card.style.cBorder
-            border.width: card.selected ? 2 : 1
+            color: mouse.containsMouse && !card.disabledCard
+                   ? Qt.rgba(card.style.cTextOnSurface.r, card.style.cTextOnSurface.g, card.style.cTextOnSurface.b, 0.06)
+                   : card.style.cSurface
+            border.color: "transparent"
+            border.width: 0
         }
 
         Column {
             anchors.fill: parent
-            anchors.margins: 10
-            spacing: 6
+            anchors.margins: 8
+            spacing: 3
 
             Image {
                 width: 32
@@ -1703,11 +1564,6 @@ Item {
                 font.pixelSize: 11
                 horizontalAlignment: Text.AlignHCenter
                 elide: Text.ElideRight
-            }
-
-            Item {
-                width: parent.width
-                height: 1
             }
 
             Row {

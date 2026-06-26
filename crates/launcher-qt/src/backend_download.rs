@@ -192,7 +192,7 @@ impl qobject::LauncherBackend {
 
         if task_status_is_active(&status_path) {
             self.as_mut()
-                .set_output(QString::from("正在重新加载安装器元数据。"));
+                .set_output(QString::from("正在重新加载版本列表。"));
         }
 
         write_installer_metadata_task_status(
@@ -206,7 +206,7 @@ impl qobject::LauncherBackend {
         );
 
         self.as_mut().set_output(QString::from(&format!(
-            "正在后台加载 Minecraft {game_version} 的 Fabric / Quilt / Forge / NeoForge 安装器列表。"
+            "正在加载 Minecraft {game_version} 的安装器列表。"
         )));
 
         thread::spawn(move || {
@@ -214,8 +214,8 @@ impl qobject::LauncherBackend {
                 &status_path,
                 true,
                 30,
-                "正在请求安装器元数据",
-                "正在连接 Fabric / Quilt / Forge / NeoForge 元数据源。",
+                "正在加载安装器列表",
+                "正在加载版本列表。",
                 false,
                 "",
             );
@@ -286,7 +286,7 @@ impl qobject::LauncherBackend {
 
         if task_status_is_active(&status_path) {
             self.as_mut()
-                .set_output(QString::from("正在重新加载安装器版本列表。"));
+                .set_output(QString::from("正在重新加载版本列表。"));
         }
 
         let loader_title = loader_display_name(&loader_kind);
@@ -302,7 +302,7 @@ impl qobject::LauncherBackend {
         );
 
         self.as_mut().set_output(QString::from(&format!(
-            "正在后台加载 Minecraft {game_version} 的 {loader_title} 安装器版本。"
+            "正在加载 Minecraft {game_version} 的 {loader_title} 版本。"
         )));
 
         thread::spawn(move || {
@@ -310,8 +310,8 @@ impl qobject::LauncherBackend {
                 &status_path,
                 true,
                 30,
-                &format!("正在请求 {loader_title} 元数据"),
-                "只请求当前点击的加载器，不再阻塞其他卡片。",
+                &format!("正在加载 {loader_title} 版本"),
+                "",
                 false,
                 "",
             );
@@ -323,7 +323,7 @@ impl qobject::LauncherBackend {
                         false,
                         100,
                         &format!("{loader_title} 版本加载完成"),
-                        "请选择一个版本后返回安装器页面。",
+                        "请选择一个版本。",
                         true,
                         &json,
                     );
@@ -831,7 +831,7 @@ fn read_installer_metadata_task_status_text(path: &Path) -> String {
             "active": false,
             "percent": 0,
             "title": "空闲",
-            "message": "还没有安装器元数据任务。",
+            "message": "还没有版本加载任务。",
             "metadataReady": false,
             "metadataJson": ""
         })

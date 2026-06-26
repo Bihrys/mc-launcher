@@ -13,6 +13,7 @@ Item {
 
     readonly property string currentPage: decoratorNavigator.currentPageKey
     property string requestedSettingsSection: "global"
+    property var activeDownloadPage: null
     property bool settingsPageLoaded: false
     readonly property var appStyle: style
     readonly property real uiScale: Math.max(0.78, Math.min(1.18, Math.min(root.width / 1280, root.height / 720)))
@@ -374,9 +375,20 @@ Item {
 
             centerComponent: Component {
                 DownloadPage {
+                    id: downloadPageInstance
                     anchors.fill: parent
                     style: root.appStyle
                     backend: root.backend
+
+                    Component.onCompleted: {
+                        root.activeDownloadPage = downloadPageInstance
+                    }
+
+                    Component.onDestruction: {
+                        if (root.activeDownloadPage === downloadPageInstance) {
+                            root.activeDownloadPage = null
+                        }
+                    }
                 }
             }
         }
@@ -490,6 +502,14 @@ Item {
     }
 
     function goBack() {
+        if (root.currentPage === "download"
+                && root.activeDownloadPage
+                && typeof root.activeDownloadPage.handleBack === "function"
+                && root.activeDownloadPage.handleBack()) {
+            root.forceActiveFocus()
+            return true
+        }
+
         var result = decoratorNavigator.close()
         root.forceActiveFocus()
         return result
