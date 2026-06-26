@@ -7,15 +7,22 @@ pub struct DownloadResolver;
 
 impl DownloadResolver {
     pub fn manifest_url(source: DownloadSourceKind) -> String {
-        match source {
-            DownloadSourceKind::Official => {
+        Self::manifest_url_candidates(source)
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| {
                 "https://piston-meta.mojang.com/mc/game/version_manifest.json".to_string()
-            }
-            DownloadSourceKind::Bmcl
-            | DownloadSourceKind::Balanced
-            | DownloadSourceKind::Mirror => {
-                "https://bmclapi2.bangbang93.com/mc/game/version_manifest.json".to_string()
-            }
+            })
+    }
+
+    pub fn manifest_url_candidates(source: DownloadSourceKind) -> Vec<String> {
+        let official = "https://piston-meta.mojang.com/mc/game/version_manifest.json".to_string();
+        let bmcl = "https://bmclapi2.bangbang93.com/mc/game/version_manifest.json".to_string();
+
+        match source {
+            DownloadSourceKind::Official => vec![official, bmcl],
+            DownloadSourceKind::Bmcl | DownloadSourceKind::Mirror => vec![bmcl, official],
+            DownloadSourceKind::Balanced => vec![bmcl, official],
         }
     }
 
@@ -30,9 +37,11 @@ impl DownloadResolver {
 
     pub fn inject_url_candidates(source: DownloadSourceKind, url: &str) -> Vec<String> {
         match source {
-            DownloadSourceKind::Official => vec![url.to_string()],
+            DownloadSourceKind::Official => {
+                Self::unique_urls(vec![url.to_string(), Self::inject_bmcl_url(url)])
+            }
             DownloadSourceKind::Bmcl | DownloadSourceKind::Mirror => {
-                Self::unique_urls(vec![Self::inject_bmcl_url(url)])
+                Self::unique_urls(vec![Self::inject_bmcl_url(url), url.to_string()])
             }
             DownloadSourceKind::Balanced => {
                 Self::unique_urls(vec![Self::inject_bmcl_url(url), url.to_string()])
@@ -49,8 +58,8 @@ impl DownloadResolver {
         let bmcl = format!("https://bmclapi2.bangbang93.com/assets/{prefix}/{hash}");
 
         match source {
-            DownloadSourceKind::Official => vec![official],
-            DownloadSourceKind::Bmcl | DownloadSourceKind::Mirror => vec![bmcl],
+            DownloadSourceKind::Official => Self::unique_urls(vec![official, bmcl]),
+            DownloadSourceKind::Bmcl | DownloadSourceKind::Mirror => Self::unique_urls(vec![bmcl, official]),
             DownloadSourceKind::Balanced => Self::unique_urls(vec![bmcl, official]),
         }
     }
@@ -233,7 +242,37 @@ impl DownloadResolver {
         client: &Client,
         url: &str,
     ) -> Result<T, DownloadCenterError> {
-        Ok(client.get(url).send()?.error_for_status()?.json()?)
+        Self::get_json_from_candidates(client, &[url.to_string()])
+    }
+
+    pub fn get_json_from_candidates<T: DeserializeOwned>(
+        client: &Client,
+        urls: &[String],
+    ) -> Result<T, DownloadCenterError> {
+        let mut errors = Vec::new();
+
+        for url in urls {
+            if url.trim().is_empty() {
+                continue;
+            }
+
+            match client.get(url).send().and_then(|response| response.error_for_status()) {
+                Ok(response) => match response.json::<T>() {
+                    Ok(value) => return Ok(value),
+                    Err(err) => errors.push(format!("{url}: JSON 解析失败：{err}")),
+                },
+                Err(err) => errors.push(format!("{url}: 请求失败：{err}")),
+            }
+        }
+
+        Err(simple_error(format!(
+            "所有候选源请求失败：{}",
+            if errors.is_empty() {
+                "没有可用 URL".to_string()
+            } else {
+                errors.join("；")
+            }
+        )))
     }
 }
 

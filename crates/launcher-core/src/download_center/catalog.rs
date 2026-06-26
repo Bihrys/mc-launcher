@@ -231,8 +231,9 @@ impl DownloadCatalogService {
         source: DownloadSourceKind,
         url: &str,
     ) -> Result<Vec<LoaderEntry>, DownloadCenterError> {
-        let url = DownloadResolver::inject_url(source, url);
-        let values: Vec<MetaLoaderVersion> = DownloadResolver::get_json(client, &url)?;
+        let urls = DownloadResolver::inject_url_candidates(source, url);
+        let values: Vec<MetaLoaderVersion> =
+            DownloadResolver::get_json_from_candidates(client, &urls)?;
 
         Ok(values
             .into_iter()
@@ -247,8 +248,11 @@ impl DownloadCatalogService {
         client: &Client,
         source: DownloadSourceKind,
     ) -> Result<Vec<InstallerEntry>, DownloadCenterError> {
-        let url = DownloadResolver::inject_url(source, "https://hmcl.glavo.site/metadata/forge/");
-        let root: ForgeRoot = DownloadResolver::get_json(client, &url)?;
+        let urls = DownloadResolver::inject_url_candidates(
+            source,
+            "https://hmcl.glavo.site/metadata/forge/",
+        );
+        let root: ForgeRoot = DownloadResolver::get_json_from_candidates(client, &urls)?;
 
         let artifact = root.artifact.unwrap_or_else(|| "forge".to_string());
         let webpath = root.webpath.unwrap_or_else(|| {
@@ -305,7 +309,7 @@ impl DownloadCatalogService {
                     out.push(InstallerEntry {
                         game_version: game_version.clone(),
                         loader_version: loader_version.clone(),
-                        url: DownloadResolver::inject_url(source, &url),
+                        url,
                         release_time: version.modified.map(|value| value.to_string()),
                     });
                 }
@@ -321,35 +325,63 @@ impl DownloadCatalogService {
         Ok(out)
     }
 
+
+    pub(crate) fn fetch_forge_installers_for_game(
+        source: DownloadSourceKind,
+        game_version: &str,
+    ) -> Result<Vec<InstallerEntry>, DownloadCenterError> {
+        let client = DownloadResolver::http_client()?;
+
+        Ok(Self::fetch_forge_installers(&client, source)?
+            .into_iter()
+            .filter(|item| item.game_version == game_version)
+            .collect())
+    }
+
+    pub(crate) fn fetch_neoforge_installers_for_game(
+        source: DownloadSourceKind,
+        game_version: &str,
+    ) -> Result<Vec<InstallerEntry>, DownloadCenterError> {
+        let client = DownloadResolver::http_client()?;
+
+        Ok(Self::fetch_neoforge_installers(&client, source)?
+            .into_iter()
+            .filter(|item| item.game_version == game_version)
+            .collect())
+    }
+
     fn fetch_neoforge_installers(
         client: &Client,
         source: DownloadSourceKind,
     ) -> Result<Vec<InstallerEntry>, DownloadCenterError> {
-        let old_url = DownloadResolver::inject_url(
+        let old_urls = DownloadResolver::inject_url_candidates(
             source,
             "https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/forge",
         );
-        let new_url = DownloadResolver::inject_url(
+        let new_urls = DownloadResolver::inject_url_candidates(
             source,
             "https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge",
         );
 
         let mut out = Vec::new();
 
-        if let Ok(old_result) = DownloadResolver::get_json::<NeoForgeApiResult>(client, &old_url) {
+        if let Ok(old_result) =
+            DownloadResolver::get_json_from_candidates::<NeoForgeApiResult>(client, &old_urls)
+        {
             for version in old_result.versions {
                 out.push(InstallerEntry {
                     game_version: "1.20.1".to_string(),
                     loader_version: DownloadResolver::normalize_neoforge_version(&version),
-                    url: DownloadResolver::inject_url(source, &format!(
+                    url: format!(
                         "https://maven.neoforged.net/releases/net/neoforged/forge/{version}/forge-{version}-installer.jar"
-                    )),
+                    ),
                     release_time: None,
                 });
             }
         }
 
-        let new_result: NeoForgeApiResult = DownloadResolver::get_json(client, &new_url)?;
+        let new_result: NeoForgeApiResult =
+            DownloadResolver::get_json_from_candidates(client, &new_urls)?;
 
         for version in new_result.versions {
             let Some(game_version) = DownloadResolver::neoforge_game_version(&version) else {
@@ -359,9 +391,9 @@ impl DownloadCatalogService {
             out.push(InstallerEntry {
                 game_version,
                 loader_version: DownloadResolver::normalize_neoforge_version(&version),
-                url: DownloadResolver::inject_url(source, &format!(
+                url: format!(
                     "https://maven.neoforged.net/releases/net/neoforged/neoforge/{version}/neoforge-{version}-installer.jar"
-                )),
+                ),
                 release_time: None,
             });
         }

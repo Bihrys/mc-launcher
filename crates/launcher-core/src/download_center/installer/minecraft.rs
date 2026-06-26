@@ -17,8 +17,10 @@ impl MinecraftInstaller {
         manager.set_message("正在获取版本 manifest...")?;
 
         let client = DownloadResolver::http_client()?;
-        let manifest: MojangManifest =
-            DownloadResolver::get_json(&client, &DownloadResolver::manifest_url(source))?;
+        let manifest: MojangManifest = DownloadResolver::get_json_from_candidates(
+            &client,
+            &DownloadResolver::manifest_url_candidates(source),
+        )?;
 
         let version = manifest
             .versions
@@ -26,11 +28,12 @@ impl MinecraftInstaller {
             .find(|version| version.id == game_version)
             .ok_or_else(|| simple_error(format!("没有找到 Minecraft 版本：{game_version}")))?;
 
-        let version_json_url = DownloadResolver::inject_url(source, &version.url);
+        let version_json_urls = DownloadResolver::inject_url_candidates(source, &version.url);
 
         manager.set_message(format!("正在获取 version json：{game_version}"))?;
 
-        let version_json: Value = DownloadResolver::get_json(&client, &version_json_url)?;
+        let version_json: Value =
+            DownloadResolver::get_json_from_candidates(&client, &version_json_urls)?;
 
         Self::install_version_json(
             manager,

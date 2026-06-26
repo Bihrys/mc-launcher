@@ -578,6 +578,24 @@ Item {
         return ""
     }
 
+    function setSelectedLoaderVersionFromIndex(kind, index) {
+        if (index < 0) {
+            return
+        }
+
+        if (kind === "fabric" && index < fabricLoaderModel.count) {
+            root.selectedFabricVersion = fabricLoaderModel.get(index).version || ""
+        } else if (kind === "quilt" && index < quiltLoaderModel.count) {
+            root.selectedQuiltVersion = quiltLoaderModel.get(index).version || ""
+        } else if (kind === "forge" && index < forgeInstallerModel.count) {
+            root.selectedForgeVersion = forgeInstallerModel.get(index).loaderVersion || ""
+        } else if (kind === "neoforge" && index < neoforgeInstallerModel.count) {
+            root.selectedNeoForgeVersion = neoforgeInstallerModel.get(index).loaderVersion || ""
+        }
+
+        root.installVersionName = root.buildInstallVersionName()
+    }
+
     function buildInstallVersionName() {
         if (root.selectedLoaderKind === "vanilla") {
             return root.selectedGameVersion
@@ -1208,6 +1226,57 @@ Item {
                     }
 
 
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: root.selectedLoaderKind === "vanilla" ? 0 : 54
+                visible: root.selectedLoaderKind !== "vanilla"
+                radius: 4
+                color: root.style.cSurfaceContainerHigh
+                border.color: root.style.cBorder
+                border.width: 1
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 14
+                    anchors.rightMargin: 14
+                    spacing: 10
+
+                    Text {
+                        text: root.loaderTitle(root.selectedLoaderKind) + " 版本"
+                        color: root.style.cTextOnSurface
+                        font.pixelSize: 13
+                        font.bold: true
+                    }
+
+                    ComboBox {
+                        id: loaderVersionCombo
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 36
+                        model: root.selectedLoaderKind === "fabric" ? fabricLoaderModel
+                               : root.selectedLoaderKind === "quilt" ? quiltLoaderModel
+                               : root.selectedLoaderKind === "forge" ? forgeInstallerModel
+                               : root.selectedLoaderKind === "neoforge" ? neoforgeInstallerModel
+                               : null
+                        textRole: root.selectedLoaderKind === "forge" || root.selectedLoaderKind === "neoforge"
+                                  ? "loaderVersion" : "version"
+
+                        onActivated: function(index) {
+                            root.setSelectedLoaderVersionFromIndex(root.selectedLoaderKind, index)
+                        }
+                    }
+
+                    Text {
+                        Layout.preferredWidth: 128
+                        text: root.selectedLoaderVersion().length > 0
+                              ? "当前：" + root.selectedLoaderVersion()
+                              : "无可用版本"
+                        color: root.style.cTextOnSurfaceVariant
+                        font.pixelSize: 11
+                        elide: Text.ElideMiddle
+                    }
                 }
             }
 

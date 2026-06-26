@@ -20,6 +20,7 @@ impl ForgeProcessor {
         game_version: &str,
         loader_version: &str,
         installer_path: &Path,
+        base_version_id: &str,
     ) -> Result<InstallResult, DownloadCenterError> {
         manager.set_message(format!("正在解析 {loader_kind} installer profile..."))?;
 
@@ -31,13 +32,22 @@ impl ForgeProcessor {
                 .ok()
                 .and_then(|text| serde_json::from_str::<Value>(&text).ok());
 
-        let version_info = profile
+        let mut version_info = profile
             .get("versionInfo")
             .cloned()
             .or(version_json)
             .ok_or_else(|| {
                 simple_error("installer 中没有 versionInfo/version.json，无法生成版本。")
             })?;
+
+        if version_info.get("inheritsFrom").is_none() {
+            if let Some(object) = version_info.as_object_mut() {
+                object.insert(
+                    "inheritsFrom".to_string(),
+                    Value::String(base_version_id.to_string()),
+                );
+            }
+        }
 
         let version_id = version_info
             .get("id")
@@ -73,6 +83,8 @@ impl ForgeProcessor {
             )?);
         }
 
+        files.extend(Self::collect_profile_data_artifacts(source, &root, &profile));
+
         let downloaded_libraries = manager.download_files(files)?;
 
         let mut executed_processors = 0;
@@ -86,6 +98,7 @@ impl ForgeProcessor {
                 &profile,
                 &version_info,
                 game_version,
+                base_version_id,
             )?;
         }
 
@@ -110,21 +123,17 @@ impl ForgeProcessor {
         profile: &Value,
         version_info: &Value,
         game_version: &str,
+        base_version_id: &str,
     ) -> Result<usize, DownloadCenterError> {
         let Some(processors) = profile.get("processors").and_then(Value::as_array) else {
             return Ok(0);
         };
 
         let libraries_dir = root.join("libraries");
-        let version_id = version_info
-            .get("id")
-            .and_then(Value::as_str)
-            .unwrap_or(game_version);
-
         let minecraft_jar = root
             .join("versions")
-            .join(version_id)
-            .join(format!("{version_id}.jar"));
+            .join(base_version_id)
+            .join(format!("{base_version_id}.jar"));
 
         let mut count = 0;
 
@@ -185,8 +194,9 @@ impl ForgeProcessor {
                         &libraries_dir,
                         installer_path,
                         &minecraft_jar,
+                        profile,
                         game_version,
-                    ));
+                    )?);
                 }
             }
 
@@ -227,23 +237,137 @@ impl ForgeProcessor {
         libraries_dir: &Path,
         installer_path: &Path,
         minecraft_jar: &Path,
+        profile: &Value,
         game_version: &str,
-    ) -> String {
+    ) -> Result<String, DownloadCenterError> {
         if value.starts_with('[') && value.ends_with(']') {
             let descriptor = &value[1..value.len() - 1];
 
             if let Some(path) = Self::artifact_path(libraries_dir, descriptor) {
-                return path.to_string_lossy().to_string();
+                return Ok(path.to_string_lossy().to_string());
             }
         }
 
-        value
+        let mut out = value
             .replace("{ROOT}", &root.to_string_lossy())
             .replace("{LIBRARY_DIR}", &libraries_dir.to_string_lossy())
             .replace("{INSTALLER}", &installer_path.to_string_lossy())
             .replace("{MINECRAFT_JAR}", &minecraft_jar.to_string_lossy())
             .replace("{MINECRAFT_VERSION}", game_version)
-            .replace("{SIDE}", "client")
+            .replace("{SIDE}", "client");
+
+        if let Some(data) = profile.get("data").and_then(Value::as_object) {
+            for (key, entry) in data {
+                let token = format!("{{{key}}}");
+
+                if !out.contains(&token) {
+                    continue;
+                }
+
+                let Some(raw) = Self::profile_data_client_value(entry) else {
+                    continue;
+                };
+
+                let resolved = Self::resolve_profile_data_value(
+                    raw,
+                    root,
+                    libraries_dir,
+                    installer_path,
+                )?;
+
+                out = out.replace(&token, &resolved);
+            }
+        }
+
+        Ok(out)
+    }
+
+    fn profile_data_client_value(value: &Value) -> Option<&str> {
+        value
+            .get("client")
+            .and_then(Value::as_str)
+            .or_else(|| value.as_str())
+    }
+
+    fn resolve_profile_data_value(
+        raw: &str,
+        root: &Path,
+        libraries_dir: &Path,
+        installer_path: &Path,
+    ) -> Result<String, DownloadCenterError> {
+        if raw.starts_with('[') && raw.ends_with(']') {
+            let descriptor = &raw[1..raw.len() - 1];
+
+            if let Some(path) = Self::artifact_path(libraries_dir, descriptor) {
+                return Ok(path.to_string_lossy().to_string());
+            }
+        }
+
+        if let Some(name) = raw.strip_prefix('/') {
+            let target = root
+                .join("versions")
+                .join("forge-installer-data")
+                .join(name.trim_start_matches('/'));
+
+            if !target.exists() {
+                Self::extract_zip_entry(installer_path, name, &target)?;
+            }
+
+            return Ok(target.to_string_lossy().to_string());
+        }
+
+        Ok(raw.to_string())
+    }
+
+    fn collect_profile_data_artifacts(
+        source: DownloadSourceKind,
+        root: &Path,
+        profile: &Value,
+    ) -> Vec<crate::download::DownloadFile> {
+        let mut files = Vec::new();
+        let Some(data) = profile.get("data").and_then(Value::as_object) else {
+            return files;
+        };
+
+        for value in data.values() {
+            let Some(raw) = Self::profile_data_client_value(value) else {
+                continue;
+            };
+
+            if raw.starts_with('[') && raw.ends_with(']') {
+                let descriptor = &raw[1..raw.len() - 1];
+
+                if let Some(file) = LibraryResolver::library_from_name_to_file(
+                    source,
+                    root,
+                    "https://maven.minecraftforge.net/",
+                    descriptor,
+                ) {
+                    files.push(file);
+                }
+            }
+        }
+
+        files
+    }
+
+    fn extract_zip_entry(
+        installer_path: &Path,
+        name: &str,
+        target: &Path,
+    ) -> Result<(), DownloadCenterError> {
+        let file = fs::File::open(installer_path)?;
+        let mut zip = ZipArchive::new(file)?;
+        let mut entry = zip.by_name(name)?;
+
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent)?;
+        }
+
+        let mut output = fs::File::create(target)?;
+        std::io::copy(&mut entry, &mut output)?;
+
+        Ok(())
     }
 
     fn main_class_from_jar(path: &Path) -> Result<Option<String>, DownloadCenterError> {

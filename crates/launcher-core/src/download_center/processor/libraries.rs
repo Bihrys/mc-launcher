@@ -99,8 +99,9 @@ impl LibraryResolver {
             return Ok(Vec::new());
         };
 
-        let asset_index_url = DownloadResolver::inject_url(source, asset_index_url);
-        let asset_json: Value = DownloadResolver::get_json(client, &asset_index_url)?;
+        let asset_index_urls = DownloadResolver::inject_url_candidates(source, asset_index_url);
+        let asset_json: Value =
+            DownloadResolver::get_json_from_candidates(client, &asset_index_urls)?;
 
         let index_path = root
             .join("assets")

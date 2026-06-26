@@ -22,7 +22,7 @@ impl QuiltInstaller {
 
         let mut base = MinecraftInstaller::install(manager, source, game_version)?;
         let client = DownloadResolver::http_client()?;
-        let profile_url = DownloadResolver::inject_url(
+        let profile_urls = DownloadResolver::inject_url_candidates(
             source,
             &format!(
                 "https://meta.quiltmc.org/v3/versions/loader/{game_version}/{loader_version}/profile/json"
@@ -30,7 +30,8 @@ impl QuiltInstaller {
         );
 
         manager.set_message("正在获取 Quilt profile...")?;
-        let profile_json: Value = DownloadResolver::get_json(&client, &profile_url)?;
+        let profile_json: Value =
+            DownloadResolver::get_json_from_candidates(&client, &profile_urls)?;
 
         let version_id = profile_json
             .get("id")
