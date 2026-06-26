@@ -626,24 +626,6 @@ Item {
         }
     }
 
-    function installerCardWidth(containerWidth) {
-        var width = Math.max(containerWidth, 1)
-
-        if (width >= 760) {
-            return Math.floor((width - 16 * 3) / 4)
-        }
-
-        if (width >= 560) {
-            return Math.floor((width - 16 * 2) / 3)
-        }
-
-        if (width >= 360) {
-            return Math.floor((width - 16) / 2)
-        }
-
-        return width
-    }
-
     function installerStatus(kind) {
         if (kind === "vanilla") {
             return "版本 " + root.selectedGameVersion
@@ -1084,38 +1066,20 @@ Item {
                 }
             }
 
-            Text {
-                id: installerMetadataHint
-
-                Layout.fillWidth: true
-                Layout.preferredHeight: visible ? 22 : 0
-                visible: root.installerMetadataTaskStatus.active
-                text: root.installerMetadataTaskStatus.message
-                color: root.style.cTextOnSurfaceVariant
-                font.pixelSize: 12
-                elide: Text.ElideRight
-            }
-
             ScrollView {
-                id: installerScroll
-
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
 
-                contentWidth: availableWidth
-                contentHeight: installerFlow.implicitHeight
-
                 Flow {
                     id: installerFlow
 
-                    width: installerScroll.availableWidth
-                    flow: Flow.LeftToRight
+                    width: Math.max(parent.width - 18, 1)
                     spacing: 16
 
                     InstallerItemCard {
                         style: root.style
-                        width: root.installerCardWidth(installerFlow.width)
+                        width: Math.max(150, Math.min(190, (installerFlow.width - 48) / 4))
                         libraryId: "game"
                         title: "Minecraft"
                         statusText: root.installerStatus("vanilla")
@@ -1127,7 +1091,7 @@ Item {
 
                     InstallerItemCard {
                         style: root.style
-                        width: root.installerCardWidth(installerFlow.width)
+                        width: Math.max(150, Math.min(190, (installerFlow.width - 48) / 4))
                         libraryId: "forge"
                         title: "Forge"
                         statusText: root.installerStatus("forge")
@@ -1140,7 +1104,7 @@ Item {
 
                     InstallerItemCard {
                         style: root.style
-                        width: root.installerCardWidth(installerFlow.width)
+                        width: Math.max(150, Math.min(190, (installerFlow.width - 48) / 4))
                         libraryId: "neoforge"
                         title: "NeoForge"
                         statusText: root.installerStatus("neoforge")
@@ -1153,7 +1117,7 @@ Item {
 
                     InstallerItemCard {
                         style: root.style
-                        width: root.installerCardWidth(installerFlow.width)
+                        width: Math.max(150, Math.min(190, (installerFlow.width - 48) / 4))
                         libraryId: "optifine"
                         title: "OptiFine"
                         statusText: root.installerStatus("optifine")
@@ -1163,7 +1127,7 @@ Item {
 
                     InstallerItemCard {
                         style: root.style
-                        width: root.installerCardWidth(installerFlow.width)
+                        width: Math.max(150, Math.min(190, (installerFlow.width - 48) / 4))
                         libraryId: "fabric"
                         title: "Fabric"
                         statusText: root.installerStatus("fabric")
@@ -1176,7 +1140,7 @@ Item {
 
                     InstallerItemCard {
                         style: root.style
-                        width: root.installerCardWidth(installerFlow.width)
+                        width: Math.max(150, Math.min(190, (installerFlow.width - 48) / 4))
                         libraryId: "fabric-api"
                         title: "Fabric API"
                         statusText: root.installerStatus("fabric-api")
@@ -1186,7 +1150,7 @@ Item {
 
                     InstallerItemCard {
                         style: root.style
-                        width: root.installerCardWidth(installerFlow.width)
+                        width: Math.max(150, Math.min(190, (installerFlow.width - 48) / 4))
                         libraryId: "quilt"
                         title: "Quilt"
                         statusText: root.installerStatus("quilt")
@@ -1199,7 +1163,7 @@ Item {
 
                     InstallerItemCard {
                         style: root.style
-                        width: root.installerCardWidth(installerFlow.width)
+                        width: Math.max(150, Math.min(190, (installerFlow.width - 48) / 4))
                         libraryId: "quilt-api"
                         title: "Quilt API"
                         statusText: root.installerStatus("quilt-api")
@@ -1207,7 +1171,14 @@ Item {
                         disabledCard: true
                     }
 
-
+                    Text {
+                        width: installerFlow.width
+                        visible: root.installerMetadataTaskStatus.active
+                        text: root.installerMetadataTaskStatus.message
+                        color: root.style.cTextOnSurfaceVariant
+                        font.pixelSize: 12
+                        wrapMode: Text.WordWrap
+                    }
                 }
             }
 
@@ -1253,7 +1224,7 @@ Item {
         signal installClicked()
         signal removeClicked()
 
-        height: width * 0.7
+        height: width * 0.70
         opacity: disabledCard ? 0.52 : 1.0
 
         Rectangle {
