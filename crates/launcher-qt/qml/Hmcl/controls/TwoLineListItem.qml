@@ -1,28 +1,47 @@
 import QtQuick
+import QtQuick.Layouts
 
-Column {
+ColumnLayout {
     id: root
-
+    property var style
     property string title: ""
     property string subtitle: ""
-    required property var style
+    property string tag: ""
+    spacing: 1
 
-    spacing: 2
-
-    Text {
-        width: parent.width
-        text: root.title
-        color: root.style.cTextOnSurface
-        font.pixelSize: 15
-        elide: Text.ElideRight
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: 6
+        Text {
+            Layout.fillWidth: true
+            text: root.title
+            color: root.style.cTextOnSurface
+            font.pixelSize: 15
+            elide: Text.ElideRight
+        }
+        Rectangle {
+            visible: root.tag.length > 0
+            radius: 7
+            color: root.style.cSurfaceContainerHigh
+            border.color: root.style.cBorder
+            border.width: 1
+            Layout.preferredHeight: 18
+            Layout.preferredWidth: tagText.implicitWidth + 12
+            Text {
+                id: tagText
+                anchors.centerIn: parent
+                text: root.tag
+                color: root.style.cTextOnSurfaceVariant
+                font.pixelSize: 10
+            }
+        }
     }
 
     Text {
-        width: parent.width
+        Layout.fillWidth: true
         text: root.subtitle
         color: root.style.cTextOnSurfaceVariant
         font.pixelSize: 12
         elide: Text.ElideRight
-        visible: root.subtitle.length > 0
     }
 }

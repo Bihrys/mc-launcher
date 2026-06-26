@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../../components"
+import "../../Hmcl/controls"
 
 Item {
     id: root
@@ -226,7 +227,7 @@ Item {
                             boundsBehavior: Flickable.StopAtBounds
                             ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-                            delegate: GameListCellQt {
+                            delegate: GameListCell {
                                 id: cell
 
                                 required property string roleInstanceId

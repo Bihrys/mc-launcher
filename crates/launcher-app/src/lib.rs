@@ -14,4 +14,5 @@ pub mod state;
 pub mod task_center;
 
 pub use app_context::AppContext;
+pub use task_center::TaskCenter;
 pub use service::{AccountService, DownloadService, InstanceService, JavaService, LaunchService, SettingsService};

@@ -20,3 +20,4 @@ HMCL-main/
 **/*.bak-*
 *.rs.bk
 **/*.rs.bk
+*.md
