@@ -17,8 +17,12 @@
 //!   作为普通 String 字段存储。
 //! - QML delegate 通过角色读取（`required property string title` 等），
 //!   彻底去掉 `JSON.parse`。
+//!
+//! 注意：cxx-qt-build 0.8.1 要求所有 bridge 文件位于同一目录（QTBUG-93443），
+//! 因此本文件与 `backend.rs` 同级放在 `src/` 根，共享的行结构/过滤逻辑放在
+//! `crate::qml::shared`。
 
-use super::shared::{
+use crate::qml::shared::{
     InstanceRow, ROLE_CAN_UPDATE, ROLE_GAME_VERSION, ROLE_ICON_NAME, ROLE_INSTANCE_ID,
     ROLE_LOADER_SUMMARY, ROLE_SELECTED, ROLE_SUBTITLE, ROLE_TAG, ROLE_TITLE, filter_rows,
     ok_message,
@@ -176,7 +180,7 @@ impl game_model::GameListModel {
     }
 
     /// 设为当前实例并刷新（对齐 HMCL `Profiles.setSelectedInstance`）。
-    pub fn select_instance(mut self: Pin<&mut Self>, id: QString) {
+    pub fn select_instance(self: Pin<&mut Self>, id: QString) {
         let _ = launcher_app::InstanceService::select(&String::from(&id));
         self.refresh();
     }

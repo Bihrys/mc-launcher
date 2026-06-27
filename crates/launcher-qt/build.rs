@@ -104,8 +104,8 @@ fn main() {
     .qt_module("QuickShapes")
     .files([
         "src/backend.rs",
-        "src/qml/game_list_models.rs",
-        "src/qml/profile_list_model.rs",
+        "src/game_list_models.rs",
+        "src/profile_list_model.rs",
     ])
     .build();
 }

@@ -11,6 +11,8 @@ mod viewmodel;
 mod model;
 mod bridge;
 mod qml;
+mod game_list_models;
+mod profile_list_model;
 
 use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QString, QUrl};
 

@@ -3,8 +3,10 @@
 //! 当前 core 只有单个默认游戏目录，多目录的增删切换是后续切片；这里实现成
 //! 真正的 `QAbstractListModel`，让 Profile 面板与实例列表共用同一套
 //! role-based 模式（无 `JSON.parse`），为将来的多目录管理打好基础。
+//!
+//! 与 `game_list_models.rs` 同级放在 `src/` 根（cxx-qt-build 要求 bridge 同目录）。
 
-use super::shared::{
+use crate::qml::shared::{
     ProfileRow, ROLE_PROFILE_ID, ROLE_PROFILE_NAME, ROLE_PROFILE_PATH, ROLE_PROFILE_SELECTED,
 };
 
