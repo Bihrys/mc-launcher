@@ -10,6 +10,7 @@ mod task_bridge;
 mod viewmodel;
 mod model;
 mod bridge;
+mod qml;
 
 use cxx_qt_lib::{QGuiApplication, QQmlApplicationEngine, QString, QUrl};
 

@@ -102,6 +102,10 @@ fn main() {
     ])
     .qt_module("Network")
     .qt_module("QuickShapes")
-    .files(["src/backend.rs"])
+    .files([
+        "src/backend.rs",
+        "src/qml/game_list_models.rs",
+        "src/qml/profile_list_model.rs",
+    ])
     .build();
 }
