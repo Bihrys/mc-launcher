@@ -32,12 +32,10 @@ Item {
                     delegate: AdvancedListItem {
                         required property string profileName
                         required property string profilePath
-                        required property int index
                         style: root.style
                         title: profileName
                         subtitle: profilePath
                         iconKind: "DRESSER"
-                        selected: index === 0
                     }
                 }
                 AdvancedListItem { style: root.style; title: "新建游戏目录"; iconKind: "ADD_CIRCLE" }

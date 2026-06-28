@@ -1,16 +1,25 @@
 import QtQuick
 import QtQuick.Layouts
 import "../../Hmcl/controls"
-import "../../Hmcl/icons"
 
+// 实例列表的单行 delegate（对齐 HMCL GameListCell）。
+// 作为 ListView 的 delegate，数据字段用 required property 直接绑定 GameListModel 的角色，
+// 不经过 JSON。
 MDListCell {
     id: root
-    property alias iconSource: icon.source
-    property string title: ""
-    property string subtitle: ""
-    property string tag: ""
-    property bool selected: false
-    property bool canUpdate: false
+
+    // —— 来自 GameListModel 的角色（ListView 自动按名绑定）——
+    required property string instanceId
+    required property string title
+    required property string subtitle
+    required property string tag
+    required property string iconName
+    required property bool selected
+    required property bool canUpdate
+
+    // —— 由页面显式注入 ——
+    property string iconBase: ""
+
     signal selectRequested()
     signal openRequested()
     signal launchRequested()
@@ -19,6 +28,17 @@ MDListCell {
 
     height: 49
     implicitHeight: 49
+
+    // 单击行 -> 打开实例详情（HMCL: modifyGameSettings）。
+    onClicked: root.openRequested()
+
+    // 选中态背景（HMCL secondary-container）。
+    Rectangle {
+        anchors.fill: parent
+        z: -1
+        visible: root.selected
+        color: root.styleValue("cNavSelected", "transparent")
+    }
 
     RowLayout {
         anchors.fill: parent
@@ -35,13 +55,13 @@ MDListCell {
         }
 
         Image {
-            id: icon
             Layout.preferredWidth: 32
             Layout.preferredHeight: 32
             fillMode: Image.PreserveAspectFit
             smooth: false
             sourceSize.width: 32
             sourceSize.height: 32
+            source: root.iconBase + (root.iconName.length > 0 ? root.iconName : "grass") + ".png"
         }
 
         TwoLineListItem {
@@ -66,17 +86,23 @@ MDListCell {
         }
 
         ToolbarButton {
+            id: menuButton
             style: root.style
             iconKind: "MENU"
-            onClicked: root.manageRequested(width / 2, height / 2)
+            onClicked: {
+                var p = menuButton.mapToItem(root, menuButton.width / 2, menuButton.height)
+                root.manageRequested(p.x, p.y)
+            }
         }
     }
 
+    // 右键任意位置弹出上下文菜单（HMCL: SECONDARY 按钮）。左键不被此区域接收，
+    // 会穿透到下方的行点击与各按钮。
     MouseArea {
         anchors.fill: parent
-        acceptedButtons: Qt.LeftButton
-        hoverEnabled: true
-        z: -1
-        onDoubleClicked: root.openRequested()
+        acceptedButtons: Qt.RightButton
+        onClicked: function(mouse) {
+            root.manageRequested(mouse.x, mouse.y)
+        }
     }
 }
