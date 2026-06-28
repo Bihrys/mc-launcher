@@ -6,30 +6,25 @@ impl qobject::LauncherBackend {
     pub fn detect_java(mut self: Pin<&mut Self>) {
         let runtimes = launcher_core::detect_java_runtimes();
 
+        let items: Vec<serde_json::Value> = runtimes
+            .iter()
+            .map(|runtime| {
+                serde_json::json!({
+                    "path": runtime.executable.display().to_string(),
+                    "version": runtime.version.clone().unwrap_or_default(),
+                    "major": runtime.major.map(|m| m.to_string()).unwrap_or_default(),
+                    "vendor": runtime.vendor_hint.clone().unwrap_or_default(),
+                })
+            })
+            .collect();
+
+        let json = serde_json::json!({ "runtimes": items }).to_string();
+        self.as_mut().set_detected_java_json(QString::from(&json));
+
         let text = if runtimes.is_empty() {
-            "No Java runtime found.".to_string()
+            "未检测到本机 Java 运行时。".to_string()
         } else {
-            let mut text = String::from("Detected Java runtimes:\n\n");
-
-            for runtime in runtimes {
-                let version = runtime.version.as_deref().unwrap_or("unknown");
-                let major = runtime
-                    .major
-                    .map(|major| major.to_string())
-                    .unwrap_or_else(|| "unknown".to_string());
-
-                text.push_str(&format!("- {}\n", runtime.executable.display()));
-                text.push_str(&format!("  version: {version}\n"));
-                text.push_str(&format!("  major: {major}\n"));
-
-                if let Some(vendor) = runtime.vendor_hint {
-                    text.push_str(&format!("  vendor: {vendor}\n"));
-                }
-
-                text.push('\n');
-            }
-
-            text
+            format!("已检测到 {} 个 Java 运行时。", runtimes.len())
         };
 
         self.as_mut().set_output(QString::from(&text));

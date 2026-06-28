@@ -338,15 +338,18 @@ Item {
 
             centerComponent: Component {
                 Item {
+                    id: mainCenter
                     anchors.fill: parent
 
                     HmclMainPage {
+                        id: mainPageInstance
                         anchors.fill: parent
                         style: root.appStyle
                         backend: root.backend
                     }
 
                     SplitLaunchButton {
+                        id: splitLaunch
                         anchors.right: parent.right
                         anchors.bottom: parent.bottom
                         style: root.appStyle
@@ -359,8 +362,11 @@ Item {
                             root.startLaunch()
                         }
 
+                        // 菜单键弹出实例快速切换（对齐 HMCL GameListPopupMenu，
+                        // 锚定在按钮左上角向上弹出）。
                         onMenuClicked: {
-                            root.navigate("versions")
+                            var pos = splitLaunch.mapToItem(mainCenter, 0, 0)
+                            mainPageInstance.openQuickSwitch(pos.x + splitLaunch.width, pos.y)
                         }
                     }
                 }

@@ -32,6 +32,7 @@ pub mod qobject {
         #[qproperty(QString, selected_game_version, cxx_name = "selectedGameVersion")]
         #[qproperty(QString, launch_task_json, cxx_name = "launchTaskJson")]
         #[qproperty(QString, launcher_settings_json, cxx_name = "launcherSettingsJson")]
+        #[qproperty(QString, detected_java_json, cxx_name = "detectedJavaJson")]
         #[namespace = "launcher_backend"]
         type LauncherBackend = super::LauncherBackendRust;
 
@@ -328,4 +329,5 @@ pub struct LauncherBackendRust {
     selected_game_version: QString,
     launch_task_json: QString,
     launcher_settings_json: QString,
+    detected_java_json: QString,
 }
