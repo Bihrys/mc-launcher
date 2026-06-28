@@ -411,6 +411,35 @@ pub fn open_instance_folder(id: &str, sub: &str) -> Result<PathBuf, InstanceErro
     Ok(path)
 }
 
+pub fn instance_mods(id: &str) -> Result<Vec<crate::addon::mod_file::ModFileInfo>, InstanceError> {
+    let detail = instance_detail(id)?;
+    let mods_dir = detail.summary.run_directory.join("mods");
+    crate::addon::mod_file::list_mods(&mods_dir).map_err(|err| simple_error(err.to_string()))
+}
+
+pub fn instance_mods_json(id: &str) -> Result<String, InstanceError> {
+    let mods = instance_mods(id)?;
+    Ok(serde_json::to_string(&serde_json::json!({ "mods": mods }))?)
+}
+
+pub fn set_instance_mod_enabled(
+    id: &str,
+    file_name: &str,
+    enabled: bool,
+) -> Result<String, InstanceError> {
+    let detail = instance_detail(id)?;
+    let mods_dir = detail.summary.run_directory.join("mods");
+    crate::addon::mod_file::set_mod_enabled(&mods_dir, file_name, enabled)
+        .map_err(|err| simple_error(err.to_string()))
+}
+
+pub fn delete_instance_mod(id: &str, file_name: &str) -> Result<(), InstanceError> {
+    let detail = instance_detail(id)?;
+    let mods_dir = detail.summary.run_directory.join("mods");
+    crate::addon::mod_file::delete_mod(&mods_dir, file_name)
+        .map_err(|err| simple_error(err.to_string()))
+}
+
 pub fn clean_instance(id: &str) -> Result<u64, InstanceError> {
     let detail = instance_detail(id)?;
     let mut removed = 0;

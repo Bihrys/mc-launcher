@@ -33,6 +33,7 @@ pub mod qobject {
         #[qproperty(QString, launch_task_json, cxx_name = "launchTaskJson")]
         #[qproperty(QString, launcher_settings_json, cxx_name = "launcherSettingsJson")]
         #[qproperty(QString, detected_java_json, cxx_name = "detectedJavaJson")]
+        #[qproperty(QString, instance_mods_json, cxx_name = "instanceModsJson")]
         #[namespace = "launcher_backend"]
         type LauncherBackend = super::LauncherBackendRust;
 
@@ -212,6 +213,27 @@ pub mod qobject {
         fn refresh_instance_detail(self: Pin<&mut LauncherBackend>, version_id: QString) -> QString;
 
         #[qinvokable]
+        #[cxx_name = "refreshInstanceMods"]
+        fn refresh_instance_mods(self: Pin<&mut LauncherBackend>, version_id: QString) -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "setInstanceModEnabled"]
+        fn set_instance_mod_enabled(
+            self: Pin<&mut LauncherBackend>,
+            version_id: QString,
+            file_name: QString,
+            enabled: QString,
+        );
+
+        #[qinvokable]
+        #[cxx_name = "deleteInstanceMod"]
+        fn delete_instance_mod(
+            self: Pin<&mut LauncherBackend>,
+            version_id: QString,
+            file_name: QString,
+        );
+
+        #[qinvokable]
         #[cxx_name = "selectInstance"]
         fn select_instance(self: Pin<&mut LauncherBackend>, version_id: QString);
 
@@ -330,4 +352,5 @@ pub struct LauncherBackendRust {
     launch_task_json: QString,
     launcher_settings_json: QString,
     detected_java_json: QString,
+    instance_mods_json: QString,
 }

@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -23,6 +25,25 @@ Item {
     property string promptValue: ""
     property bool promptCheck: false
 
+    property var mods: []
+    property string modSearchText: ""
+
+    onCurrentTabChanged: {
+        if (root.currentTab === "mods" && root.versionId.length > 0) {
+            root.reloadMods()
+        }
+    }
+
+    function reloadMods() {
+        var raw = root.backend.refreshInstanceMods(root.versionId)
+        try {
+            var parsed = JSON.parse(raw)
+            root.mods = parsed.mods || []
+        } catch (e) {
+            root.mods = []
+        }
+    }
+
     ListModel { id: folderModel }
     ListModel { id: loaderModel }
 
@@ -31,6 +52,7 @@ Item {
     onVersionIdChanged: {
         if (versionId.length > 0) {
             root.reloadDetail()
+            if (root.currentTab === "mods") root.reloadMods()
         }
     }
 
@@ -39,6 +61,15 @@ Item {
 
         function onInstanceDetailJsonChanged() {
             root.applyDetailJson(root.backend.instanceDetailJson)
+        }
+
+        function onInstanceModsJsonChanged() {
+            try {
+                var parsed = JSON.parse(root.backend.instanceModsJson)
+                root.mods = parsed.mods || []
+            } catch (e) {
+                root.mods = []
+            }
         }
     }
 
@@ -200,12 +231,9 @@ Item {
                         rootPage: root
                     }
 
-                    FolderTab {
+                    ModsTab {
                         style: root.style
                         rootPage: root
-                        folderKey: "mods"
-                        titleText: "Mod"
-                        subtitleText: "管理当前实例运行目录中的 mods 文件夹。"
                     }
 
                     FolderTab {
@@ -858,6 +886,301 @@ Item {
                     InfoLine { Layout.fillWidth: true; style: tab.style; label: "client.jar"; value: tab.rootPage.detail.clientJar || "" }
                     InfoLine { Layout.fillWidth: true; style: tab.style; label: "mainClass"; value: tab.rootPage.detail.mainClass || "" }
                     InfoLine { Layout.fillWidth: true; style: tab.style; label: "inheritsFrom"; value: tab.rootPage.detail.inheritsFrom || "" }
+                }
+            }
+        }
+    }
+
+    component ModsTab: Item {
+        id: tab
+        required property var style
+        required property var rootPage
+        clip: true
+
+        property var filteredMods: {
+            var q = tab.rootPage.modSearchText.toLowerCase()
+            if (!q) return tab.rootPage.mods
+            return tab.rootPage.mods.filter(function(m) {
+                return m.name.toLowerCase().indexOf(q) >= 0
+                    || m.fileName.toLowerCase().indexOf(q) >= 0
+            })
+        }
+
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 0
+
+            PageHeader {
+                Layout.fillWidth: true
+                style: tab.style
+                title: "Mod"
+                subtitle: tab.rootPage.mods.length > 0
+                         ? "共 " + tab.rootPage.mods.length + " 个 mod"
+                         : "管理当前实例的 mods 文件夹。"
+                iconSource: tab.rootPage.iconBase + (tab.rootPage.summary.iconName || "grass") + ".png"
+            }
+
+            Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: tab.style.cBorder; opacity: 0.55 }
+
+            // Toolbar
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                Layout.topMargin: 10
+                Layout.bottomMargin: 6
+                spacing: 8
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 34
+                    radius: 4
+                    color: tab.style.cButtonSurface
+                    border.width: 1
+                    border.color: searchInput.activeFocus ? tab.style.cButtonSelected : tab.style.cBorder
+
+                    TextField {
+                        id: searchInput
+                        anchors.fill: parent
+                        anchors.leftMargin: 10
+                        anchors.rightMargin: 10
+                        placeholderText: "搜索 mod…"
+                        color: tab.style.cTextOnSurface
+                        placeholderTextColor: tab.style.cTextOnSurfaceVariant
+                        selectByMouse: true
+                        background: Item {}
+                        onTextChanged: tab.rootPage.modSearchText = text
+                    }
+                }
+
+                Rectangle {
+                    width: 34; height: 34
+                    radius: 4
+                    color: refreshMouse.containsMouse ? tab.style.cButtonHover : tab.style.cButtonSurface
+                    border.width: 1
+                    border.color: tab.style.cBorder
+                    HmclSvgIcon {
+                        anchors.centerIn: parent
+                        icon: "REFRESH"
+                        iconSize: 18
+                        iconColor: tab.style.cTextOnSurface
+                        animationsEnabled: tab.style.animationsEnabled
+                    }
+                    MouseArea {
+                        id: refreshMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: tab.rootPage.reloadMods()
+                    }
+                }
+
+                Rectangle {
+                    width: 34; height: 34
+                    radius: 4
+                    color: folderMouse.containsMouse ? tab.style.cButtonHover : tab.style.cButtonSurface
+                    border.width: 1
+                    border.color: tab.style.cBorder
+                    HmclSvgIcon {
+                        anchors.centerIn: parent
+                        icon: "FOLDER_OPEN"
+                        iconSize: 18
+                        iconColor: tab.style.cTextOnSurface
+                        animationsEnabled: tab.style.animationsEnabled
+                    }
+                    MouseArea {
+                        id: folderMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: tab.rootPage.backend.openInstanceFolder(tab.rootPage.versionId, "mods")
+                    }
+                }
+            }
+
+            // Empty state
+            Item {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: tab.rootPage.mods.length === 0
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "此实例还没有任何 mod。"
+                    color: tab.style.cTextOnSurfaceVariant
+                    font.pixelSize: 13
+                    font.italic: true
+                }
+            }
+
+            // Mod list
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: tab.rootPage.mods.length > 0
+                clip: true
+                contentWidth: availableWidth
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+
+                ListView {
+                    id: modListView
+                    width: parent.width
+                    height: contentHeight
+                    model: tab.filteredMods
+                    spacing: 4
+                    topMargin: 4
+                    bottomMargin: 12
+                    leftMargin: 16
+                    rightMargin: 16
+                    boundsBehavior: Flickable.StopAtBounds
+
+                    delegate: Rectangle {
+                        id: modCell
+                        required property var modelData
+                        required property int index
+
+                        width: modListView.width - 32
+                        height: 64
+                        radius: tab.style.radiusValue
+                        color: modCellMouse.containsMouse
+                               ? tab.style.cButtonHover
+                               : (modCell.modelData.enabled ? tab.style.cSurfaceContainerHigh : tab.style.cSurfaceContainer)
+                        border.width: 1
+                        border.color: tab.style.cBorder
+                        opacity: modCell.modelData.enabled ? 1.0 : 0.65
+
+                        Behavior on opacity { NumberAnimation { duration: 120 } }
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 8
+                            spacing: 10
+
+                            // Loader badge
+                            Rectangle {
+                                Layout.preferredWidth: 42
+                                Layout.preferredHeight: 42
+                                radius: 4
+                                color: {
+                                    var l = modCell.modelData.loader
+                                    if (l === "fabric") return "#4f6e2e"
+                                    if (l === "quilt") return "#5b3d91"
+                                    if (l === "forge") return "#8b4513"
+                                    if (l === "neoforge") return "#d4631a"
+                                    return tab.style.cButtonSurface
+                                }
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: {
+                                        var l = modCell.modelData.loader
+                                        if (l === "fabric") return "F"
+                                        if (l === "quilt") return "Q"
+                                        if (l === "forge") return "FG"
+                                        if (l === "neoforge") return "NF"
+                                        return "?"
+                                    }
+                                    color: "white"
+                                    font.pixelSize: 13
+                                    font.bold: true
+                                }
+                            }
+
+                            // Name + file info
+                            Column {
+                                Layout.fillWidth: true
+                                spacing: 2
+
+                                Text {
+                                    width: parent.width
+                                    text: modCell.modelData.name
+                                           + (modCell.modelData.version.length > 0 ? "  " + modCell.modelData.version : "")
+                                    color: tab.style.cTextOnSurface
+                                    font.pixelSize: 13
+                                    font.bold: true
+                                    elide: Text.ElideRight
+                                }
+
+                                Text {
+                                    width: parent.width
+                                    text: modCell.modelData.fileName
+                                    color: tab.style.cTextOnSurfaceVariant
+                                    font.pixelSize: 11
+                                    elide: Text.ElideLeft
+                                }
+                            }
+
+                            // Enable/disable toggle
+                            Rectangle {
+                                width: 38; height: 22
+                                radius: 11
+                                color: modCell.modelData.enabled ? tab.style.cButtonSelected : tab.style.cBorder
+                                Behavior on color { ColorAnimation { duration: 120 } }
+
+                                Rectangle {
+                                    width: 16; height: 16
+                                    radius: 8
+                                    color: "white"
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    x: modCell.modelData.enabled ? 19 : 3
+                                    Behavior on x { NumberAnimation { duration: 120 } }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        var newEnabled = !modCell.modelData.enabled
+                                        tab.rootPage.backend.setInstanceModEnabled(
+                                            tab.rootPage.versionId,
+                                            modCell.modelData.fileName,
+                                            newEnabled ? "true" : "false"
+                                        )
+                                        tab.rootPage.reloadMods()
+                                    }
+                                }
+                            }
+
+                            // Delete button
+                            Rectangle {
+                                width: 28; height: 28
+                                radius: 4
+                                color: delMouse.containsMouse ? "#B3261E" : "transparent"
+                                Behavior on color { ColorAnimation { duration: 100 } }
+
+                                HmclSvgIcon {
+                                    anchors.centerIn: parent
+                                    icon: "DELETE_FOREVER"
+                                    iconSize: 16
+                                    iconColor: delMouse.containsMouse ? "white" : tab.style.cTextOnSurfaceVariant
+                                    animationsEnabled: tab.style.animationsEnabled
+                                }
+
+                                MouseArea {
+                                    id: delMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        tab.rootPage.backend.deleteInstanceMod(
+                                            tab.rootPage.versionId,
+                                            modCell.modelData.fileName
+                                        )
+                                        tab.rootPage.reloadMods()
+                                    }
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            id: modCellMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            z: -1
+                        }
+                    }
                 }
             }
         }

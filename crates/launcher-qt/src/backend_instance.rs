@@ -68,6 +68,70 @@ impl qobject::LauncherBackend {
         }
     }
 
+    pub fn refresh_instance_mods(mut self: Pin<&mut Self>, version_id: QString) -> QString {
+        let version_id = version_id.to_string();
+
+        match launcher_app::InstanceService::mods_json(&version_id) {
+            Ok(json) => {
+                self.as_mut().set_instance_mods_json(QString::from(&json));
+                QString::from(&json)
+            }
+            Err(err) => {
+                let fallback = serde_json::json!({ "mods": [] }).to_string();
+                self.as_mut()
+                    .set_instance_mods_json(QString::from(&fallback));
+                self.as_mut()
+                    .set_output(QString::from(&format!("Mod 列表读取失败。\n\n{err}")));
+                QString::from(&fallback)
+            }
+        }
+    }
+
+    pub fn set_instance_mod_enabled(
+        mut self: Pin<&mut Self>,
+        version_id: QString,
+        file_name: QString,
+        enabled: QString,
+    ) {
+        let version_id = version_id.to_string();
+        let file_name = file_name.to_string();
+        let enabled = matches!(
+            enabled.to_string().trim().to_ascii_lowercase().as_str(),
+            "true" | "1" | "yes" | "y"
+        );
+
+        match launcher_app::InstanceService::set_mod_enabled(&version_id, &file_name, enabled) {
+            Ok(_) => {
+                let _ = self.as_mut().refresh_instance_mods(QString::from(&version_id));
+            }
+            Err(err) => {
+                self.as_mut()
+                    .set_output(QString::from(&format!("切换 Mod 状态失败。\n\n{err}")));
+            }
+        }
+    }
+
+    pub fn delete_instance_mod(
+        mut self: Pin<&mut Self>,
+        version_id: QString,
+        file_name: QString,
+    ) {
+        let version_id = version_id.to_string();
+        let file_name = file_name.to_string();
+
+        match launcher_app::InstanceService::delete_mod(&version_id, &file_name) {
+            Ok(()) => {
+                self.as_mut()
+                    .set_output(QString::from(&format!("已删除 Mod：{file_name}")));
+                let _ = self.as_mut().refresh_instance_mods(QString::from(&version_id));
+            }
+            Err(err) => {
+                self.as_mut()
+                    .set_output(QString::from(&format!("删除 Mod 失败。\n\n{err}")));
+            }
+        }
+    }
+
     pub fn select_instance(mut self: Pin<&mut Self>, version_id: QString) {
         let version_id = version_id.to_string();
 
