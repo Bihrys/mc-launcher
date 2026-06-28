@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -11,6 +13,32 @@ Item {
     property string selectedDistribution: "temurin"
     property string selectedMajor: "17"
     property string selectedPackageType: "jdk"
+
+    // 解析后的本机 Java 运行时列表（来自 backend.detectedJavaJson）。
+    property var detectedRuntimes: []
+
+    function reloadRuntimes() {
+        var raw = root.backend.detectedJavaJson
+        if (!raw || raw.length === 0) {
+            root.detectedRuntimes = []
+            return
+        }
+        try {
+            var parsed = JSON.parse(raw)
+            root.detectedRuntimes = parsed.runtimes || []
+        } catch (e) {
+            root.detectedRuntimes = []
+        }
+    }
+
+    Component.onCompleted: root.reloadRuntimes()
+
+    Connections {
+        target: root.backend
+        function onDetectedJavaJsonChanged() {
+            root.reloadRuntimes()
+        }
+    }
 
     Column {
         anchors.left: parent.left
@@ -271,31 +299,129 @@ Item {
                 anchors.margins: 12
                 spacing: 8
 
-                Text {
-                    text: "输出"
-                    color: root.style.cTextOnSurface
-                    font.pixelSize: 14
-                    font.bold: true
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Text {
+                        text: "本机 Java 运行时"
+                        color: root.style.cTextOnSurface
+                        font.pixelSize: 14
+                        font.bold: true
+                    }
+
+                    Item { Layout.fillWidth: true }
+
+                    Text {
+                        text: root.detectedRuntimes.length > 0
+                              ? "共 " + root.detectedRuntimes.length + " 个"
+                              : ""
+                        color: root.style.cTextOnSurfaceVariant
+                        font.pixelSize: 12
+                    }
                 }
 
-                ScrollView {
+                ListView {
+                    id: runtimeList
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     clip: true
-                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                    model: root.detectedRuntimes
+                    spacing: 6
+                    boundsBehavior: Flickable.StopAtBounds
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-                    TextArea {
-                        width: parent.width
-                        readOnly: true
-                        wrapMode: TextEdit.Wrap
-                        selectByMouse: true
-                        text: root.backend.output
-                        placeholderText: "点击“检测本机 Java”或“下载所选 Java”。"
-                        color: root.style.cTextOnSurface
-                        placeholderTextColor: root.style.cTextOnSurfaceVariant
-                        background: Item {}
+                    Text {
+                        anchors.centerIn: parent
+                        visible: root.detectedRuntimes.length === 0
+                        text: "尚未检测。点击“检测本机 Java”。"
+                        color: root.style.cTextOnSurfaceVariant
+                        font.pixelSize: 12
+                        font.italic: true
                     }
+
+                    delegate: Rectangle {
+                        id: runtimeCell
+
+                        required property var modelData
+
+                        width: runtimeList.width
+                        height: 56
+                        radius: root.style.radiusValue
+                        color: runtimeMouse.containsMouse
+                               ? root.style.cButtonHover
+                               : root.style.cSurfaceContainerHigh
+                        border.width: 1
+                        border.color: root.style.cBorder
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 12
+                            spacing: 10
+
+                            Rectangle {
+                                Layout.preferredWidth: 38
+                                Layout.preferredHeight: 38
+                                radius: 19
+                                color: root.style.cButtonSelected
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: runtimeCell.modelData.major && runtimeCell.modelData.major.length > 0
+                                          ? runtimeCell.modelData.major
+                                          : "?"
+                                    color: root.style.cButtonSelectedText
+                                    font.pixelSize: 14
+                                    font.bold: true
+                                }
+                            }
+
+                            Column {
+                                Layout.fillWidth: true
+                                spacing: 2
+
+                                Text {
+                                    width: parent.width
+                                    text: {
+                                        var v = runtimeCell.modelData.version
+                                        var vendor = runtimeCell.modelData.vendor
+                                        var head = (v && v.length > 0) ? "Java " + v : "Java"
+                                        if (vendor && vendor.length > 0)
+                                            head += " · " + vendor
+                                        return head
+                                    }
+                                    color: root.style.cTextOnSurface
+                                    font.pixelSize: 13
+                                    font.bold: true
+                                    elide: Text.ElideRight
+                                }
+
+                                Text {
+                                    width: parent.width
+                                    text: runtimeCell.modelData.path
+                                    color: root.style.cTextOnSurfaceVariant
+                                    font.pixelSize: 11
+                                    elide: Text.ElideMiddle
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            id: runtimeMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                        }
+                    }
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    visible: root.backend.output.length > 0
+                    text: root.backend.output
+                    color: root.style.cTextOnSurfaceVariant
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
                 }
             }
         }
