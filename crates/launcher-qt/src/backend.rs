@@ -34,6 +34,8 @@ pub mod qobject {
         #[qproperty(QString, launcher_settings_json, cxx_name = "launcherSettingsJson")]
         #[qproperty(QString, detected_java_json, cxx_name = "detectedJavaJson")]
         #[qproperty(QString, instance_mods_json, cxx_name = "instanceModsJson")]
+        #[qproperty(QString, instance_resourcepacks_json, cxx_name = "instanceResourcepacksJson")]
+        #[qproperty(QString, instance_worlds_json, cxx_name = "instanceWorldsJson")]
         #[namespace = "launcher_backend"]
         type LauncherBackend = super::LauncherBackendRust;
 
@@ -234,6 +236,45 @@ pub mod qobject {
         );
 
         #[qinvokable]
+        #[cxx_name = "refreshInstanceResourcepacks"]
+        fn refresh_instance_resourcepacks(
+            self: Pin<&mut LauncherBackend>,
+            version_id: QString,
+        ) -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "setInstanceResourcepackEnabled"]
+        fn set_instance_resourcepack_enabled(
+            self: Pin<&mut LauncherBackend>,
+            version_id: QString,
+            file_name: QString,
+            enabled: QString,
+        );
+
+        #[qinvokable]
+        #[cxx_name = "deleteInstanceResourcepack"]
+        fn delete_instance_resourcepack(
+            self: Pin<&mut LauncherBackend>,
+            version_id: QString,
+            file_name: QString,
+        );
+
+        #[qinvokable]
+        #[cxx_name = "refreshInstanceWorlds"]
+        fn refresh_instance_worlds(
+            self: Pin<&mut LauncherBackend>,
+            version_id: QString,
+        ) -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "deleteInstanceWorld"]
+        fn delete_instance_world(
+            self: Pin<&mut LauncherBackend>,
+            version_id: QString,
+            file_name: QString,
+        );
+
+        #[qinvokable]
         #[cxx_name = "selectInstance"]
         fn select_instance(self: Pin<&mut LauncherBackend>, version_id: QString);
 
@@ -353,4 +394,6 @@ pub struct LauncherBackendRust {
     launcher_settings_json: QString,
     detected_java_json: QString,
     instance_mods_json: QString,
+    instance_resourcepacks_json: QString,
+    instance_worlds_json: QString,
 }

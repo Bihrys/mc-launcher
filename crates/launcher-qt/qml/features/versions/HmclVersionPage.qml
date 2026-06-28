@@ -28,9 +28,17 @@ Item {
     property var mods: []
     property string modSearchText: ""
 
+    property var resourcepacks: []
+    property string resourcepackSearchText: ""
+
+    property var worlds: []
+    property string worldSearchText: ""
+
     onCurrentTabChanged: {
-        if (root.currentTab === "mods" && root.versionId.length > 0) {
-            root.reloadMods()
+        if (root.versionId.length > 0) {
+            if (root.currentTab === "mods") root.reloadMods()
+            else if (root.currentTab === "resourcepacks") root.reloadResourcepacks()
+            else if (root.currentTab === "saves") root.reloadWorlds()
         }
     }
 
@@ -44,6 +52,16 @@ Item {
         }
     }
 
+    function reloadResourcepacks() {
+        var raw = root.backend.refreshInstanceResourcepacks(root.versionId)
+        try {
+            var parsed = JSON.parse(raw)
+            root.resourcepacks = parsed.resourcepacks || []
+        } catch (e) {
+            root.resourcepacks = []
+        }
+    }
+
     ListModel { id: folderModel }
     ListModel { id: loaderModel }
 
@@ -53,6 +71,7 @@ Item {
         if (versionId.length > 0) {
             root.reloadDetail()
             if (root.currentTab === "mods") root.reloadMods()
+            else if (root.currentTab === "resourcepacks") root.reloadResourcepacks()
         }
     }
 
@@ -69,6 +88,15 @@ Item {
                 root.mods = parsed.mods || []
             } catch (e) {
                 root.mods = []
+            }
+        }
+
+        function onInstanceResourcepacksJsonChanged() {
+            try {
+                var parsed = JSON.parse(root.backend.instanceResourcepacksJson)
+                root.resourcepacks = parsed.resourcepacks || []
+            } catch (e) {
+                root.resourcepacks = []
             }
         }
     }
@@ -236,12 +264,9 @@ Item {
                         rootPage: root
                     }
 
-                    FolderTab {
+                    ResourcePacksTab {
                         style: root.style
                         rootPage: root
-                        folderKey: "resourcepacks"
-                        titleText: "资源包"
-                        subtitleText: "管理当前实例运行目录中的 resourcepacks 文件夹。"
                     }
 
                     FolderTab {
@@ -1176,6 +1201,291 @@ Item {
 
                         MouseArea {
                             id: modCellMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            z: -1
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    component ResourcePacksTab: Item {
+        id: rpTab
+        required property var style
+        required property var rootPage
+        clip: true
+
+        property var filteredPacks: {
+            var q = rpTab.rootPage.resourcepackSearchText.toLowerCase()
+            if (!q) return rpTab.rootPage.resourcepacks
+            return rpTab.rootPage.resourcepacks.filter(function(p) {
+                return p.name.toLowerCase().indexOf(q) >= 0
+                    || p.fileName.toLowerCase().indexOf(q) >= 0
+            })
+        }
+
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 0
+
+            PageHeader {
+                Layout.fillWidth: true
+                style: rpTab.style
+                title: "资源包"
+                subtitle: rpTab.rootPage.resourcepacks.length > 0
+                         ? "共 " + rpTab.rootPage.resourcepacks.length + " 个资源包"
+                         : "管理当前实例的 resourcepacks 文件夹。"
+                iconSource: rpTab.rootPage.iconBase + (rpTab.rootPage.summary.iconName || "grass") + ".png"
+            }
+
+            Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: rpTab.style.cBorder; opacity: 0.55 }
+
+            // Toolbar
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                Layout.topMargin: 10
+                Layout.bottomMargin: 6
+                spacing: 8
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 34
+                    radius: 4
+                    color: rpTab.style.cButtonSurface
+                    border.width: 1
+                    border.color: rpSearchInput.activeFocus ? rpTab.style.cButtonSelected : rpTab.style.cBorder
+
+                    TextField {
+                        id: rpSearchInput
+                        anchors.fill: parent
+                        anchors.leftMargin: 10
+                        anchors.rightMargin: 10
+                        placeholderText: "搜索资源包…"
+                        color: rpTab.style.cTextOnSurface
+                        placeholderTextColor: rpTab.style.cTextOnSurfaceVariant
+                        selectByMouse: true
+                        background: Item {}
+                        onTextChanged: rpTab.rootPage.resourcepackSearchText = text
+                    }
+                }
+
+                Rectangle {
+                    width: 34; height: 34
+                    radius: 4
+                    color: rpRefreshMouse.containsMouse ? rpTab.style.cButtonHover : rpTab.style.cButtonSurface
+                    border.width: 1
+                    border.color: rpTab.style.cBorder
+                    HmclSvgIcon {
+                        anchors.centerIn: parent
+                        icon: "REFRESH"
+                        iconSize: 18
+                        iconColor: rpTab.style.cTextOnSurface
+                        animationsEnabled: rpTab.style.animationsEnabled
+                    }
+                    MouseArea {
+                        id: rpRefreshMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: rpTab.rootPage.reloadResourcepacks()
+                    }
+                }
+
+                Rectangle {
+                    width: 34; height: 34
+                    radius: 4
+                    color: rpFolderMouse.containsMouse ? rpTab.style.cButtonHover : rpTab.style.cButtonSurface
+                    border.width: 1
+                    border.color: rpTab.style.cBorder
+                    HmclSvgIcon {
+                        anchors.centerIn: parent
+                        icon: "FOLDER_OPEN"
+                        iconSize: 18
+                        iconColor: rpTab.style.cTextOnSurface
+                        animationsEnabled: rpTab.style.animationsEnabled
+                    }
+                    MouseArea {
+                        id: rpFolderMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: rpTab.rootPage.backend.openInstanceFolder(rpTab.rootPage.versionId, "resourcepacks")
+                    }
+                }
+            }
+
+            // Empty state
+            Item {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: rpTab.rootPage.resourcepacks.length === 0
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "此实例还没有任何资源包。"
+                    color: rpTab.style.cTextOnSurfaceVariant
+                    font.pixelSize: 13
+                    font.italic: true
+                }
+            }
+
+            // Pack list
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: rpTab.rootPage.resourcepacks.length > 0
+                clip: true
+                contentWidth: availableWidth
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+
+                ListView {
+                    id: rpListView
+                    width: parent.width
+                    height: contentHeight
+                    model: rpTab.filteredPacks
+                    spacing: 4
+                    topMargin: 4
+                    bottomMargin: 12
+                    leftMargin: 16
+                    rightMargin: 16
+                    boundsBehavior: Flickable.StopAtBounds
+
+                    delegate: Rectangle {
+                        id: rpCell
+                        required property var modelData
+                        required property int index
+
+                        width: rpListView.width - 32
+                        height: 64
+                        radius: rpTab.style.radiusValue
+                        color: rpCellMouse.containsMouse
+                               ? rpTab.style.cButtonHover
+                               : (rpCell.modelData.enabled ? rpTab.style.cSurfaceContainerHigh : rpTab.style.cSurfaceContainer)
+                        border.width: 1
+                        border.color: rpTab.style.cBorder
+                        opacity: rpCell.modelData.enabled ? 1.0 : 0.65
+
+                        Behavior on opacity { NumberAnimation { duration: 120 } }
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 8
+                            spacing: 10
+
+                            // Pack format / type badge
+                            Rectangle {
+                                Layout.preferredWidth: 42
+                                Layout.preferredHeight: 42
+                                radius: 4
+                                color: rpCell.modelData.isDirectory ? "#3d5a80" : "#5b3d91"
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: rpCell.modelData.packFormat > 0
+                                          ? rpCell.modelData.packFormat
+                                          : (rpCell.modelData.isDirectory ? "DIR" : "ZIP")
+                                    color: "white"
+                                    font.pixelSize: rpCell.modelData.packFormat > 0 ? 15 : 11
+                                    font.bold: true
+                                }
+                            }
+
+                            // Name + description
+                            Column {
+                                Layout.fillWidth: true
+                                spacing: 2
+
+                                Text {
+                                    width: parent.width
+                                    text: rpCell.modelData.name
+                                    color: rpTab.style.cTextOnSurface
+                                    font.pixelSize: 13
+                                    font.bold: true
+                                    elide: Text.ElideRight
+                                }
+
+                                Text {
+                                    width: parent.width
+                                    text: rpCell.modelData.description.length > 0
+                                          ? rpCell.modelData.description
+                                          : rpCell.modelData.fileName
+                                    color: rpTab.style.cTextOnSurfaceVariant
+                                    font.pixelSize: 11
+                                    elide: Text.ElideRight
+                                    maximumLineCount: 1
+                                }
+                            }
+
+                            // Enable/disable toggle
+                            Rectangle {
+                                width: 38; height: 22
+                                radius: 11
+                                color: rpCell.modelData.enabled ? rpTab.style.cButtonSelected : rpTab.style.cBorder
+                                Behavior on color { ColorAnimation { duration: 120 } }
+
+                                Rectangle {
+                                    width: 16; height: 16
+                                    radius: 8
+                                    color: "white"
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    x: rpCell.modelData.enabled ? 19 : 3
+                                    Behavior on x { NumberAnimation { duration: 120 } }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        var newEnabled = !rpCell.modelData.enabled
+                                        rpTab.rootPage.backend.setInstanceResourcepackEnabled(
+                                            rpTab.rootPage.versionId,
+                                            rpCell.modelData.fileName,
+                                            newEnabled ? "true" : "false"
+                                        )
+                                        rpTab.rootPage.reloadResourcepacks()
+                                    }
+                                }
+                            }
+
+                            // Delete button
+                            Rectangle {
+                                width: 28; height: 28
+                                radius: 4
+                                color: rpDelMouse.containsMouse ? "#B3261E" : "transparent"
+                                Behavior on color { ColorAnimation { duration: 100 } }
+
+                                HmclSvgIcon {
+                                    anchors.centerIn: parent
+                                    icon: "DELETE_FOREVER"
+                                    iconSize: 16
+                                    iconColor: rpDelMouse.containsMouse ? "white" : rpTab.style.cTextOnSurfaceVariant
+                                    animationsEnabled: rpTab.style.animationsEnabled
+                                }
+
+                                MouseArea {
+                                    id: rpDelMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        rpTab.rootPage.backend.deleteInstanceResourcepack(
+                                            rpTab.rootPage.versionId,
+                                            rpCell.modelData.fileName
+                                        )
+                                        rpTab.rootPage.reloadResourcepacks()
+                                    }
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            id: rpCellMouse
                             anchors.fill: parent
                             hoverEnabled: true
                             z: -1

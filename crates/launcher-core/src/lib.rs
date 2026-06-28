@@ -50,12 +50,16 @@ pub use game_download::{
 pub use instance_manager::{
     GameInstanceDetail, GameInstanceSummary, InstanceError, InstanceFolder, InstanceLoader, InstanceSettings,
     clean_instance, clear_assets, clear_libraries, delete_instance, delete_instance_mod,
-    duplicate_instance, instance_detail, instance_detail_json, instance_mods, instance_mods_json,
-    instances, instances_json, open_instance_folder, rename_instance, save_instance_settings_json,
-    select_instance, set_instance_mod_enabled,
+    delete_instance_resourcepack, delete_instance_world, duplicate_instance, instance_detail,
+    instance_detail_json, instance_mods, instance_mods_json, instance_resourcepacks,
+    instance_resourcepacks_json, instance_worlds, instance_worlds_json, instances, instances_json,
+    open_instance_folder, rename_instance, save_instance_settings_json, select_instance,
+    set_instance_mod_enabled, set_instance_resourcepack_enabled,
 };
 
 pub use addon::mod_file::ModFileInfo;
+pub use addon::resourcepack::ResourcePackInfo;
+pub use addon::world::WorldInfo;
 
 pub use java::{JavaRuntime, detect_java_runtimes};
 pub use java_download::{JavaDownloadResult, download_java_runtime};

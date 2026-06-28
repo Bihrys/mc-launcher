@@ -132,6 +132,118 @@ impl qobject::LauncherBackend {
         }
     }
 
+    pub fn refresh_instance_resourcepacks(mut self: Pin<&mut Self>, version_id: QString) -> QString {
+        let version_id = version_id.to_string();
+
+        match launcher_app::InstanceService::resourcepacks_json(&version_id) {
+            Ok(json) => {
+                self.as_mut()
+                    .set_instance_resourcepacks_json(QString::from(&json));
+                QString::from(&json)
+            }
+            Err(err) => {
+                let fallback = serde_json::json!({ "resourcepacks": [] }).to_string();
+                self.as_mut()
+                    .set_instance_resourcepacks_json(QString::from(&fallback));
+                self.as_mut()
+                    .set_output(QString::from(&format!("资源包列表读取失败。\n\n{err}")));
+                QString::from(&fallback)
+            }
+        }
+    }
+
+    pub fn set_instance_resourcepack_enabled(
+        mut self: Pin<&mut Self>,
+        version_id: QString,
+        file_name: QString,
+        enabled: QString,
+    ) {
+        let version_id = version_id.to_string();
+        let file_name = file_name.to_string();
+        let enabled = matches!(
+            enabled.to_string().trim().to_ascii_lowercase().as_str(),
+            "true" | "1" | "yes" | "y"
+        );
+
+        match launcher_app::InstanceService::set_resourcepack_enabled(&version_id, &file_name, enabled) {
+            Ok(_) => {
+                let _ = self
+                    .as_mut()
+                    .refresh_instance_resourcepacks(QString::from(&version_id));
+            }
+            Err(err) => {
+                self.as_mut()
+                    .set_output(QString::from(&format!("切换资源包状态失败。\n\n{err}")));
+            }
+        }
+    }
+
+    pub fn delete_instance_resourcepack(
+        mut self: Pin<&mut Self>,
+        version_id: QString,
+        file_name: QString,
+    ) {
+        let version_id = version_id.to_string();
+        let file_name = file_name.to_string();
+
+        match launcher_app::InstanceService::delete_resourcepack(&version_id, &file_name) {
+            Ok(()) => {
+                self.as_mut()
+                    .set_output(QString::from(&format!("已删除资源包：{file_name}")));
+                let _ = self
+                    .as_mut()
+                    .refresh_instance_resourcepacks(QString::from(&version_id));
+            }
+            Err(err) => {
+                self.as_mut()
+                    .set_output(QString::from(&format!("删除资源包失败。\n\n{err}")));
+            }
+        }
+    }
+
+    pub fn refresh_instance_worlds(mut self: Pin<&mut Self>, version_id: QString) -> QString {
+        let version_id = version_id.to_string();
+
+        match launcher_app::InstanceService::worlds_json(&version_id) {
+            Ok(json) => {
+                self.as_mut()
+                    .set_instance_worlds_json(QString::from(&json));
+                QString::from(&json)
+            }
+            Err(err) => {
+                let fallback = serde_json::json!({ "worlds": [] }).to_string();
+                self.as_mut()
+                    .set_instance_worlds_json(QString::from(&fallback));
+                self.as_mut()
+                    .set_output(QString::from(&format!("世界列表读取失败。\n\n{err}")));
+                QString::from(&fallback)
+            }
+        }
+    }
+
+    pub fn delete_instance_world(
+        mut self: Pin<&mut Self>,
+        version_id: QString,
+        file_name: QString,
+    ) {
+        let version_id = version_id.to_string();
+        let file_name = file_name.to_string();
+
+        match launcher_app::InstanceService::delete_world(&version_id, &file_name) {
+            Ok(()) => {
+                self.as_mut()
+                    .set_output(QString::from(&format!("已删除世界：{file_name}")));
+                let _ = self
+                    .as_mut()
+                    .refresh_instance_worlds(QString::from(&version_id));
+            }
+            Err(err) => {
+                self.as_mut()
+                    .set_output(QString::from(&format!("删除世界失败。\n\n{err}")));
+            }
+        }
+    }
+
     pub fn select_instance(mut self: Pin<&mut Self>, version_id: QString) {
         let version_id = version_id.to_string();
 

@@ -440,6 +440,60 @@ pub fn delete_instance_mod(id: &str, file_name: &str) -> Result<(), InstanceErro
         .map_err(|err| simple_error(err.to_string()))
 }
 
+pub fn instance_resourcepacks(
+    id: &str,
+) -> Result<Vec<crate::addon::resourcepack::ResourcePackInfo>, InstanceError> {
+    let detail = instance_detail(id)?;
+    let packs_dir = detail.summary.run_directory.join("resourcepacks");
+    crate::addon::resourcepack::list_resourcepacks(&packs_dir)
+        .map_err(|err| simple_error(err.to_string()))
+}
+
+pub fn instance_resourcepacks_json(id: &str) -> Result<String, InstanceError> {
+    let packs = instance_resourcepacks(id)?;
+    Ok(serde_json::to_string(
+        &serde_json::json!({ "resourcepacks": packs }),
+    )?)
+}
+
+pub fn set_instance_resourcepack_enabled(
+    id: &str,
+    file_name: &str,
+    enabled: bool,
+) -> Result<String, InstanceError> {
+    let detail = instance_detail(id)?;
+    let packs_dir = detail.summary.run_directory.join("resourcepacks");
+    crate::addon::resourcepack::set_resourcepack_enabled(&packs_dir, file_name, enabled)
+        .map_err(|err| simple_error(err.to_string()))
+}
+
+pub fn delete_instance_resourcepack(id: &str, file_name: &str) -> Result<(), InstanceError> {
+    let detail = instance_detail(id)?;
+    let packs_dir = detail.summary.run_directory.join("resourcepacks");
+    crate::addon::resourcepack::delete_resourcepack(&packs_dir, file_name)
+        .map_err(|err| simple_error(err.to_string()))
+}
+
+pub fn instance_worlds(id: &str) -> Result<Vec<crate::addon::world::WorldInfo>, InstanceError> {
+    let detail = instance_detail(id)?;
+    let saves_dir = detail.summary.run_directory.join("saves");
+    crate::addon::world::list_worlds(&saves_dir).map_err(|err| simple_error(err.to_string()))
+}
+
+pub fn instance_worlds_json(id: &str) -> Result<String, InstanceError> {
+    let worlds = instance_worlds(id)?;
+    Ok(serde_json::to_string(
+        &serde_json::json!({ "worlds": worlds }),
+    )?)
+}
+
+pub fn delete_instance_world(id: &str, file_name: &str) -> Result<(), InstanceError> {
+    let detail = instance_detail(id)?;
+    let saves_dir = detail.summary.run_directory.join("saves");
+    crate::addon::world::delete_world(&saves_dir, file_name)
+        .map_err(|err| simple_error(err.to_string()))
+}
+
 pub fn clean_instance(id: &str) -> Result<u64, InstanceError> {
     let detail = instance_detail(id)?;
     let mut removed = 0;

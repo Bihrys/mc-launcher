@@ -91,7 +91,14 @@ impl InstanceService {
     pub fn clear_libraries() -> Result<(), launcher_core::InstanceError> { launcher_core::instance::InstanceService::clear_libraries() }
     pub fn save_settings_json(version_id: &str, settings_json: &str) -> Result<String, launcher_core::InstanceError> { launcher_core::instance::InstanceService::save_settings_json(version_id, settings_json) }
 
+    pub fn worlds_json(version_id: &str) -> Result<String, launcher_core::InstanceError> { launcher_core::instance_worlds_json(version_id) }
+    pub fn delete_world(version_id: &str, file_name: &str) -> Result<(), launcher_core::InstanceError> { launcher_core::delete_instance_world(version_id, file_name) }
+
     pub fn mods_json(version_id: &str) -> Result<String, launcher_core::InstanceError> { launcher_core::instance_mods_json(version_id) }
     pub fn set_mod_enabled(version_id: &str, file_name: &str, enabled: bool) -> Result<String, launcher_core::InstanceError> { launcher_core::set_instance_mod_enabled(version_id, file_name, enabled) }
     pub fn delete_mod(version_id: &str, file_name: &str) -> Result<(), launcher_core::InstanceError> { launcher_core::delete_instance_mod(version_id, file_name) }
+
+    pub fn resourcepacks_json(version_id: &str) -> Result<String, launcher_core::InstanceError> { launcher_core::instance_resourcepacks_json(version_id) }
+    pub fn set_resourcepack_enabled(version_id: &str, file_name: &str, enabled: bool) -> Result<String, launcher_core::InstanceError> { launcher_core::set_instance_resourcepack_enabled(version_id, file_name, enabled) }
+    pub fn delete_resourcepack(version_id: &str, file_name: &str) -> Result<(), launcher_core::InstanceError> { launcher_core::delete_instance_resourcepack(version_id, file_name) }
 }
