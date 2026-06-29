@@ -5,6 +5,8 @@ QtObject {
 
     property string themeMode: "light"
     property bool systemDark: false
+    // 主题色：default(靛蓝) / purple / blue / green / red / orange，或自定义 "#RRGGBB"。
+    property string themeColor: "default"
 
     readonly property bool darkMode: themeMode === "dark" || (themeMode === "system" && systemDark)
 
@@ -17,12 +19,34 @@ QtObject {
     readonly property int motionMedium3: 350
     readonly property int motionMedium4: 400
 
-    readonly property color cPrimary: darkMode ? "#BFC2FF" : "#4352A5"
-    readonly property color cPrimaryContainer: darkMode ? "#303B85" : "#5C6BC0"
+    // 主题色基准（浅色模式下使用的强调色）。深色模式自动调亮。
+    readonly property color accentBase: {
+        switch (themeColor) {
+        case "purple": return "#6750A4"
+        case "blue": return "#1565C0"
+        case "green": return "#2E7D44"
+        case "red": return "#B3261E"
+        case "orange": return "#E0701A"
+        case "default": return "#4352A5"
+        default:
+            // 自定义十六进制色，非法时回退默认。
+            return (typeof themeColor === "string" && themeColor.charAt(0) === "#")
+                   ? themeColor
+                   : "#4352A5"
+        }
+    }
+
+    // 深色模式下把强调色调亮，浅色模式直接使用基准色。
+    readonly property color accent: darkMode ? Qt.lighter(accentBase, 1.55) : accentBase
+    readonly property color accentHover: darkMode ? Qt.lighter(accentBase, 1.75) : Qt.lighter(accentBase, 1.12)
+    readonly property color accentText: darkMode ? Qt.darker(accentBase, 2.2) : "#FFFFFF"
+
+    readonly property color cPrimary: accent
+    readonly property color cPrimaryContainer: darkMode ? Qt.darker(accentBase, 1.3) : Qt.lighter(accentBase, 1.25)
     readonly property color cTextOnPrimaryContainer: "#F8F6FF"
 
     readonly property color cBgStart: darkMode ? "#121318" : "#F8F6FF"
-    readonly property color cBgEnd: darkMode ? "#1B1B24" : "#DDE2FF"
+    readonly property color cBgEnd: darkMode ? "#1B1B24" : Qt.lighter(accentBase, 2.4)
 
     readonly property color cSurfaceTransparent: darkMode ? "#EE1B1B21" : "#EEFBF8FF"
     readonly property color cSurface: darkMode ? "#1B1B21" : "#FFFBFE"
@@ -32,18 +56,18 @@ QtObject {
     readonly property color cTextOnSurface: darkMode ? "#E4E1E9" : "#1B1B21"
     readonly property color cTextOnSurfaceVariant: darkMode ? "#C7C5D0" : "#454651"
 
-    readonly property color cNavSelected: darkMode ? "#664352A5" : "#80D0D5FD"
-    readonly property color cNavHover: darkMode ? "#44303B85" : "#44D0D5FD"
+    readonly property color cNavSelected: Qt.rgba(accent.r, accent.g, accent.b, darkMode ? 0.40 : 0.22)
+    readonly property color cNavHover: Qt.rgba(accent.r, accent.g, accent.b, darkMode ? 0.22 : 0.12)
 
-    readonly property color cLaunchButton: darkMode ? "#BFC2FF" : "#4352A5"
-    readonly property color cLaunchButtonHover: darkMode ? "#D9DBFF" : "#5363BF"
-    readonly property color cLaunchButtonText: darkMode ? "#202452" : "#FFFFFF"
+    readonly property color cLaunchButton: accent
+    readonly property color cLaunchButtonHover: accentHover
+    readonly property color cLaunchButtonText: accentText
 
     readonly property color cBorder: darkMode ? "#3D3E4A" : "#D9D7E2"
     readonly property color cButtonSurface: darkMode ? "#2A2B36" : "#FFFFFF"
     readonly property color cButtonHover: darkMode ? "#343541" : "#F0F0F8"
-    readonly property color cButtonSelected: darkMode ? "#BFC2FF" : "#4352A5"
-    readonly property color cButtonSelectedText: darkMode ? "#202452" : "#FFFFFF"
+    readonly property color cButtonSelected: accent
+    readonly property color cButtonSelectedText: accentText
 
     property int titleBarHeightValue: 42
     property int sidebarWidthValue: 200

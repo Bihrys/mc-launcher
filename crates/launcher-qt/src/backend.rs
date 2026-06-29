@@ -370,6 +370,14 @@ pub mod qobject {
         #[cxx_name = "generateLaunchCommand"]
         fn generate_launch_command(self: Pin<&mut LauncherBackend>, version_id: QString)
         -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "openFolder"]
+        fn open_folder(self: Pin<&mut LauncherBackend>, path: QString);
+
+        #[qinvokable]
+        #[cxx_name = "openUrl"]
+        fn open_url(self: Pin<&mut LauncherBackend>, url: QString);
     }
 }
 

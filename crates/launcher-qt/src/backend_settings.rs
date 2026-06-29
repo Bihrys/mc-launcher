@@ -15,6 +15,37 @@ impl qobject::LauncherBackend {
         QString::from(&text)
     }
 
+    pub fn open_folder(mut self: Pin<&mut Self>, path: QString) {
+        let path_str = path.to_string();
+        let p = std::path::Path::new(&path_str);
+
+        if !p.exists() {
+            self.as_mut()
+                .set_output(QString::from(&format!("目录不存在：{path_str}")));
+            return;
+        }
+
+        if let Err(err) = launcher_core::platform::open_folder::open_folder(p) {
+            self.as_mut()
+                .set_output(QString::from(&format!("打开文件夹失败。\n\n{err}")));
+        }
+    }
+
+    pub fn open_url(mut self: Pin<&mut Self>, url: QString) {
+        let url_str = url.to_string();
+        let result = match std::env::consts::OS {
+            "linux" => std::process::Command::new("xdg-open").arg(&url_str).spawn(),
+            "macos" => std::process::Command::new("open").arg(&url_str).spawn(),
+            "windows" => std::process::Command::new("cmd").args(["/c", "start", &url_str]).spawn(),
+            _ => return,
+        };
+
+        if let Err(err) = result {
+            self.as_mut()
+                .set_output(QString::from(&format!("打开链接失败。\n\n{err}")));
+        }
+    }
+
     pub fn update_launcher_setting(mut self: Pin<&mut Self>, key: QString, value: QString) {
         let key = key.to_string();
         let raw_value = value.to_string();

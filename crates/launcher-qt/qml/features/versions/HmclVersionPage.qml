@@ -38,7 +38,7 @@ Item {
         if (root.versionId.length > 0) {
             if (root.currentTab === "mods") root.reloadMods()
             else if (root.currentTab === "resourcepacks") root.reloadResourcepacks()
-            else if (root.currentTab === "saves") root.reloadWorlds()
+            else if (root.currentTab === "worlds") root.reloadWorlds()
         }
     }
 
@@ -59,6 +59,16 @@ Item {
             root.resourcepacks = parsed.resourcepacks || []
         } catch (e) {
             root.resourcepacks = []
+        }
+    }
+
+    function reloadWorlds() {
+        var raw = root.backend.refreshInstanceWorlds(root.versionId)
+        try {
+            var parsed = JSON.parse(raw)
+            root.worlds = parsed.worlds || []
+        } catch (e) {
+            root.worlds = []
         }
     }
 
@@ -97,6 +107,15 @@ Item {
                 root.resourcepacks = parsed.resourcepacks || []
             } catch (e) {
                 root.resourcepacks = []
+            }
+        }
+
+        function onInstanceWorldsJsonChanged() {
+            try {
+                var parsed = JSON.parse(root.backend.instanceWorldsJson)
+                root.worlds = parsed.worlds || []
+            } catch (e) {
+                root.worlds = []
             }
         }
     }
@@ -269,12 +288,9 @@ Item {
                         rootPage: root
                     }
 
-                    FolderTab {
+                    WorldsTab {
                         style: root.style
                         rootPage: root
-                        folderKey: "saves"
-                        titleText: "世界"
-                        subtitleText: "管理当前实例运行目录中的 saves 文件夹。"
                     }
 
                     FolderTab {
@@ -1486,6 +1502,260 @@ Item {
 
                         MouseArea {
                             id: rpCellMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            z: -1
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    component WorldsTab: Item {
+        id: wTab
+        required property var style
+        required property var rootPage
+        clip: true
+
+        property var filteredWorlds: {
+            var q = wTab.rootPage.worldSearchText.toLowerCase()
+            if (!q) return wTab.rootPage.worlds
+            return wTab.rootPage.worlds.filter(function(w) {
+                return w.name.toLowerCase().indexOf(q) >= 0
+                    || w.fileName.toLowerCase().indexOf(q) >= 0
+            })
+        }
+
+        function formatLastPlayed(ms) {
+            if (ms <= 0) return "未知"
+            var d = new Date(ms)
+            return d.toLocaleDateString() + " " + d.toLocaleTimeString(Qt.locale(), "HH:mm")
+        }
+
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 0
+
+            PageHeader {
+                Layout.fillWidth: true
+                style: wTab.style
+                title: "世界"
+                subtitle: wTab.rootPage.worlds.length > 0
+                         ? "共 " + wTab.rootPage.worlds.length + " 个世界存档"
+                         : "管理当前实例的 saves 文件夹。"
+                iconSource: wTab.rootPage.iconBase + (wTab.rootPage.summary.iconName || "grass") + ".png"
+            }
+
+            Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: wTab.style.cBorder; opacity: 0.55 }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                Layout.topMargin: 10
+                Layout.bottomMargin: 6
+                spacing: 8
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 34
+                    radius: 4
+                    color: wTab.style.cButtonSurface
+                    border.width: 1
+                    border.color: wSearchInput.activeFocus ? wTab.style.cButtonSelected : wTab.style.cBorder
+
+                    TextField {
+                        id: wSearchInput
+                        anchors.fill: parent
+                        anchors.leftMargin: 10
+                        anchors.rightMargin: 10
+                        placeholderText: "搜索世界…"
+                        color: wTab.style.cTextOnSurface
+                        placeholderTextColor: wTab.style.cTextOnSurfaceVariant
+                        selectByMouse: true
+                        background: Item {}
+                        onTextChanged: wTab.rootPage.worldSearchText = text
+                    }
+                }
+
+                Rectangle {
+                    Layout.preferredWidth: 34; Layout.preferredHeight: 34
+                    radius: 4
+                    color: wRefreshMouse.containsMouse ? wTab.style.cButtonHover : wTab.style.cButtonSurface
+                    border.width: 1
+                    border.color: wTab.style.cBorder
+                    HmclSvgIcon {
+                        anchors.centerIn: parent
+                        icon: "REFRESH"
+                        iconSize: 18
+                        iconColor: wTab.style.cTextOnSurface
+                        animationsEnabled: wTab.style.animationsEnabled
+                    }
+                    MouseArea {
+                        id: wRefreshMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: wTab.rootPage.reloadWorlds()
+                    }
+                }
+
+                Rectangle {
+                    Layout.preferredWidth: 34; Layout.preferredHeight: 34
+                    radius: 4
+                    color: wFolderMouse.containsMouse ? wTab.style.cButtonHover : wTab.style.cButtonSurface
+                    border.width: 1
+                    border.color: wTab.style.cBorder
+                    HmclSvgIcon {
+                        anchors.centerIn: parent
+                        icon: "FOLDER_OPEN"
+                        iconSize: 18
+                        iconColor: wTab.style.cTextOnSurface
+                        animationsEnabled: wTab.style.animationsEnabled
+                    }
+                    MouseArea {
+                        id: wFolderMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: wTab.rootPage.backend.openInstanceFolder(wTab.rootPage.versionId, "saves")
+                    }
+                }
+            }
+
+            Item {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: wTab.rootPage.worlds.length === 0
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "此实例还没有任何世界存档。"
+                    color: wTab.style.cTextOnSurfaceVariant
+                    font.pixelSize: 13
+                    font.italic: true
+                }
+            }
+
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                visible: wTab.rootPage.worlds.length > 0
+                clip: true
+                contentWidth: availableWidth
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+
+                ListView {
+                    id: wListView
+                    width: parent.width
+                    height: contentHeight
+                    model: wTab.filteredWorlds
+                    spacing: 4
+                    topMargin: 4
+                    bottomMargin: 12
+                    leftMargin: 16
+                    rightMargin: 16
+                    boundsBehavior: Flickable.StopAtBounds
+
+                    delegate: Rectangle {
+                        id: wCell
+                        required property var modelData
+                        required property int index
+
+                        width: wListView.width - 32
+                        height: 68
+                        radius: wTab.style.radiusValue
+                        color: wCellMouse.containsMouse
+                               ? wTab.style.cButtonHover
+                               : wTab.style.cSurfaceContainerHigh
+                        border.width: 1
+                        border.color: wTab.style.cBorder
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.leftMargin: 12
+                            anchors.rightMargin: 8
+                            spacing: 10
+
+                            Rectangle {
+                                Layout.preferredWidth: 42
+                                Layout.preferredHeight: 42
+                                radius: 4
+                                color: "#2e7d32"
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: wCell.modelData.gameVersion.length > 0
+                                          ? wCell.modelData.gameVersion.split(".").slice(0, 2).join(".")
+                                          : "?"
+                                    color: "white"
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                }
+                            }
+
+                            Column {
+                                Layout.fillWidth: true
+                                spacing: 3
+
+                                Text {
+                                    width: parent.width
+                                    text: wCell.modelData.name
+                                    color: wTab.style.cTextOnSurface
+                                    font.pixelSize: 13
+                                    font.bold: true
+                                    elide: Text.ElideRight
+                                }
+
+                                Text {
+                                    width: parent.width
+                                    text: {
+                                        var parts = []
+                                        if (wCell.modelData.gameVersion.length > 0)
+                                            parts.push(wCell.modelData.gameVersion)
+                                        parts.push(wTab.formatLastPlayed(wCell.modelData.lastPlayed))
+                                        return parts.join(" · ")
+                                    }
+                                    color: wTab.style.cTextOnSurfaceVariant
+                                    font.pixelSize: 11
+                                    elide: Text.ElideRight
+                                    maximumLineCount: 1
+                                }
+                            }
+
+                            Rectangle {
+                                Layout.preferredWidth: 28; Layout.preferredHeight: 28
+                                radius: 4
+                                color: wDelMouse.containsMouse ? "#B3261E" : "transparent"
+                                Behavior on color { ColorAnimation { duration: 100 } }
+
+                                HmclSvgIcon {
+                                    anchors.centerIn: parent
+                                    icon: "DELETE_FOREVER"
+                                    iconSize: 16
+                                    iconColor: wDelMouse.containsMouse ? "white" : wTab.style.cTextOnSurfaceVariant
+                                    animationsEnabled: wTab.style.animationsEnabled
+                                }
+
+                                MouseArea {
+                                    id: wDelMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        wTab.rootPage.backend.deleteInstanceWorld(
+                                            wTab.rootPage.versionId,
+                                            wCell.modelData.fileName
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        MouseArea {
+                            id: wCellMouse
                             anchors.fill: parent
                             hoverEnabled: true
                             z: -1

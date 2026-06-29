@@ -24,6 +24,7 @@ Item {
     readonly property var appStyle: style
     readonly property real uiScale: Math.max(0.78, Math.min(1.18, Math.min(root.width / 1280, root.height / 720)))
     property string launcherTheme: appSettings.launcherTheme
+    property string launcherThemeColor: appSettings.launcherThemeColor
     property string launcherVisibility: appSettings.launcherVisibility
     property bool animationsEnabled: true
 
@@ -93,11 +94,16 @@ Item {
 
         category: "appearance"
         property string launcherTheme: "light"
+        property string launcherThemeColor: "default"
         property string launcherVisibility: "hide"
     }
 
     onLauncherThemeChanged: {
         appSettings.launcherTheme = root.launcherTheme
+    }
+
+    onLauncherThemeColorChanged: {
+        appSettings.launcherThemeColor = root.launcherThemeColor
     }
 
     onLauncherVisibilityChanged: {
@@ -112,6 +118,7 @@ Item {
     Style {
         id: style
         themeMode: root.launcherTheme
+        themeColor: root.launcherThemeColor
         systemDark: root.isSystemDark(systemPalette.window)
         animationsEnabled: root.animationsEnabled
     }
@@ -476,11 +483,16 @@ Item {
                     style: root.appStyle
                     backend: root.backend
                     themeMode: root.launcherTheme
+                    themeColor: root.launcherThemeColor
                     launcherVisibility: root.launcherVisibility
                     requestedSection: root.requestedSettingsSection
 
                     onThemeSelected: function(mode) {
                         root.launcherTheme = mode
+                    }
+
+                    onThemeColorSelected: function(color) {
+                        root.launcherThemeColor = color
                     }
 
                     onLauncherVisibilitySelected: function(mode) {
@@ -771,6 +783,9 @@ Item {
             var data = JSON.parse(raw)
             if (data.themeMode !== undefined && data.themeMode !== null) {
                 root.launcherTheme = String(data.themeMode)
+            }
+            if (data.themeColor !== undefined && data.themeColor !== null) {
+                root.launcherThemeColor = String(data.themeColor)
             }
             if (data.launcherVisibility !== undefined && data.launcherVisibility !== null) {
                 root.launcherVisibility = String(data.launcherVisibility)
