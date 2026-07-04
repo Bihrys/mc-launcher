@@ -44,6 +44,14 @@ pub mod qobject {
         fn detect_java(self: Pin<&mut LauncherBackend>);
 
         #[qinvokable]
+        #[cxx_name = "startDetectJava"]
+        fn start_detect_java(self: Pin<&mut LauncherBackend>);
+
+        #[qinvokable]
+        #[cxx_name = "pollJavaTask"]
+        fn poll_java_task(self: Pin<&mut LauncherBackend>) -> QString;
+
+        #[qinvokable]
         #[cxx_name = "downloadJava"]
         fn download_java(
             self: Pin<&mut LauncherBackend>,

@@ -285,29 +285,57 @@ fn default_launcher_settings_value() -> serde_json::Value {
 
             "minMemoryMb": 256,
             "maxMemoryMb": 2048,
+            "autoMemory": true,
+            "defaultIsolation": "modded",
+            "javaType": "auto",
+            "customJavaVersion": "17",
             "gameWidth": 854,
             "gameHeight": 480,
             "fullscreen": false,
+            "windowType": "windowed",
+            "gameResolution": "854x480",
+            "quickPlayType": "none",
+            "quickPlayServer": "",
+            "quickPlaySingleplayer": "",
             "javaPath": "",
             "javaAuto": true,
             "jvmArgs": "",
+            "noJVMOptions": false,
+            "noOptimizingJVMOptions": false,
+            "notCheckJVM": false,
+            "permSize": "",
             "gameDir": "",
             "preLaunchCommand": "",
+            "commandWrapper": "",
             "postExitCommand": "",
 
             "language": "zh_CN",
+            "disableAprilFools": false,
             "titleTransparent": false,
             "turnOffAnimations": false,
             "disableAutoGameOptions": false,
             "enableGameList": true,
             "enableOfflineAccount": true,
             "allowAutoAgent": true,
+            "showLogs": false,
+            "enableDebugLogOutput": false,
+            "notCheckGame": false,
+            "runningDir": "",
+            "gameArguments": "",
+            "environmentVariables": "",
+            "processPriority": "normal",
+            "graphicsBackend": "default",
+            "openGLRenderer": "default",
+            "themePack": "default",
+            "themeColorStyle": "system",
             "themeBrightness": "auto",
             "backgroundType": "default",
             "backgroundImage": "",
             "backgroundImageUrl": "",
             "backgroundPaint": "",
             "backgroundOpacity": 1.0,
+            "fallbackBackgroundType": "default",
+            "backgroundLoadPolicy": "async",
             "logFont": "monospace",
             "logFontFamily": "monospace",
             "logFontSize": 12.0,
@@ -385,13 +413,21 @@ fn parse_launcher_setting_value(key: &str, raw: &str) -> serde_json::Value {
             serde_json::Value::Number(value.into())
         }
         "fullscreen"
+        | "autoMemory"
+        | "noJVMOptions"
+        | "noOptimizingJVMOptions"
+        | "notCheckJVM"
         | "javaAuto"
         | "titleTransparent"
         | "turnOffAnimations"
         | "acceptPreviewUpdate"
         | "disableAutoShowUpdateDialog"
         | "checkUpdateOnStartup"
+        | "disableAprilFools"
         | "disableAutoGameOptions"
+        | "showLogs"
+        | "enableDebugLogOutput"
+        | "notCheckGame"
         | "enableGameList"
         | "enableOfflineAccount"
         | "allowAutoAgent"

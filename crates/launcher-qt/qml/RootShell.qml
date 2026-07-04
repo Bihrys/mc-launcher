@@ -18,6 +18,7 @@ Item {
 
     readonly property string currentPage: decoratorNavigator.currentPageKey
     property string requestedSettingsSection: "global"
+    property string currentSettingsSection: "global"
     property var activeDownloadPage: null
     property bool settingsPageLoaded: false
     property string activeInstanceVersion: ""
@@ -472,20 +473,33 @@ Item {
     Component {
         id: settingsPageComponent
 
+        // 对齐 HMCL LauncherSettingsPage.java：DecoratorAnimatedPage.setLeft(sideBar), setCenter(transitionPane)。
+        // 这样进入设置页时，NAVIGATION 动画会让左侧栏从 -30px、右侧内容从 +30px 分别进入。
         HmclAnimatedPage {
             anchors.fill: parent
             style: root.appStyle
-            leftWidth: 0
+            leftWidth: 200
+
+            leftComponent: Component {
+                HmclSettingsSideBar {
+                    anchors.fill: parent
+                    style: root.appStyle
+                    currentSection: root.currentSettingsSection
+                    onSectionSelected: function(section) {
+                        root.currentSettingsSection = section
+                    }
+                }
+            }
 
             centerComponent: Component {
                 HmclSettingsPage {
                     anchors.fill: parent
                     style: root.appStyle
                     backend: root.backend
+                    currentSection: root.currentSettingsSection
                     themeMode: root.launcherTheme
                     themeColor: root.launcherThemeColor
                     launcherVisibility: root.launcherVisibility
-                    requestedSection: root.requestedSettingsSection
 
                     onThemeSelected: function(mode) {
                         root.launcherTheme = mode
@@ -498,7 +512,6 @@ Item {
                     onLauncherVisibilitySelected: function(mode) {
                         root.launcherVisibility = mode
                     }
-
                 }
             }
         }
@@ -571,6 +584,7 @@ Item {
 
     function navigateSettingsSection(section) {
         root.requestedSettingsSection = section
+        root.currentSettingsSection = section
         root.prepareSettingsPage()
 
         if (root.currentPage !== "settings") {
