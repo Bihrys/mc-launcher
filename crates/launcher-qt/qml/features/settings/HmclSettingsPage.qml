@@ -117,16 +117,16 @@ Item {
             Layout.fillHeight: true
             style: root.style
 
-            Hmcl.AdvancedListItem { style: root.style; title: "全局游戏设置"; iconKind: "HOME"; selected: root.currentSection === "global"; onClicked: root.currentSection = "global" }
-            Hmcl.AdvancedListItem { style: root.style; title: "Java 管理"; iconKind: "WB_SUNNY"; selected: root.currentSection === "java"; onClicked: root.currentSection = "java" }
+            Hmcl.AdvancedListItem { style: root.style; title: "全局游戏设置"; iconKind: "STADIA_CONTROLLER"; selectedIconKind: "STADIA_CONTROLLER_FILL"; selected: root.currentSection === "global"; onClicked: root.currentSection = "global" }
+            Hmcl.AdvancedListItem { style: root.style; title: "Java 管理"; iconKind: "LOCAL_CAFE"; selectedIconKind: "LOCAL_CAFE_FILL"; selected: root.currentSection === "java"; onClicked: root.currentSection = "java" }
             DrawerCategory { style: root.style; text: "启动器" }
-            Hmcl.AdvancedListItem { style: root.style; title: "通用"; iconKind: "SETTINGS"; selected: root.currentSection === "general"; onClicked: root.currentSection = "general" }
-            Hmcl.AdvancedListItem { style: root.style; title: "外观"; iconKind: "DRESSER"; selected: root.currentSection === "appearance"; onClicked: root.currentSection = "appearance" }
+            Hmcl.AdvancedListItem { style: root.style; title: "通用"; iconKind: "TUNE"; selected: root.currentSection === "general"; onClicked: root.currentSection = "general" }
+            Hmcl.AdvancedListItem { style: root.style; title: "外观"; iconKind: "STYLE"; selectedIconKind: "STYLE_FILL"; selected: root.currentSection === "appearance"; onClicked: root.currentSection = "appearance" }
             Hmcl.AdvancedListItem { style: root.style; title: "下载"; iconKind: "DOWNLOAD"; selected: root.currentSection === "download"; onClicked: root.currentSection = "download" }
             DrawerCategory { style: root.style; text: "帮助" }
-            Hmcl.AdvancedListItem { style: root.style; title: "帮助"; iconKind: "HELP"; selected: root.currentSection === "help"; onClicked: root.currentSection = "help" }
-            Hmcl.AdvancedListItem { style: root.style; title: "反馈"; iconKind: "CHAT"; selected: root.currentSection === "feedback"; onClicked: root.currentSection = "feedback" }
-            Hmcl.AdvancedListItem { style: root.style; title: "关于"; iconKind: "PUBLIC"; selected: root.currentSection === "about"; onClicked: root.currentSection = "about" }
+            Hmcl.AdvancedListItem { style: root.style; title: "帮助"; iconKind: "HELP"; selectedIconKind: "HELP_FILL"; selected: root.currentSection === "help"; onClicked: root.currentSection = "help" }
+            Hmcl.AdvancedListItem { style: root.style; title: "反馈"; iconKind: "FEEDBACK"; selectedIconKind: "FEEDBACK_FILL"; selected: root.currentSection === "feedback"; onClicked: root.currentSection = "feedback" }
+            Hmcl.AdvancedListItem { style: root.style; title: "关于"; iconKind: "INFO"; selectedIconKind: "INFO_FILL"; selected: root.currentSection === "about"; onClicked: root.currentSection = "about" }
         }
 
         Item {

@@ -9,6 +9,7 @@ Item {
     property string title: ""
     property string subtitle: ""
     property string iconKind: ""
+    property string selectedIconKind: ""
     property bool selected: false
     property bool enabledItem: true
 
@@ -34,16 +35,22 @@ Item {
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 12
-        anchors.rightMargin: 8
-        spacing: 8
+        anchors.leftMargin: 16
+        anchors.rightMargin: 16
+        spacing: 10
 
-        SvgIcon {
+        Item {
             visible: root.iconKind.length > 0
-            icon: root.iconKind
-            iconSize: 20
-            iconColor: root.selected ? root.styleValue("cButtonSelected", "#2f6fed") : root.styleValue("cTextOnSurfaceVariant", "#666666")
-            animationsEnabled: !!root.styleValue("animationsEnabled", true)
+            Layout.preferredWidth: 32
+            Layout.preferredHeight: 20
+
+            SvgIcon {
+                anchors.centerIn: parent
+                icon: root.selected && root.selectedIconKind.length > 0 ? root.selectedIconKind : root.iconKind
+                iconSize: 20
+                iconColor: root.selected ? root.styleValue("cButtonSelected", "#2f6fed") : root.styleValue("cTextOnSurfaceVariant", "#666666")
+                animationsEnabled: !!root.styleValue("animationsEnabled", true)
+            }
         }
 
         ColumnLayout {
@@ -52,8 +59,9 @@ Item {
 
             Text {
                 text: root.title
-                color: root.styleValue("cTextOnSurface", "#222222")
+                color: root.selected ? root.styleValue("cButtonSelected", root.styleValue("cTextOnSurface", "#222222")) : root.styleValue("cTextOnSurface", "#222222")
                 font.pixelSize: 13
+                font.bold: root.selected
                 elide: Text.ElideRight
                 Layout.fillWidth: true
             }
@@ -62,7 +70,7 @@ Item {
                 visible: root.subtitle.length > 0
                 text: root.subtitle
                 color: root.styleValue("cTextOnSurfaceVariant", "#666666")
-                font.pixelSize: 11
+                font.pixelSize: 10
                 elide: Text.ElideRight
                 Layout.fillWidth: true
             }
