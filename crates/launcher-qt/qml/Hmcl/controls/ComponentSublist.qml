@@ -1,9 +1,13 @@
 import QtQuick
 import QtQuick.Layouts
+import "../icons"
 
 Item {
     id: root
 
+    // Qt 转写 HMCL ComponentSublist.java + ComponentSublistWrapper.java。
+    // Header 继承 LineButton 视觉：48px 最小高度、10/16 padding、12 spacing。
+    // 展开动画：Motion.LONG2(500ms) + EASE_IN_OUT_CUBIC_EMPHASIZED 的近似曲线。
     property var style
     property string title: ""
     property string subtitle: ""
@@ -21,9 +25,8 @@ Item {
     function styleValue(name, fallback) {
         if (root.style !== undefined && root.style !== null) {
             var value = root.style[name]
-            if (value !== undefined && value !== null) {
+            if (value !== undefined && value !== null)
                 return value
-            }
         }
         return fallback
     }
@@ -91,20 +94,18 @@ Item {
                 elide: Text.ElideRight
             }
 
-            Text {
-                text: "⌄"
-                width: 20
-                color: root.styleValue("cTextOnSurfaceVariant", "#454651")
-                font.pixelSize: 19
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
+            SvgIcon {
+                icon: "KEYBOARD_ARROW_DOWN"
+                iconSize: 20
+                iconColor: root.styleValue("cTextOnSurfaceVariant", "#454651")
+                animationsEnabled: root.animationsEnabled
                 rotation: root.expanded ? -180 : 0
 
                 Behavior on rotation {
                     enabled: root.animationsEnabled
                     NumberAnimation {
-                        duration: 200
-                        easing.type: Easing.OutCubic
+                        duration: 500
+                        easing.type: Easing.InOutCubic
                     }
                 }
             }
@@ -122,8 +123,8 @@ Item {
         Behavior on height {
             enabled: root.animationsEnabled
             NumberAnimation {
-                duration: 220
-                easing.type: Easing.OutCubic
+                duration: 500
+                easing.type: Easing.InOutCubic
             }
         }
 

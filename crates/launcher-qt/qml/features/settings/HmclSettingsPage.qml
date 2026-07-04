@@ -26,11 +26,18 @@ Item {
         if (root.requestedSection.length > 0)
             root.currentSection = root.requestedSection
         root.reloadSettings()
+        root.switchRightSection(false)
+        root.pageActive = true
     }
 
     onRequestedSectionChanged: {
         if (root.requestedSection.length > 0)
             root.currentSection = root.requestedSection
+    }
+
+    onCurrentSectionChanged: {
+        if (root.pageActive)
+            root.switchRightSection(true)
     }
 
     function styleValue(name, fallback) {
@@ -107,6 +114,29 @@ Item {
         }
     }
 
+    // 对应 HMCL LauncherSettingsPage.java: TabHeader 选项卡切换时，TransitionPane 使用
+    // ContainerAnimations.SLIDE_UP_FADE_IN + Motion.MEDIUM4 + EASE_IN_OUT_CUBIC_EMPHASIZED。
+    // Qt 端只做同一视觉动作：新页面从下方约 20% 高度淡入，持续 400ms。
+    function switchRightSection(animated) {
+        var target = root.sectionComponentFor(root.currentSection)
+        if (contentLoader === undefined)
+            return
+
+        if (!animated || !root.styleValue("animationsEnabled", true)) {
+            sectionFade.stop()
+            contentLoader.opacity = 1
+            contentLoader.y = 10
+            contentLoader.sourceComponent = target
+            return
+        }
+
+        sectionFade.stop()
+        contentLoader.opacity = 0
+        contentLoader.y = Math.max(50, rightPane.height * 0.20)
+        contentLoader.sourceComponent = target
+        sectionFade.restart()
+    }
+
     RowLayout {
         anchors.fill: parent
         spacing: 0
@@ -130,6 +160,7 @@ Item {
         }
 
         Item {
+            id: rightPane
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
@@ -149,8 +180,27 @@ Item {
                         x: 10
                         y: 10
                         width: Math.max(1, parent.width - 20)
-                        sourceComponent: root.sectionComponentFor(root.currentSection)
+                        opacity: 1
                     }
+                }
+            }
+
+            ParallelAnimation {
+                id: sectionFade
+                NumberAnimation {
+                    target: contentLoader
+                    property: "opacity"
+                    from: 0
+                    to: 1
+                    duration: 400
+                    easing.type: Easing.OutCubic
+                }
+                NumberAnimation {
+                    target: contentLoader
+                    property: "y"
+                    to: 10
+                    duration: 400
+                    easing.type: Easing.OutCubic
                 }
             }
         }
@@ -165,7 +215,7 @@ Item {
             Hmcl.ComponentList {
                 width: parent.width
                 style: root.style
-                InfoRow { style: root.style; title: "游戏设置"; subtitle: "HMCL 的全局游戏设置由 GameSettingsPage 负责。当前 Qt 端后续只按 GameSettingsPage.java 迁移，不再自行添加新的设置项。" }
+                InfoRow { style: root.style; title: "游戏设置"; subtitle: "" }
                 ButtonRow { style: root.style; title: "打开默认 Minecraft 目录"; buttonText: "打开"; onAction: root.backend.openLauncherSpecialFolder("minecraft") }
             }
         }
@@ -180,7 +230,7 @@ Item {
             Hmcl.ComponentList {
                 width: parent.width
                 style: root.style
-                ButtonRow { style: root.style; title: "检测 Java"; subtitle: "对应 HMCL JavaManagementPage 的本地 Java 检测入口。"; buttonText: "检测"; onAction: root.backend.detectJava() }
+                ButtonRow { style: root.style; title: "检测 Java"; subtitle: ""; buttonText: "检测"; onAction: root.backend.detectJava() }
                 ButtonRow { style: root.style; title: "下载 Java 8"; buttonText: "下载"; onAction: root.backend.downloadJava("temurin", "8", "jre") }
                 ButtonRow { style: root.style; title: "下载 Java 17"; buttonText: "下载"; onAction: root.backend.downloadJava("temurin", "17", "jre") }
                 ButtonRow { style: root.style; title: "下载 Java 21"; buttonText: "下载"; onAction: root.backend.downloadJava("temurin", "21", "jre") }
@@ -199,8 +249,8 @@ Item {
                 width: parent.width
                 style: root.style
                 SelectRow { style: root.style; title: "更新通道"; subtitle: "当前状态：本地开发版。"; value: root.settingText("updateChannel", "stable"); options: [{"text":"稳定版","value":"stable"},{"text":"开发版","value":"development"}]; onSelected: function(v) { root.setSetting("updateChannel", v) } }
-                ToggleRow { style: root.style; title: "接收预览版更新"; subtitle: "对应 HMCL acceptPreviewUpdate。"; checkedValue: root.settingBool("acceptPreviewUpdate", false); onChangedValue: function(v) { root.setBool("acceptPreviewUpdate", v) } }
-                ToggleRow { style: root.style; title: "不自动弹出更新提示"; subtitle: "对应 HMCL disableAutoShowUpdateDialog。"; checkedValue: root.settingBool("disableAutoShowUpdateDialog", false); onChangedValue: function(v) { root.setBool("disableAutoShowUpdateDialog", v) } }
+                ToggleRow { style: root.style; title: "接收预览版更新"; subtitle: ""; checkedValue: root.settingBool("acceptPreviewUpdate", false); onChangedValue: function(v) { root.setBool("acceptPreviewUpdate", v) } }
+                ToggleRow { style: root.style; title: "不自动弹出更新提示"; subtitle: ""; checkedValue: root.settingBool("disableAutoShowUpdateDialog", false); onChangedValue: function(v) { root.setBool("disableAutoShowUpdateDialog", v) } }
             }
 
             SectionTitle { style: root.style; title: "语言" }
@@ -214,7 +264,7 @@ Item {
             Hmcl.ComponentList {
                 width: parent.width
                 style: root.style
-                ButtonGroupRow { style: root.style; title: "调试"; subtitle: "对应 HMCL SettingsPage 的启动器日志入口。"; firstText: "显示日志"; secondText: "导出日志"; onFirst: root.backend.openLauncherSpecialFolder("logs"); onSecond: root.backend.exportLauncherDiagnostics() }
+                ButtonGroupRow { style: root.style; title: "调试"; subtitle: ""; firstText: "显示日志"; secondText: "导出日志"; onFirst: root.backend.openLauncherSpecialFolder("logs"); onSecond: root.backend.exportLauncherDiagnostics() }
             }
         }
     }
@@ -243,7 +293,7 @@ Item {
                     width: parent.width
                     style: root.style
                     title: "启动器背景"
-                    subtitle: "点击展开，结构对应 HMCL PersonalizationPage.backgroundSublist。"
+                    subtitle: ""
                     trailingText: backgroundDisplay(root.settingText("backgroundType", "default"))
                     expanded: false
                     SelectRow { style: root.style; title: "背景类型"; value: root.settingText("backgroundType", "default"); options: [{"text":"默认","value":"default"},{"text":"经典","value":"classic"},{"text":"自定义图片","value":"custom"},{"text":"网络图片","value":"network"},{"text":"纯色","value":"paint"}]; onSelected: function(v) { root.setSetting("backgroundType", v) } }
@@ -295,7 +345,7 @@ Item {
                     width: parent.width
                     style: root.style
                     title: "文件下载缓存目录"
-                    subtitle: "点击展开，结构对应 HMCL DownloadSettingsPage.fileCommonLocationSublist。"
+                    subtitle: ""
                     trailingText: commonDirectoryDisplay(root.settingText("commonDirType", "default"), root.settingText("commonDirectory", ""))
                     SelectRow { style: root.style; title: "缓存目录"; value: root.settingText("commonDirType", "default"); options: [{"text":"默认","value":"default"},{"text":"自定义","value":"custom"}]; onSelected: function(v) { root.setSetting("commonDirType", v) } }
                     TextRow { style: root.style; title: "自定义目录"; valueText: root.settingText("commonDirectory", ""); onAccepted: function(v) { root.setSetting("commonDirectory", v) } }
@@ -309,7 +359,7 @@ Item {
             Hmcl.ComponentList {
                 width: parent.width
                 style: root.style
-                SelectRow { style: root.style; title: "代理"; value: root.settingText("proxyType", "default"); options: [{"text":"使用系统代理","value":"default"},{"text":"不使用代理","value":"none"},{"text":"HTTP","value":"http"},{"text":"SOCKS","value":"socks"}]; onSelected: function(v) { root.setSetting("proxyType", v) } }
+                ProxyTypeRow { style: root.style; title: "代理"; value: root.settingText("proxyType", "default"); onSelected: function(v) { root.setSetting("proxyType", v) } }
                 TextRow { style: root.style; title: "IP 地址"; valueText: root.settingText("proxyHost", ""); enabledRow: isCustomProxy(); onAccepted: function(v) { root.setSetting("proxyHost", v) } }
                 TextRow { style: root.style; title: "端口"; valueText: root.settingText("proxyPort", "0"); enabledRow: isCustomProxy(); onAccepted: function(v) { root.setSetting("proxyPort", v) } }
                 ToggleRow { style: root.style; title: "代理认证"; checkedValue: root.settingBool("hasProxyAuth", false); enabledRow: isCustomProxy(); onChangedValue: function(v) { root.setBool("hasProxyAuth", v) } }
@@ -328,7 +378,7 @@ Item {
             Hmcl.ComponentList {
                 width: parent.width
                 style: root.style
-                ButtonRow { style: root.style; title: "HMCL 文档"; subtitle: "对应 HelpPage 的外部帮助入口。"; buttonText: "打开"; onAction: root.backend.openUrl("https://docs.hmcl.net/") }
+                ButtonRow { style: root.style; title: "HMCL 文档"; subtitle: ""; buttonText: "打开"; onAction: root.backend.openUrl("https://docs.hmcl.net/") }
                 ButtonRow { style: root.style; title: "Minecraft Wiki"; buttonText: "打开"; onAction: root.backend.openUrl("https://minecraft.wiki/") }
             }
         }
@@ -359,7 +409,7 @@ Item {
                 width: parent.width
                 style: root.style
                 InfoRow { style: root.style; title: "名称"; subtitle: "mc-launcher" }
-                InfoRow { style: root.style; title: "参考项目"; subtitle: "Hello Minecraft! Launcher。后续移植只按 HMCL 源码映射，不再自由发挥。" }
+                InfoRow { style: root.style; title: "参考项目"; subtitle: "Hello Minecraft! Launcher" }
                 ButtonRow { style: root.style; title: "项目仓库"; buttonText: "打开"; onAction: root.backend.openUrl("https://github.com/Bihrys/mc-launcher") }
             }
         }
@@ -605,6 +655,66 @@ Item {
             spacing: 10
             Slider { id: slider; Layout.fillWidth: true; enabled: row.enabledRow; from: row.fromValue; to: row.toValue; value: row.valueNumber; onMoved: row.movedValue(value) }
             Text { Layout.preferredWidth: 52; horizontalAlignment: Text.AlignRight; text: String(Math.round(slider.value)) + row.suffix; color: row.styleValue("cTextOnSurfaceVariant", "#454651"); font.pixelSize: 12 }
+        }
+    }
+
+    component ProxyTypeRow: BaseLine {
+        id: row
+        property string value: "default"
+        signal selected(string value)
+
+        Row {
+            anchors.right: parent.right
+            anchors.rightMargin: 16
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 8
+            RadioTextOption { style: row.style; text: "使用系统代理"; checked: row.value === "default"; onClicked: row.selected("default") }
+            RadioTextOption { style: row.style; text: "不使用代理"; checked: row.value === "none"; onClicked: row.selected("none") }
+            RadioTextOption { style: row.style; text: "HTTP"; checked: row.value === "http"; onClicked: row.selected("http") }
+            RadioTextOption { style: row.style; text: "SOCKS"; checked: row.value === "socks"; onClicked: row.selected("socks") }
+        }
+    }
+
+    component RadioTextOption: Item {
+        id: opt
+        property var style
+        property string text: ""
+        property bool checked: false
+        signal clicked()
+        width: radio.width + label.implicitWidth + 4
+        height: 32
+
+        Hmcl.RadioButton {
+            id: radio
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            style: opt.style
+            checked: opt.checked
+            onClicked: opt.clicked()
+        }
+
+        Text {
+            id: label
+            anchors.left: radio.right
+            anchors.leftMargin: 4
+            anchors.verticalCenter: parent.verticalCenter
+            text: opt.text
+            color: styleValue("cTextOnSurface", "#1B1B21")
+            font.pixelSize: 13
+        }
+
+        function styleValue(name, fallback) {
+            if (opt.style !== undefined && opt.style !== null) {
+                var value = opt.style[name]
+                if (value !== undefined && value !== null) return value
+            }
+            return fallback
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: opt.clicked()
         }
     }
 
