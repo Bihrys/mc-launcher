@@ -127,6 +127,7 @@ fn read_level_data(level_dat: &Path) -> Option<LevelData> {
 
 // --- Minimal big-endian NBT reader (read-only, enough to navigate level.dat) ---
 
+#[allow(dead_code)]
 enum NbtTag {
     Byte(i8),
     Short(i16),
