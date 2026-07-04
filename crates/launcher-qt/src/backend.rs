@@ -376,6 +376,18 @@ pub mod qobject {
         fn open_folder(self: Pin<&mut LauncherBackend>, path: QString);
 
         #[qinvokable]
+        #[cxx_name = "openLauncherSpecialFolder"]
+        fn open_launcher_special_folder(self: Pin<&mut LauncherBackend>, kind: QString) -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "exportLauncherDiagnostics"]
+        fn export_launcher_diagnostics(self: Pin<&mut LauncherBackend>) -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "resetLauncherSettings"]
+        fn reset_launcher_settings(self: Pin<&mut LauncherBackend>) -> QString;
+
+        #[qinvokable]
         #[cxx_name = "openUrl"]
         fn open_url(self: Pin<&mut LauncherBackend>, url: QString);
     }

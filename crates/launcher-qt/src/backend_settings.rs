@@ -2,7 +2,8 @@ use crate::backend::qobject;
 use core::pin::Pin;
 use cxx_qt_lib::QString;
 use std::fs;
-use std::path::PathBuf;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 
 impl qobject::LauncherBackend {
     pub fn refresh_launcher_settings(mut self: Pin<&mut Self>) -> QString {
@@ -28,6 +29,96 @@ impl qobject::LauncherBackend {
         if let Err(err) = launcher_core::platform::open_folder::open_folder(p) {
             self.as_mut()
                 .set_output(QString::from(&format!("打开文件夹失败。\n\n{err}")));
+        }
+    }
+
+    pub fn open_launcher_special_folder(mut self: Pin<&mut Self>, kind: QString) -> QString {
+        let kind = kind.to_string();
+        let path = launcher_special_folder(&kind);
+
+        if let Err(err) = fs::create_dir_all(&path) {
+            let message = format!("创建目录失败：{}\n\n{err}", path.display());
+            self.as_mut().set_output(QString::from(&message));
+            return QString::from(&message);
+        }
+
+        match launcher_core::platform::open_folder::open_folder(&path) {
+            Ok(()) => {
+                let message = format!("已打开目录：{}", path.display());
+                self.as_mut().set_output(QString::from(&message));
+                QString::from(&path.display().to_string())
+            }
+            Err(err) => {
+                let message = format!("打开目录失败：{}\n\n{err}", path.display());
+                self.as_mut().set_output(QString::from(&message));
+                QString::from(&message)
+            }
+        }
+    }
+
+    pub fn export_launcher_diagnostics(mut self: Pin<&mut Self>) -> QString {
+        let diagnostics_dir = launcher_config_dir().join("diagnostics");
+
+        if let Err(err) = fs::create_dir_all(&diagnostics_dir) {
+            let message = format!("创建诊断目录失败。\n\n{err}");
+            self.as_mut().set_output(QString::from(&message));
+            return QString::from(&message);
+        }
+
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|duration| duration.as_secs())
+            .unwrap_or(0);
+        let path = diagnostics_dir.join(format!("diagnostics-{timestamp}.json"));
+        let settings = load_launcher_settings_value();
+        let diagnostics = serde_json::json!({
+            "launcher": {
+                "name": "mc-launcher",
+                "version": "0.1.0",
+                "os": std::env::consts::OS,
+                "arch": std::env::consts::ARCH,
+                "target_family": std::env::consts::FAMILY
+            },
+            "paths": {
+                "config": launcher_config_dir(),
+                "data": launcher_data_dir(),
+                "cache": launcher_cache_dir(),
+                "logs": launcher_logs_dir(),
+                "minecraft": launcher_minecraft_dir(),
+                "settings": launcher_settings_path()
+            },
+            "settings": settings
+        });
+
+        match fs::File::create(&path).and_then(|mut file| file.write_all(serde_json::to_string_pretty(&diagnostics).unwrap_or_else(|_| "{}".to_string()).as_bytes())) {
+            Ok(()) => {
+                let message = format!("诊断信息已导出：{}", path.display());
+                self.as_mut().set_output(QString::from(&message));
+                QString::from(&path.display().to_string())
+            }
+            Err(err) => {
+                let message = format!("导出诊断信息失败。\n\n{err}");
+                self.as_mut().set_output(QString::from(&message));
+                QString::from(&message)
+            }
+        }
+    }
+
+    pub fn reset_launcher_settings(mut self: Pin<&mut Self>) -> QString {
+        let settings = default_launcher_settings_value();
+
+        match save_launcher_settings_value(&settings) {
+            Ok(()) => {
+                let text = settings.to_string();
+                self.as_mut().set_launcher_settings_json(QString::from(&text));
+                self.as_mut().set_output(QString::from("启动器设置已恢复默认值。"));
+                QString::from(&text)
+            }
+            Err(err) => {
+                let message = format!("重置设置失败。\n\n{err}");
+                self.as_mut().set_output(QString::from(&message));
+                QString::from(&message)
+            }
         }
     }
 
@@ -96,10 +187,72 @@ fn launcher_settings_path() -> PathBuf {
         .join("settings.json")
 }
 
+fn launcher_config_dir() -> PathBuf {
+    launcher_settings_path()
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| std::env::temp_dir().join("mc-launcher"))
+}
+
+fn home_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
+}
+
+fn launcher_data_dir() -> PathBuf {
+    if let Some(value) = std::env::var_os("XDG_DATA_HOME") {
+        if !value.is_empty() {
+            return PathBuf::from(value).join("mc-launcher");
+        }
+    }
+
+    home_dir().join(".local").join("share").join("mc-launcher")
+}
+
+fn launcher_cache_dir() -> PathBuf {
+    if let Some(value) = std::env::var_os("XDG_CACHE_HOME") {
+        if !value.is_empty() {
+            return PathBuf::from(value).join("mc-launcher");
+        }
+    }
+
+    home_dir().join(".cache").join("mc-launcher")
+}
+
+fn launcher_logs_dir() -> PathBuf {
+    launcher_config_dir().join("logs")
+}
+
+fn launcher_minecraft_dir() -> PathBuf {
+    launcher_data_dir().join("minecraft")
+}
+
+fn launcher_special_folder(kind: &str) -> PathBuf {
+    match kind {
+        "config" => launcher_config_dir(),
+        "logs" => launcher_logs_dir(),
+        "data" => launcher_data_dir(),
+        "cache" => launcher_cache_dir(),
+        "minecraft" => launcher_minecraft_dir(),
+        "settings" => launcher_settings_path()
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(launcher_config_dir),
+        _ => launcher_config_dir(),
+    }
+}
+
 fn default_launcher_settings_value() -> serde_json::Value {
     serde_json::json!({
         "themeMode": "light",
+        "themeColor": "default",
         "launcherVisibility": "hide",
+
+        "updateChannel": "stable",
+        "acceptPreviewUpdate": false,
+        "disableAutoShowUpdateDialog": false,
+        "checkUpdateOnStartup": true,
 
         "minMemoryMb": 256,
         "maxMemoryMb": 2048,
@@ -110,13 +263,15 @@ fn default_launcher_settings_value() -> serde_json::Value {
         "javaAuto": true,
         "jvmArgs": "",
         "gameDir": "",
+        "preLaunchCommand": "",
+        "postExitCommand": "",
 
         "language": "zh_CN",
-        "themeColor": "default",
         "titleTransparent": false,
         "turnOffAnimations": false,
         "disableAutoGameOptions": false,
         "enableGameList": true,
+        "enableOfflineAccount": true,
         "allowAutoAgent": true,
         "logFont": "monospace",
 
@@ -192,8 +347,12 @@ fn parse_launcher_setting_value(key: &str, raw: &str) -> serde_json::Value {
         | "javaAuto"
         | "titleTransparent"
         | "turnOffAnimations"
+        | "acceptPreviewUpdate"
+        | "disableAutoShowUpdateDialog"
+        | "checkUpdateOnStartup"
         | "disableAutoGameOptions"
         | "enableGameList"
+        | "enableOfflineAccount"
         | "allowAutoAgent"
         | "autoChooseDownloadSource"
         | "autoDownloadThreads" => serde_json::Value::Bool(raw.trim() == "true"),
