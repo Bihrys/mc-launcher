@@ -7,7 +7,8 @@ Item {
     property string title: ""
 
     width: parent ? parent.width : 200
-    height: 34
+    height: 32
+    implicitHeight: 32
 
     function styleValue(name, fallback) {
         if (root.style !== undefined && root.style !== null) {
@@ -19,26 +20,29 @@ Item {
         return fallback
     }
 
-    Text {
+    Column {
+        id: contentColumn
         anchors.left: parent.left
         anchors.leftMargin: 16
         anchors.right: parent.right
         anchors.rightMargin: 16
-        anchors.verticalCenter: parent.verticalCenter
-        text: root.title
-        color: root.styleValue("cTextOnSurface", "#222222")
-        font.pixelSize: 12
-        elide: Text.ElideRight
-    }
+        anchors.top: parent.top
+        anchors.topMargin: 8
+        spacing: 0
 
-    Rectangle {
-        anchors.left: parent.left
-        anchors.leftMargin: 16
-        anchors.right: parent.right
-        anchors.rightMargin: 16
-        anchors.bottom: parent.bottom
-        height: 1
-        color: root.styleValue("cTextOnSurfaceVariant", "#666666")
-        opacity: 0.75
+        Text {
+            width: parent.width
+            text: root.title
+            color: root.styleValue("cTextOnSurface", "#222222")
+            font.pixelSize: 12
+            elide: Text.ElideRight
+        }
+
+        Rectangle {
+            width: parent.width
+            height: 1
+            color: root.styleValue("cTextOnSurfaceVariant", "#666666")
+            opacity: 0.75
+        }
     }
 }

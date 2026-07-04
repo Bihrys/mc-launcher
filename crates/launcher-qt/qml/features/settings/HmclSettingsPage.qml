@@ -119,11 +119,11 @@ Item {
 
             Hmcl.AdvancedListItem { style: root.style; title: "全局游戏设置"; iconKind: "STADIA_CONTROLLER"; selectedIconKind: "STADIA_CONTROLLER_FILL"; selected: root.currentSection === "global"; onClicked: root.currentSection = "global" }
             Hmcl.AdvancedListItem { style: root.style; title: "Java 管理"; iconKind: "LOCAL_CAFE"; selectedIconKind: "LOCAL_CAFE_FILL"; selected: root.currentSection === "java"; onClicked: root.currentSection = "java" }
-            DrawerCategory { style: root.style; text: "启动器" }
+            Hmcl.ClassTitle { style: root.style; title: "启动器" }
             Hmcl.AdvancedListItem { style: root.style; title: "通用"; iconKind: "TUNE"; selected: root.currentSection === "general"; onClicked: root.currentSection = "general" }
             Hmcl.AdvancedListItem { style: root.style; title: "外观"; iconKind: "STYLE"; selectedIconKind: "STYLE_FILL"; selected: root.currentSection === "appearance"; onClicked: root.currentSection = "appearance" }
             Hmcl.AdvancedListItem { style: root.style; title: "下载"; iconKind: "DOWNLOAD"; selected: root.currentSection === "download"; onClicked: root.currentSection = "download" }
-            DrawerCategory { style: root.style; text: "帮助" }
+            Hmcl.ClassTitle { style: root.style; title: "帮助" }
             Hmcl.AdvancedListItem { style: root.style; title: "帮助"; iconKind: "HELP"; selectedIconKind: "HELP_FILL"; selected: root.currentSection === "help"; onClicked: root.currentSection = "help" }
             Hmcl.AdvancedListItem { style: root.style; title: "反馈"; iconKind: "FEEDBACK"; selectedIconKind: "FEEDBACK_FILL"; selected: root.currentSection === "feedback"; onClicked: root.currentSection = "feedback" }
             Hmcl.AdvancedListItem { style: root.style; title: "关于"; iconKind: "INFO"; selectedIconKind: "INFO_FILL"; selected: root.currentSection === "about"; onClicked: root.currentSection = "about" }
@@ -395,7 +395,7 @@ Item {
         property var style
         property string text: ""
         width: parent ? parent.width : 200
-        height: 34
+        height: 32
 
         function styleValue(name, fallback) {
             if (category.style !== undefined && category.style !== null) {
@@ -407,11 +407,27 @@ Item {
 
         Column {
             anchors.left: parent.left
+            anchors.leftMargin: 16
             anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            spacing: 4
-            Text { text: category.text.toUpperCase(); color: category.styleValue("cTextOnSurface", "#1B1B21"); font.pixelSize: 12; height: 16; verticalAlignment: Text.AlignVCenter }
-            Rectangle { width: parent.width; height: 1; color: category.styleValue("cTextOnSurfaceVariant", "#454651"); opacity: 0.45 }
+            anchors.rightMargin: 16
+            anchors.top: parent.top
+            anchors.topMargin: 8
+            spacing: 0
+
+            Text {
+                width: parent.width
+                text: category.text.toUpperCase()
+                color: category.styleValue("cTextOnSurface", "#1B1B21")
+                font.pixelSize: 12
+                elide: Text.ElideRight
+            }
+
+            Rectangle {
+                width: parent.width
+                height: 1
+                color: category.styleValue("cTextOnSurfaceVariant", "#454651")
+                opacity: 0.75
+            }
         }
     }
 
