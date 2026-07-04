@@ -1,0 +1,103 @@
+import QtQuick
+import QtQuick.Layouts
+import "../../Hmcl/controls" as Hmcl
+
+Rectangle {
+    id: root
+    property var style
+    property string title: ""
+    property string subtitle: ""
+    property string rightText: ""
+    property bool checked: false
+    property bool enabledRow: true
+    property bool showTopBorder: false
+    default property alias rightContent: rightBox.children
+    signal clicked()
+
+    width: parent ? parent.width : 800
+    implicitHeight: Math.max(38, Math.max(textColumn.implicitHeight, rightBox.implicitHeight) + 10)
+    height: implicitHeight
+    color: root.styleValue("cSurfaceContainer", "#F5F2FA")
+    opacity: root.enabledRow ? 1.0 : 0.42
+
+    function styleValue(name, fallback) {
+        if (root.style !== undefined && root.style !== null) {
+            var value = root.style[name]
+            if (value !== undefined && value !== null)
+                return value
+        }
+        return fallback
+    }
+
+    Rectangle {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: 1
+        visible: root.showTopBorder
+        color: root.styleValue("cBorder", "#D9D7E2")
+    }
+
+    MouseArea {
+        anchors.fill: parent
+        enabled: root.enabledRow
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.clicked()
+    }
+
+    RowLayout {
+        anchors.fill: parent
+        anchors.leftMargin: 16
+        anchors.rightMargin: 16
+        spacing: 8
+
+        Hmcl.RadioButton {
+            Layout.preferredWidth: 24
+            Layout.preferredHeight: 24
+            style: root.style
+            checked: root.checked
+            onClicked: root.clicked()
+        }
+
+        ColumnLayout {
+            id: textColumn
+            Layout.fillWidth: true
+            spacing: 2
+
+            Text {
+                Layout.fillWidth: true
+                text: root.title
+                color: root.styleValue("cTextOnSurface", "#1B1B21")
+                font.pixelSize: 13
+                elide: Text.ElideRight
+            }
+
+            Text {
+                Layout.fillWidth: true
+                visible: root.subtitle.length > 0
+                text: root.subtitle
+                color: root.styleValue("cTextOnSurfaceVariant", "#454651")
+                font.pixelSize: 12
+                elide: Text.ElideRight
+            }
+        }
+
+        Text {
+            visible: root.rightText.length > 0 && rightBox.children.length === 0
+            Layout.maximumWidth: Math.min(360, root.width * 0.50)
+            text: root.rightText
+            color: root.styleValue("cTextOnSurface", "#1B1B21")
+            font.pixelSize: 12
+            horizontalAlignment: Text.AlignRight
+            elide: Text.ElideMiddle
+        }
+
+        RowLayout {
+            id: rightBox
+            Layout.maximumWidth: Math.min(360, root.width * 0.50)
+            Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+            spacing: 8
+        }
+    }
+}

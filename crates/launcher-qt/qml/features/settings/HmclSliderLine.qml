@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 
 HmclSettingLine {
@@ -18,14 +17,15 @@ HmclSettingLine {
         width: Math.min(360, parent.width * 0.50)
         spacing: 10
 
-        Slider {
+        HmclMemorySlider {
             id: slider
             Layout.fillWidth: true
-            enabled: root.enabledRow
+            style: root.style
+            enabledControl: root.enabledRow
             from: root.fromValue
             to: root.toValue
             value: root.valueNumber
-            onMoved: root.movedValue(value)
+            onMoved: function(value) { root.movedValue(value) }
         }
 
         Text {

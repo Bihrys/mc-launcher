@@ -22,17 +22,21 @@ QtObject {
     // 主题色基准（浅色模式下使用的强调色）。深色模式自动调亮。
     readonly property color accentBase: {
         switch (themeColor) {
-        case "purple": return "#6750A4"
-        case "blue": return "#1565C0"
-        case "green": return "#2E7D44"
-        case "red": return "#B3261E"
-        case "orange": return "#E0701A"
-        case "default": return "#4352A5"
+        case "purple":
+            return "#6750A4";
+        case "blue":
+            return "#1565C0";
+        case "green":
+            return "#2E7D44";
+        case "red":
+            return "#B3261E";
+        case "orange":
+            return "#E0701A";
+        case "default":
+            return "#4352A5";
         default:
             // 自定义十六进制色，非法时回退默认。
-            return (typeof themeColor === "string" && themeColor.charAt(0) === "#")
-                   ? themeColor
-                   : "#4352A5"
+            return (typeof themeColor === "string" && themeColor.charAt(0) === "#") ? themeColor : "#4352A5";
         }
     }
 

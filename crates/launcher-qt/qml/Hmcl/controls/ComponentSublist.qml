@@ -105,7 +105,8 @@ Item {
                     enabled: root.animationsEnabled
                     NumberAnimation {
                         duration: 500
-                        easing.type: Easing.InOutCubic
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: [0.05, 0.0, 0.133333, 0.06, 0.166666, 0.4, 0.208333, 0.82, 0.25, 1.0, 1.0, 1.0]
                     }
                 }
             }
@@ -124,7 +125,8 @@ Item {
             enabled: root.animationsEnabled
             NumberAnimation {
                 duration: 500
-                easing.type: Easing.InOutCubic
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: [0.05, 0.0, 0.133333, 0.06, 0.166666, 0.4, 0.208333, 0.82, 0.25, 1.0, 1.0, 1.0]
             }
         }
 

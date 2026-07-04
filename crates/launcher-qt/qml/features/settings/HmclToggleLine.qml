@@ -1,16 +1,16 @@
 import QtQuick
-import QtQuick.Controls
 
 HmclSettingLine {
     id: root
     property bool checkedValue: false
     signal changedValue(bool value)
 
-    Switch {
+    HmclSwitch {
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
-        enabled: root.enabledRow
+        style: root.style
         checked: root.checkedValue
-        onToggled: root.changedValue(checked)
+        enabledControl: root.enabledRow
+        onToggled: function(value) { root.changedValue(value) }
     }
 }

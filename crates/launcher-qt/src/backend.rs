@@ -371,6 +371,10 @@ pub mod qobject {
         fn refresh_launcher_settings(self: Pin<&mut LauncherBackend>) -> QString;
 
         #[qinvokable]
+        #[cxx_name = "refreshSystemMemory"]
+        fn refresh_system_memory(self: Pin<&mut LauncherBackend>) -> QString;
+
+        #[qinvokable]
         #[cxx_name = "updateLauncherSetting"]
         fn update_launcher_setting(self: Pin<&mut LauncherBackend>, key: QString, value: QString);
 

@@ -21,7 +21,7 @@ Item {
             title: "全局游戏设置"
             iconKind: "STADIA_CONTROLLER"
             selectedIconKind: "STADIA_CONTROLLER_FILL"
-            selected: root.currentSection === "global"
+            selected: root.currentSection === "global" || root.currentSection === "globalAdvanced"
             onClicked: root.sectionSelected("global")
         }
 

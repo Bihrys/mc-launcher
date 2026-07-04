@@ -98,6 +98,7 @@ Item {
     function sectionComponentFor(section) {
         switch (section) {
         case "global": return globalSectionComponent
+        case "globalAdvanced": return globalAdvancedSectionComponent
         case "java": return javaSectionComponent
         case "general": return generalSectionComponent
         case "appearance": return appearanceSectionComponent
@@ -115,6 +116,7 @@ Item {
             return
 
         if (!animated || currentLoader.sourceComponent === null) {
+            if (typeof flick !== "undefined") flick.contentY = 0
             transitionTimer.stop()
             previousLoader.sourceComponent = null
             previousLoader.opacity = 0
@@ -127,6 +129,7 @@ Item {
         if (currentLoader.sourceComponent === target)
             return
 
+        if (typeof flick !== "undefined") flick.contentY = 0
         transitionTimer.stop()
         previousLoader.sourceComponent = currentLoader.sourceComponent
         previousLoader.opacity = 1
@@ -134,7 +137,7 @@ Item {
 
         currentLoader.sourceComponent = target
         currentLoader.opacity = 0
-        root.transitionOffset = Math.max(50, rightPane.height * 0.20)
+        root.transitionOffset = rightPane.height > 0 ? rightPane.height * 0.20 : 50
         currentLoader.y = 10 + root.transitionOffset
         root.transitionStartMs = Date.now()
         transitionTimer.start()
@@ -208,42 +211,53 @@ Item {
         anchors.fill: parent
         clip: true
 
-        ScrollView {
-            id: scroll
+        Flickable {
+            id: flick
             anchors.fill: parent
             clip: true
-            contentWidth: availableWidth
+            boundsBehavior: Flickable.StopAtBounds
+            flickableDirection: Flickable.VerticalFlick
+            contentWidth: width
+            contentHeight: Math.max(height,
+                                    Math.max(currentLoader.item ? currentLoader.item.implicitHeight + 20 : 1,
+                                             previousLoader.item ? previousLoader.item.implicitHeight + 20 : 1))
 
-            Item {
-                width: scroll.availableWidth
-                height: Math.max(scroll.height,
-                                 Math.max(currentLoader.item ? currentLoader.item.implicitHeight + 20 : 1,
-                                          previousLoader.item ? previousLoader.item.implicitHeight + 20 : 1))
+            Loader {
+                id: previousLoader
+                x: 10
+                y: 10
+                width: Math.max(1, flick.width - 20)
+                opacity: 0
+                visible: sourceComponent !== null && opacity > 0.001
+                z: 1
+            }
 
-                Loader {
-                    id: previousLoader
-                    x: 10
-                    y: 10
-                    width: Math.max(1, parent.width - 20)
-                    opacity: 0
-                    visible: sourceComponent !== null && opacity > 0.001
-                    z: 1
+            Loader {
+                id: currentLoader
+                x: 10
+                y: 10
+                width: Math.max(1, flick.width - 20)
+                opacity: 1
+                visible: sourceComponent !== null
+                z: 2
+                onItemChanged: {
+                    if (item && item.width !== undefined)
+                        item.width = width
                 }
-
-                Loader {
-                    id: currentLoader
-                    x: 10
-                    y: 10
-                    width: Math.max(1, parent.width - 20)
-                    opacity: 1
-                    visible: sourceComponent !== null
-                    z: 2
+                onWidthChanged: {
+                    if (item && item.width !== undefined)
+                        item.width = width
                 }
+            }
+
+            ScrollBar.vertical: ScrollBar {
+                policy: flick.contentHeight > flick.height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
             }
         }
     }
 
     Component { id: globalSectionComponent; HmclGameSettingsRightPage { style: root.style; backend: root.backend; settingsPage: root } }
+    Component { id: globalAdvancedSectionComponent; HmclGameAdvancedSettingsRightPage { style: root.style; backend: root.backend; settingsPage: root } }
     Component { id: javaSectionComponent; HmclJavaManagementRightPage { style: root.style; backend: root.backend; settingsPage: root } }
     Component { id: generalSectionComponent; HmclLauncherGeneralRightPage { style: root.style; backend: root.backend; settingsPage: root } }
     Component { id: appearanceSectionComponent; HmclPersonalizationRightPage { style: root.style; backend: root.backend; settingsPage: root } }
