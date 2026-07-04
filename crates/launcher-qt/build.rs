@@ -52,6 +52,7 @@ fn main() {
         "qml/Hmcl/controls/ImageContainer.qml",
         "qml/Hmcl/controls/IconedMenuItem.qml",
         "qml/Hmcl/controls/ComponentList.qml",
+        "qml/Hmcl/controls/ComponentSublist.qml",
         "qml/Hmcl/controls/ClassTitle.qml",
         "qml/Hmcl/controls/AdvancedListItem.qml",
         "qml/Hmcl/controls/AdvancedListBox.qml",

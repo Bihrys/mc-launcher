@@ -388,6 +388,10 @@ pub mod qobject {
         fn reset_launcher_settings(self: Pin<&mut LauncherBackend>) -> QString;
 
         #[qinvokable]
+        #[cxx_name = "clearLauncherCache"]
+        fn clear_launcher_cache(self: Pin<&mut LauncherBackend>) -> QString;
+
+        #[qinvokable]
         #[cxx_name = "openUrl"]
         fn open_url(self: Pin<&mut LauncherBackend>, url: QString);
     }

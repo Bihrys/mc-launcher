@@ -104,6 +104,32 @@ impl qobject::LauncherBackend {
         }
     }
 
+
+    pub fn clear_launcher_cache(mut self: Pin<&mut Self>) -> QString {
+        let cache_dir = launcher_cache_dir();
+        let target = cache_dir.join("downloads");
+        let path = if target.exists() { target } else { cache_dir };
+
+        let result = if path.exists() {
+            fs::remove_dir_all(&path).and_then(|_| fs::create_dir_all(&path))
+        } else {
+            fs::create_dir_all(&path)
+        };
+
+        match result {
+            Ok(()) => {
+                let message = format!("下载缓存已清理：{}", path.display());
+                self.as_mut().set_output(QString::from(&message));
+                QString::from(&message)
+            }
+            Err(err) => {
+                let message = format!("清理下载缓存失败：{}\n\n{err}", path.display());
+                self.as_mut().set_output(QString::from(&message));
+                QString::from(&message)
+            }
+        }
+    }
+
     pub fn reset_launcher_settings(mut self: Pin<&mut Self>) -> QString {
         let settings = default_launcher_settings_value();
 
@@ -273,7 +299,16 @@ fn default_launcher_settings_value() -> serde_json::Value {
         "enableGameList": true,
         "enableOfflineAccount": true,
         "allowAutoAgent": true,
+        "themeBrightness": "auto",
+        "backgroundType": "default",
+        "backgroundImage": "",
+        "backgroundImageUrl": "",
+        "backgroundPaint": "",
+        "backgroundOpacity": 1.0,
         "logFont": "monospace",
+        "logFontFamily": "monospace",
+        "logFontSize": 12.0,
+        "globalFontFamily": "",
 
         "autoChooseDownloadSource": true,
         "versionListSource": "balanced",
@@ -289,6 +324,7 @@ fn default_launcher_settings_value() -> serde_json::Value {
         "proxyPort": 0,
         "proxyUsername": "",
         "proxyPassword": "",
+        "hasProxyAuth": false,
 
         "uiScale": 1.0,
         "fontAntiAliasing": "auto"
@@ -355,8 +391,9 @@ fn parse_launcher_setting_value(key: &str, raw: &str) -> serde_json::Value {
         | "enableOfflineAccount"
         | "allowAutoAgent"
         | "autoChooseDownloadSource"
-        | "autoDownloadThreads" => serde_json::Value::Bool(raw.trim() == "true"),
-        "uiScale" => {
+        | "autoDownloadThreads"
+        | "hasProxyAuth" => serde_json::Value::Bool(raw.trim() == "true"),
+        "uiScale" | "backgroundOpacity" | "logFontSize" => {
             let value = raw.trim().parse::<f64>().unwrap_or(1.0);
             serde_json::Number::from_f64(value)
                 .map(serde_json::Value::Number)
