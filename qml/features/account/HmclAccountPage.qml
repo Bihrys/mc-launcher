@@ -1715,6 +1715,7 @@ Item {
             id: avatarImage
             anchors.fill: parent
             source: avatar.source
+            asynchronous: true
             fillMode: Image.PreserveAspectFit
             visible: avatar.source.length > 0 && status !== Image.Error
             cache: true

@@ -275,6 +275,7 @@ Rectangle {
                 id: avatarImage
                 anchors.fill: parent
                 source: item.avatarUrl
+                asynchronous: true
                 fillMode: Image.PreserveAspectFit
                 smooth: true
                 cache: true

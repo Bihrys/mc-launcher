@@ -229,7 +229,11 @@ void LauncherBackend::saveInstanceSettings(const QString &versionId, const QStri
 void LauncherBackend::selectGameVersion(const QString &versionId) { setString(m_selectedGameVersion, versionId, &LauncherBackend::selectedGameVersionChanged); refreshInstanceDetail(versionId); }
 void LauncherBackend::deleteGameVersion(const QString &versionId) { deleteInstance(versionId); }
 void LauncherBackend::launchSelectedVersion() { startLaunchSelectedVersion("hide"); }
-void LauncherBackend::startLaunchSelectedVersion(const QString &visibility) { setString(m_launchTaskJson, stringify(m_launch.launch(m_selectedGameVersion, visibility)), &LauncherBackend::launchTaskJsonChanged); setOutput("启动命令：" + m_instances.generateLaunchCommand(m_selectedGameVersion)); }
+void LauncherBackend::startLaunchSelectedVersion(const QString &visibility) {
+    const QString command = m_instances.generateLaunchCommand(m_selectedGameVersion);
+    setString(m_launchTaskJson, stringify(m_launch.launch(m_selectedGameVersion, visibility, command)), &LauncherBackend::launchTaskJsonChanged);
+    setOutput("启动命令：" + command);
+}
 void LauncherBackend::cancelLaunchTask() { setString(m_launchTaskJson, stringify(m_launch.cancelled()), &LauncherBackend::launchTaskJsonChanged); }
 QString LauncherBackend::pollLaunchTask() { return m_launchTaskJson; }
 

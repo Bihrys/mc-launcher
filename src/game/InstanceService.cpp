@@ -8,9 +8,141 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
+#include <QHash>
+#include <QJsonValue>
 #include <QProcess>
+#include <QSet>
 #include <QDesktopServices>
 #include <QUrl>
+
+namespace {
+
+QString shellQuote(const QString &value) {
+    QString out = value;
+    out.replace("'", "'\\''");
+    return QString("\'") + out + QString("\'");
+}
+
+QJsonObject readVersionObjectById(const QString &versionId) {
+    const QString path = LauncherPaths::versionsDir() + "/" + versionId + "/" + versionId + ".json";
+    return JsonUtil::readObjectFile(path, {});
+}
+
+QJsonObject mergeVersionJson(const QJsonObject &parent, const QJsonObject &child) {
+    if (parent.isEmpty()) return child;
+    QJsonObject out = parent;
+    for (auto it = child.begin(); it != child.end(); ++it) {
+        if (it.key() == "libraries") {
+            QJsonArray libs = parent.value("libraries").toArray();
+            for (const QJsonValue &v : child.value("libraries").toArray()) libs.append(v);
+            out.insert("libraries", libs);
+        } else if (it.key() == "arguments") {
+            QJsonObject args = parent.value("arguments").toObject();
+            QJsonObject childArgs = child.value("arguments").toObject();
+            if (childArgs.contains("game")) {
+                QJsonArray merged = args.value("game").toArray();
+                for (const QJsonValue &v : childArgs.value("game").toArray()) merged.append(v);
+                args.insert("game", merged);
+            }
+            if (childArgs.contains("jvm")) {
+                QJsonArray merged = args.value("jvm").toArray();
+                for (const QJsonValue &v : childArgs.value("jvm").toArray()) merged.append(v);
+                args.insert("jvm", merged);
+            }
+            out.insert("arguments", args);
+        } else {
+            out.insert(it.key(), it.value());
+        }
+    }
+    return out;
+}
+
+bool ruleMatchesCurrentLinux(const QJsonObject &rule) {
+    const QString action = rule.value("action").toString();
+    const QJsonObject os = rule.value("os").toObject();
+    if (os.isEmpty()) return action == "allow";
+    const QString name = os.value("name").toString();
+    if (name.isEmpty() || name == "linux") return action == "allow";
+    return action == "disallow";
+}
+
+bool allowedByRules(const QJsonArray &rules) {
+    if (rules.isEmpty()) return true;
+    bool allowed = false;
+    for (const QJsonValue &v : rules) {
+        const QJsonObject rule = v.toObject();
+        if (ruleMatchesCurrentLinux(rule)) allowed = rule.value("action").toString() == "allow";
+    }
+    return allowed;
+}
+
+QString libraryPathFromName(const QString &name) {
+    const QStringList parts = name.split(':');
+    if (parts.size() < 3) return QString();
+    QString groupPath = parts.at(0);
+    groupPath.replace('.', '/');
+    const QString artifact = parts.at(1);
+    const QString version = parts.at(2);
+    return groupPath + "/" + artifact + "/" + version + "/" + artifact + "-" + version + ".jar";
+}
+
+QStringList stringOrArray(const QJsonValue &value) {
+    QStringList out;
+    if (value.isString()) {
+        out << value.toString();
+    } else if (value.isArray()) {
+        for (const QJsonValue &v : value.toArray()) {
+            if (v.isString()) out << v.toString();
+        }
+    }
+    return out;
+}
+
+QString replaceLaunchPlaceholders(QString value, const QHash<QString, QString> &vars) {
+    for (auto it = vars.begin(); it != vars.end(); ++it) {
+        value.replace("${" + it.key() + "}", it.value());
+    }
+    return value;
+}
+
+QStringList parseArgumentList(const QJsonArray &array, const QHash<QString, QString> &vars) {
+    QStringList out;
+    for (const QJsonValue &v : array) {
+        if (v.isString()) {
+            out << replaceLaunchPlaceholders(v.toString(), vars);
+        } else if (v.isObject()) {
+            const QJsonObject obj = v.toObject();
+            if (!allowedByRules(obj.value("rules").toArray())) continue;
+            for (const QString &item : stringOrArray(obj.value("value"))) {
+                out << replaceLaunchPlaceholders(item, vars);
+            }
+        }
+    }
+    return out;
+}
+
+QString buildClasspath(const QString &versionId, const QJsonObject &versionJson) {
+    QStringList entries;
+    QSet<QString> seen;
+    const QString librariesRoot = LauncherPaths::minecraftDir() + "/libraries";
+    for (const QJsonValue &v : versionJson.value("libraries").toArray()) {
+        const QJsonObject lib = v.toObject();
+        if (!allowedByRules(lib.value("rules").toArray())) continue;
+        QString rel = lib.value("downloads").toObject().value("artifact").toObject().value("path").toString();
+        if (rel.isEmpty()) rel = libraryPathFromName(lib.value("name").toString());
+        if (rel.isEmpty()) continue;
+        const QString abs = librariesRoot + "/" + rel;
+        if (QFileInfo::exists(abs) && !seen.contains(abs)) {
+            entries << abs;
+            seen.insert(abs);
+        }
+    }
+    const QString clientJar = LauncherPaths::versionsDir() + "/" + versionId + "/" + versionId + ".jar";
+    if (QFileInfo::exists(clientJar)) entries << clientJar;
+    return entries.join(":");
+}
+
+} // namespace
 
 QString InstanceService::versionDir(const QString &versionId) const {
     return LauncherPaths::versionsDir() + "/" + versionId;
@@ -171,12 +303,88 @@ QString InstanceService::openFolder(const QString &versionId, const QString &sub
 }
 
 QString InstanceService::generateLaunchCommand(const QString &versionId) {
-    return "java -jar \"" + versionDir(versionId) + "/" + versionId + ".jar\"";
+    const QString id = versionId.trimmed();
+    if (id.isEmpty()) return QString();
+
+    QJsonObject child = readVersionJson(id);
+    if (child.isEmpty()) {
+        return QString("echo ") + shellQuote(QString("版本不存在或缺少 version.json: ") + id);
+    }
+
+    const QString parentId = child.value("inheritsFrom").toString();
+    QJsonObject versionJson = parentId.isEmpty() ? child : mergeVersionJson(readVersionObjectById(parentId), child);
+    const QString mainClass = versionJson.value("mainClass").toString("net.minecraft.client.main.Main");
+    const QString clientJar = versionDir(id) + "/" + id + ".jar";
+    QFileInfo jarInfo(clientJar);
+    if (!jarInfo.exists() || jarInfo.size() <= 0) {
+        return QString("echo ") + shellQuote(QString("版本 ") + id + QString(" 不是完整安装。当前 C++ 骨架只创建了空 jar/空 version.json，不能真正启动。请后续接入 HMCL 的 GameInstallTask 下载 libraries、assets 和 client.jar。"));
+    }
+
+    const QString classpath = buildClasspath(id, versionJson);
+    if (classpath.isEmpty()) {
+        return QString("echo ") + shellQuote(QString("版本 ") + id + QString(" 缺少 classpath。请检查 libraries 是否已下载。路径: ") + LauncherPaths::minecraftDir() + QString("/libraries"));
+    }
+
+    const QString assetIndex = versionJson.value("assetIndex").toObject().value("id").toString(versionJson.value("assets").toString("legacy"));
+    const QString gameDir = LauncherPaths::minecraftDir();
+    const QString nativesDir = versionDir(id) + "/natives";
+    QDir().mkpath(nativesDir);
+
+    QHash<QString, QString> vars;
+    vars.insert("auth_player_name", "Steve");
+    vars.insert("version_name", id);
+    vars.insert("game_directory", gameDir);
+    vars.insert("assets_root", gameDir + "/assets");
+    vars.insert("assets_index_name", assetIndex);
+    vars.insert("auth_uuid", "00000000-0000-0000-0000-000000000000");
+    vars.insert("auth_access_token", "0");
+    vars.insert("clientid", "0");
+    vars.insert("auth_xuid", "0");
+    vars.insert("user_type", "legacy");
+    vars.insert("version_type", versionJson.value("type").toString("release"));
+    vars.insert("natives_directory", nativesDir);
+    vars.insert("launcher_name", "mc-launcher-qt-cpp");
+    vars.insert("launcher_version", "0.1.0");
+    vars.insert("classpath", classpath);
+
+    QStringList args;
+    args << "java" << "-Xmx2G" << (QString("-Djava.library.path=") + nativesDir);
+
+    const QJsonObject arguments = versionJson.value("arguments").toObject();
+    QStringList jvmArgs = parseArgumentList(arguments.value("jvm").toArray(), vars);
+    if (!jvmArgs.isEmpty()) args << jvmArgs;
+    else args << "-cp" << classpath;
+
+    args << mainClass;
+
+    QStringList gameArgs = parseArgumentList(arguments.value("game").toArray(), vars);
+    if (!gameArgs.isEmpty()) {
+        args << gameArgs;
+    } else {
+        const QString legacyArgs = versionJson.value("minecraftArguments").toString();
+        if (!legacyArgs.isEmpty()) {
+            for (const QString &part : legacyArgs.split(' ', Qt::SkipEmptyParts)) args << replaceLaunchPlaceholders(part, vars);
+        } else {
+            args << "--username" << "Steve"
+                 << "--version" << id
+                 << "--gameDir" << gameDir
+                 << "--assetsDir" << gameDir + "/assets"
+                 << "--assetIndex" << assetIndex
+                 << "--uuid" << "00000000-0000-0000-0000-000000000000"
+                 << "--accessToken" << "0"
+                 << "--userType" << "legacy"
+                 << "--versionType" << versionJson.value("type").toString("release");
+        }
+    }
+
+    QStringList quoted;
+    for (const QString &arg : args) quoted << shellQuote(arg);
+    return quoted.join(' ');
 }
 
 QString InstanceService::clean(const QString &versionId, const QString &what) {
     Q_UNUSED(versionId)
-    return "已执行清理动作: " + what;
+    return QString("已执行清理动作: ") + what;
 }
 
 QJsonObject InstanceService::saveSettings(const QString &versionId, const QString &settingsJson) {
