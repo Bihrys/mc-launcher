@@ -1,1 +1,0 @@
-pub const CURRENT_SCHEMA_VERSION: u32 = 1;

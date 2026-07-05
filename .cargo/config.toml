@@ -1,4 +1,0 @@
-[env]
-CC = { value = "/usr/bin/clang", force = true }
-CXX = { value = "/usr/bin/clang++", force = true }
-CXXFLAGS = { value = "-stdlib=libstdc++", force = true }

@@ -1,23 +1,138 @@
+# =========================================================
+# mc-launcher: Qt Quick/QML + C++ rewrite
+# Keep source files only. Do not upload build outputs,
+# local HMCL/PCL references, assistant backups, or Rust legacy code.
+# =========================================================
+
+# ---------- Build outputs ----------
+/build/
+/build-*/
+/build_*/
+/cmake-build-*/
+/out/
+/dist/
+/debug/
+/release/
 /target/
-**/*.rs.bk
+/target-*/
+
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.pdb
+*.ilk
+*.dSYM/
+*.app/
+*.bin
+
+# ---------- CMake / Ninja generated files ----------
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+build.ninja
+rules.ninja
+.ninja_deps
+.ninja_log
+.ninja_db
+
+# Qt autogen / generated resource code
+*_autogen/
+autogen/
+moc_*.cpp
+mocs_compilation.cpp
+qrc_*.cpp
+qrc_*.cxx
+ui_*.h
+*.rcc
+
+# ---------- Qt / QML caches ----------
+*.qmlc
+*.jsc
+.qmlcache/
+qmlcache/
+*.qmltypes
+*.qmlproject.user
+*.qmlproject.user.*
+
+# ---------- IDE / editor / OS local files ----------
 .DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.tmp
+*.temp
+*.log
+.cache/
+.clangd/
+.ccls-cache/
+.idea/
+*.user
+*.user.*
+CMakeLists.txt.user
+
 .vscode/*
 !.vscode/extensions.json
-!.vscode/settings.json
 !.vscode/launch.json
 !.vscode/tasks.json
+# settings.json often contains local paths; commit it only if you are sure.
+# !.vscode/settings.json
 
-# Local HMCL source reference, do not upload
-HMCL-main/
-PCL-main/
-# Claude Code local configuration
-.claude/
+# ---------- Local archives / exported packages ----------
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+*.AppImage
 
-# Local assistant patch backups
+# ---------- Local third-party source references ----------
+# These are only references for porting. Do not vendor them into this repo.
+/HMCL-main/
+/PCL-main/
+/HMCL-*/
+/PCL-*/
+
+# ---------- Assistant / migration backups and snapshots ----------
+/.backup/
+/.backups/
+/backup/
+/source-snapshot.txt
 *.bak
 *.bak-*
+*.orig
+*.rej
+*.rs.bk
 **/*.bak
 **/*.bak-*
-*.rs.bk
 **/*.rs.bk
-*.md
+
+# Temporary migration notes. Keep README.md; ignore local execution records.
+/HMCL*.md
+/*记录*.md
+/*报告*.md
+/new.md
+
+# ---------- Local launcher runtime data ----------
+/.minecraft/
+/instances/
+/downloads/
+/cache/
+/logs/
+/accounts.json
+/launcher-settings.json
+
+# ---------- Rust legacy project after Qt/C++ rewrite ----------
+# If you still need the Rust version in this repository, comment these 4 lines.
+/crates/
+/Cargo.toml
+/Cargo.lock
+/.cargo/
