@@ -267,33 +267,22 @@ Column {
             onSelected: function(v) { root.set("launcherVisibility", v); if (settingsPage) settingsPage.launcherVisibilitySelected(v) }
         }
 
-        HmclSettingLine {
-            width: parent.width
+        HmclResolutionLine {
             style: root.style
             title: "游戏窗口分辨率"
-            RowLayout {
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                width: 300
-                spacing: 12
-                ComboBox {
-                    id: resolutionCombo
-                    Layout.preferredWidth: 150
-                    Layout.preferredHeight: 36
-                    editable: true
-                    enabled: !root.sb("fullscreen", false)
-                    model: ["854x480", "1280x720", "1366x768", "1600x900", "1920x1080"]
-                    currentIndex: root.resolutionIndex(root.st("gameResolution", "854x480"))
-                    editText: root.st("gameResolution", "854x480")
-                    onAccepted: { root.set("gameResolution", editText); var p=String(editText).split("x"); if (p.length===2) { root.set("gameWidth", p[0]); root.set("gameHeight", p[1]) } }
-                    onActivated: function(i) { root.set("gameResolution", model[i]); var p=String(model[i]).split("x"); if (p.length===2) { root.set("gameWidth", p[0]); root.set("gameHeight", p[1]) } }
+            resolution: root.st("gameResolution", root.st("gameWidth", "854") + "x" + root.st("gameHeight", "480"))
+            fullscreen: root.sb("fullscreen", false)
+            onResolutionSelected: function(v) {
+                root.set("gameResolution", v)
+                var p = String(v).split("x")
+                if (p.length === 2) {
+                    root.set("gameWidth", p[0])
+                    root.set("gameHeight", p[1])
                 }
-                HmclCheckBox {
-                    style: root.style
-                    checked: root.sb("fullscreen", false)
-                    onToggled: function(v) { root.setb("fullscreen", v); root.set("windowType", v ? "fullscreen" : "windowed") }
-                }
-                Text { text: "全屏"; font.pixelSize: 13; color: root.styleValue("cTextOnSurface", "#1B1B21") }
+            }
+            onFullscreenChangedByUser: function(v) {
+                root.setb("fullscreen", v)
+                root.set("windowType", v ? "fullscreen" : "windowed")
             }
         }
 
@@ -331,7 +320,7 @@ Column {
             MouseArea {
                 anchors.fill: parent
                 cursorShape: Qt.PointingHandCursor
-                onClicked: if (settingsPage) settingsPage.currentSection = "globalAdvanced"
+                onClicked: { if (settingsPage && settingsPage.requestAdvancedSettings) settingsPage.requestAdvancedSettings(); else if (settingsPage) settingsPage.currentSection = "globalAdvanced" }
             }
         }
     }

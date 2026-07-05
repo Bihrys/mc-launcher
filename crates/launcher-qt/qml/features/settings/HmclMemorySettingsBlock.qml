@@ -84,15 +84,51 @@ Rectangle {
                 onMoved: function(value) { root.maxMemoryChangedByUser(Math.round(value)) }
             }
             Rectangle {
+                id: memoryField
                 Layout.preferredWidth: 60
                 Layout.preferredHeight: 34
                 radius: 3
                 color: root.styleValue("cSurfaceContainerHigh", "#ECE9F1")
-                Text {
-                    anchors.centerIn: parent
+                opacity: root.autoMemory ? 0.55 : 1.0
+
+                TextInput {
+                    id: memoryInput
+                    anchors.fill: parent
+                    anchors.leftMargin: 8
+                    anchors.rightMargin: 8
+                    horizontalAlignment: TextInput.AlignHCenter
+                    verticalAlignment: TextInput.AlignVCenter
+                    enabled: !root.autoMemory
+                    selectByMouse: true
+                    validator: IntValidator { bottom: 512; top: Math.max(1024, Math.round(root.totalGiB * 1024)) }
                     text: String(root.maxMemoryMb)
                     color: root.styleValue("cTextOnSurface", "#1B1B21")
                     font.pixelSize: 12
+                    onEditingFinished: {
+                        var v = parseInt(text)
+                        if (!isNaN(v))
+                            root.maxMemoryChangedByUser(v)
+                        else
+                            text = String(root.maxMemoryMb)
+                    }
+                }
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    height: 1
+                    color: root.styleValue("cBorder", "#D9D7E2")
+                }
+
+                Rectangle {
+                    id: activeUnderline
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.bottom: parent.bottom
+                    height: 2
+                    width: memoryInput.activeFocus ? parent.width : 0
+                    color: root.styleValue("cLaunchButton", "#4352A5")
+                    Behavior on width { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
                 }
             }
             Text { text: "MiB"; font.pixelSize: 12; color: root.styleValue("cTextOnSurface", "#1B1B21") }

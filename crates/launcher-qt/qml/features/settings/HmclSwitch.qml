@@ -6,6 +6,7 @@ Item {
     property var style
     property bool checked: false
     property bool enabledControl: true
+    property bool interactive: true
     signal toggled(bool value)
 
     implicitWidth: 44
@@ -32,6 +33,7 @@ Item {
         color: root.checked
                ? root.styleValue("cSecondaryContainer", "#C6C5DD")
                : root.styleValue("cSurfaceContainerHighest", "#E7E0EC")
+        Behavior on color { ColorAnimation { duration: 200 } }
     }
 
     Rectangle {
@@ -47,7 +49,7 @@ Item {
 
         Behavior on x {
             enabled: root.styleValue("animationsEnabled", true)
-            NumberAnimation { duration: 200; easing.type: Easing.InOutCubic }
+            NumberAnimation { duration: 200; easing.type: Easing.BezierSpline; easing.bezierCurve: [0.2, 0.0, 0, 1.0, 1, 1] }
         }
         Behavior on color {
             enabled: root.styleValue("animationsEnabled", true)
@@ -57,7 +59,7 @@ Item {
 
     MouseArea {
         anchors.fill: parent
-        enabled: root.enabledControl
+        enabled: root.enabledControl && root.interactive
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onClicked: function(mouse) {

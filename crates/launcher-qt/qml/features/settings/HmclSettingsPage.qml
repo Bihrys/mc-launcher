@@ -23,6 +23,7 @@ Item {
     signal themeSelected(string mode)
     signal themeColorSelected(string color)
     signal launcherVisibilitySelected(string mode)
+    signal requestAdvancedSettings()
 
     Component.onCompleted: {
         root.reloadSettings()

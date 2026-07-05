@@ -7,13 +7,25 @@ Rectangle {
     property string title: ""
     property string subtitle: ""
     property bool enabledRow: true
+    property bool clickable: false
+    signal clicked()
     default property alias trailing: trailingBox.children
 
     width: parent ? parent.width : 800
     implicitHeight: Math.max(48, titleColumn.implicitHeight + 20)
     height: implicitHeight
-    color: root.styleValue("cSurface", "#FFFBFE")
+    color: hover.hovered ? root.styleValue("cSurfaceContainer", "#F5F2FA") : root.styleValue("cSurface", "#FFFBFE")
     opacity: enabledRow ? 1.0 : 0.42
+
+
+    HoverHandler {
+        id: hover
+        enabled: root.enabledRow
+    }
+
+    Behavior on color {
+        ColorAnimation { duration: 120 }
+    }
 
     function styleValue(name, fallback) {
         if (root.style !== undefined && root.style !== null) {
@@ -69,4 +81,12 @@ Rectangle {
             Layout.fillHeight: true
         }
     }
+    MouseArea {
+        anchors.fill: parent
+        enabled: root.clickable && root.enabledRow
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: root.clicked()
+    }
+
 }

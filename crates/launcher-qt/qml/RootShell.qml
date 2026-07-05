@@ -224,6 +224,17 @@ Item {
     }
 
     PageState {
+        id: settingsAdvancedState
+        key: "settingsAdvanced"
+        title: "高级设置"
+        showBrand: false
+        backable: true
+        homeable: true
+        refreshable: false
+        animate: true
+    }
+
+    PageState {
         id: javaState
         key: "java"
         title: "Java 管理"
@@ -512,6 +523,34 @@ Item {
                     onLauncherVisibilitySelected: function(mode) {
                         root.launcherVisibility = mode
                     }
+
+                    onRequestAdvancedSettings: root.navigate("settingsAdvanced")
+                }
+            }
+        }
+    }
+
+    Component {
+        id: settingsAdvancedPageComponent
+
+        HmclAnimatedPage {
+            anchors.fill: parent
+            style: root.appStyle
+            leftWidth: 0
+
+            centerComponent: Component {
+                HmclSettingsPage {
+                    anchors.fill: parent
+                    style: root.appStyle
+                    backend: root.backend
+                    currentSection: "globalAdvanced"
+                    themeMode: root.launcherTheme
+                    themeColor: root.launcherThemeColor
+                    launcherVisibility: root.launcherVisibility
+
+                    onThemeSelected: function(mode) { root.launcherTheme = mode }
+                    onThemeColorSelected: function(color) { root.launcherThemeColor = color }
+                    onLauncherVisibilitySelected: function(mode) { root.launcherVisibility = mode }
                 }
             }
         }
@@ -651,6 +690,8 @@ Item {
             return instancePageComponent
         case "settings":
             return settingsPageComponent
+        case "settingsAdvanced":
+            return settingsAdvancedPageComponent
         case "java":
             return javaPageComponent
         default:
@@ -672,6 +713,8 @@ Item {
             return instanceState
         case "settings":
             return settingsState
+        case "settingsAdvanced":
+            return settingsAdvancedState
         case "java":
             return javaState
         default:

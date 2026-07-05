@@ -3,7 +3,10 @@ import QtQuick
 HmclSettingLine {
     id: root
     property bool checkedValue: false
+    clickable: true
     signal changedValue(bool value)
+
+    onClicked: root.changedValue(!root.checkedValue)
 
     HmclSwitch {
         anchors.right: parent.right
@@ -11,6 +14,6 @@ HmclSettingLine {
         style: root.style
         checked: root.checkedValue
         enabledControl: root.enabledRow
-        onToggled: function(value) { root.changedValue(value) }
+        interactive: false
     }
 }

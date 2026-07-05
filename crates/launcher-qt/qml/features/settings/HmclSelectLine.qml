@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
+import QtQuick.Window
 import "../../Hmcl/icons" as Icons
 
 HmclSettingLine {
@@ -26,6 +27,23 @@ HmclSettingLine {
         return root.options.length > 0 ? String(root.options[0].text) : ""
     }
 
+    function availableWindowHeight() {
+        var w = button.Window.window
+        return w ? w.height : 720
+    }
+
+    function preparePopupGeometry() {
+        var itemHeight = 40
+        var preferredHeight = Math.max(1, root.options.length) * itemHeight
+        var p = button.mapToItem(null, 0, 0)
+        var windowHeight = root.availableWindowHeight()
+        var below = windowHeight - p.y - button.height - 8
+        var above = p.y - 8
+        popup.openUp = below < preferredHeight && above > below
+        popup.height = Math.min(preferredHeight, Math.max(80, popup.openUp ? above : below))
+        popup.y = popup.openUp ? -popup.height : button.height
+    }
+
     Rectangle {
         id: button
         anchors.right: parent.right
@@ -33,7 +51,7 @@ HmclSettingLine {
         width: Math.min(260, parent.width * 0.48)
         height: 36
         radius: 3
-        color: mouse.containsMouse ? root.styleValue("cSurfaceContainerHigh", "#ECE9F1") : root.styleValue("cSurfaceContainer", "#F5F2FA")
+        color: mouse.containsMouse || popup.opened ? root.styleValue("cSurfaceContainerHigh", "#ECE9F1") : root.styleValue("cSurfaceContainer", "#F5F2FA")
         opacity: root.enabledRow ? 1.0 : 0.45
 
         Text {
@@ -56,6 +74,14 @@ HmclSettingLine {
             icon: "KEYBOARD_ARROW_DOWN"
             iconSize: 20
             iconColor: root.styleValue("cTextOnSurfaceVariant", "#454651")
+            rotation: popup.opened ? 180 : 0
+            Behavior on rotation {
+                NumberAnimation {
+                    duration: 200
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: [0.2, 0.0, 0, 1.0, 1, 1]
+                }
+            }
         }
 
         MouseArea {
@@ -64,60 +90,80 @@ HmclSettingLine {
             enabled: root.enabledRow
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: popup.open()
-        }
-    }
-
-    Popup {
-        id: popup
-        x: button.x
-        y: button.y + button.height
-        width: Math.max(button.width, 240)
-        padding: 0
-        modal: false
-        focus: true
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        background: Rectangle {
-            color: root.styleValue("cSurface", "#FFFBFE")
-            radius: 3
-            border.color: root.styleValue("cBorder", "#D9D7E2")
-            border.width: 1
+            onClicked: {
+                if (popup.opened) {
+                    popup.close()
+                } else {
+                    root.preparePopupGeometry()
+                    popup.open()
+                }
+            }
         }
 
-        Column {
-            width: popup.width
-            Repeater {
-                model: root.options
-                delegate: Rectangle {
-                    required property var modelData
+        Popup {
+            id: popup
+            property bool openUp: false
+            x: 0
+            y: button.height
+            width: Math.max(button.width, 240)
+            height: Math.max(1, contentColumn.implicitHeight)
+            padding: 0
+            modal: false
+            focus: true
+            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+            background: Rectangle {
+                color: root.styleValue("cSurface", "#FFFBFE")
+                radius: 3
+                border.color: root.styleValue("cBorder", "#D9D7E2")
+                border.width: 1
+            }
+
+            contentItem: Flickable {
+                id: popupFlick
+                width: popup.width
+                height: popup.height
+                contentWidth: width
+                contentHeight: contentColumn.implicitHeight
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+
+                Column {
+                    id: contentColumn
                     width: popup.width
-                    height: 40
-                    color: String(modelData.value) === root.value
-                           ? root.styleValue("cNavSelected", "#E7E7FF")
-                           : optionMouse.containsMouse ? root.styleValue("cSurfaceContainer", "#F5F2FA") : root.styleValue("cSurface", "#FFFBFE")
+                    Repeater {
+                        model: root.options
+                        delegate: Rectangle {
+                            required property var modelData
+                            width: popup.width
+                            height: 40
+                            color: String(modelData.value) === root.value
+                                   ? root.styleValue("cNavSelected", "#E7E7FF")
+                                   : optionMouse.containsMouse ? root.styleValue("cSurfaceContainer", "#F5F2FA") : root.styleValue("cSurface", "#FFFBFE")
 
-                    Text {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.leftMargin: 12
-                        anchors.rightMargin: 12
-                        text: String(modelData.text)
-                        color: String(modelData.value) === root.value
-                               ? root.styleValue("cLaunchButton", "#4352A5")
-                               : root.styleValue("cTextOnSurface", "#1B1B21")
-                        font.pixelSize: 12
-                        elide: Text.ElideRight
-                    }
+                            Text {
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.leftMargin: 12
+                                anchors.rightMargin: 12
+                                text: String(modelData.text)
+                                color: String(modelData.value) === root.value
+                                       ? root.styleValue("cLaunchButton", "#4352A5")
+                                       : root.styleValue("cTextOnSurface", "#1B1B21")
+                                font.pixelSize: 12
+                                elide: Text.ElideRight
+                            }
 
-                    MouseArea {
-                        id: optionMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            popup.close()
-                            root.selected(String(modelData.value))
+                            MouseArea {
+                                id: optionMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    popup.close()
+                                    root.selected(String(modelData.value))
+                                }
+                            }
                         }
                     }
                 }
