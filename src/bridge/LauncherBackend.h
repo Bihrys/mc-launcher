@@ -240,6 +240,7 @@ private:
   QString m_instanceResourcepacksJson;
   QString m_instanceWorldsJson;
   QString m_catalogTaskJson;
+  bool m_downloadFinishRefreshed = false;
   QString m_installerMetadataTaskJson;
   QString m_javaTaskJson;
   QString m_accountTaskJson;

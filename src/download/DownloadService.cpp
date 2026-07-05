@@ -89,19 +89,16 @@ QJsonObject DownloadService::loaderMetadata(const QString &source, const QString
     return out;
 }
 
-QJsonObject DownloadService::installVersion(const QString &source, const QString &gameVersion, const QString &loaderKind, const QString &loaderVersion) {
-    Q_UNUSED(source)
-    QString id = gameVersion;
-    if (!loaderKind.isEmpty() && loaderKind != "vanilla") id += "-" + loaderKind;
-    QString dir = LauncherPaths::versionsDir() + "/" + id;
-    QDir().mkpath(dir);
-    QJsonObject versionJson{{"id", id}, {"type", "release"}, {"inheritsFrom", gameVersion}, {"mainClass", "net.minecraft.client.main.Main"}};
-    if (loaderKind == "vanilla") versionJson.remove("inheritsFrom");
-    if (!loaderVersion.isEmpty()) versionJson.insert("loaderVersion", loaderVersion);
-    JsonUtil::writeObjectFile(dir + "/" + id + ".json", versionJson);
-    QFile jar(dir + "/" + id + ".jar");
-    if (!jar.exists() && jar.open(QIODevice::WriteOnly)) jar.close();
-    return QJsonObject{{"success", true}, {"versionId", id}, {"message", "已创建版本骨架：" + id}};
+void DownloadService::startInstall(const QString &source, const QString &gameVersion, const QString &loaderKind, const QString &loaderVersion) {
+    m_installer.start(source, gameVersion, loaderKind, loaderVersion);
+}
+
+QJsonObject DownloadService::pollTask() {
+    return m_installer.task();
+}
+
+void DownloadService::cancel() {
+    m_installer.cancel();
 }
 
 QJsonObject DownloadService::idleDownloadTask() const {

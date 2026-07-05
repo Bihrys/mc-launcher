@@ -36,7 +36,10 @@ qt_add_executable(mc-launcher-qt-cpp
     src/settings/LauncherSettings.cpp
     src/account/AccountService.cpp
     src/game/InstanceService.cpp
+    src/game/VersionRules.cpp
     src/download/DownloadService.cpp
+    src/download/Downloader.cpp
+    src/download/GameInstaller.cpp
     src/java/JavaService.cpp
     src/launch/LaunchService.cpp
     src/bridge/LauncherBackend.cpp

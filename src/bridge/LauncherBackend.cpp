@@ -178,15 +178,29 @@ void LauncherBackend::startFetchLoaderMetadata(const QString &source, const QStr
 QString LauncherBackend::pollInstallerMetadataTask() { return m_installerMetadataTaskJson; }
 
 void LauncherBackend::installGameVersion(const QString &source, const QString &gameVersion, const QString &loaderKind, const QString &loaderVersion) {
-    QJsonObject result = m_downloads.installVersion(source, gameVersion, loaderKind, loaderVersion);
-    setOutput(result.value("message").toString());
-    setString(m_downloadTaskJson, stringify(m_downloads.finishedDownloadTask(result.value("message").toString())), &LauncherBackend::downloadTaskJsonChanged);
-    refreshInstalledVersions();
-    refreshInstances();
+    m_downloads.startInstall(source, gameVersion, loaderKind, loaderVersion);
+    m_downloadFinishRefreshed = false;
+    setOutput(QString("开始安装：") + gameVersion);
+    setString(m_downloadTaskJson, stringify(m_downloads.pollTask()), &LauncherBackend::downloadTaskJsonChanged);
 }
 
-QString LauncherBackend::pollDownloadTask() { return m_downloadTaskJson; }
-void LauncherBackend::cancelDownloadTask() { setString(m_downloadTaskJson, stringify(QJsonObject{{"active", false}, {"cancelled", true}, {"percent", 0}, {"title", "已取消"}, {"message", "下载任务已取消。"}, {"status", "cancelled"}}), &LauncherBackend::downloadTaskJsonChanged); }
+QString LauncherBackend::pollDownloadTask() {
+    QJsonObject task = m_downloads.pollTask();
+    setString(m_downloadTaskJson, stringify(task), &LauncherBackend::downloadTaskJsonChanged);
+    const QString status = task.value("status").toString();
+    if (status == "finished" && !m_downloadFinishRefreshed) {
+        m_downloadFinishRefreshed = true;
+        setOutput(task.value("message").toString());
+        refreshInstalledVersions();
+        refreshInstances();
+    }
+    return m_downloadTaskJson;
+}
+
+void LauncherBackend::cancelDownloadTask() {
+    m_downloads.cancel();
+    setString(m_downloadTaskJson, stringify(m_downloads.pollTask()), &LauncherBackend::downloadTaskJsonChanged);
+}
 
 QString LauncherBackend::refreshInstalledVersions() {
     setString(m_installedVersionsJson, stringify(m_instances.installedVersions()), &LauncherBackend::installedVersionsJsonChanged);

@@ -2,6 +2,7 @@
 
 #include "core/JsonUtil.h"
 #include "core/LauncherPaths.h"
+#include "game/VersionRules.h"
 
 #include <QDateTime>
 #include <QDir>
@@ -57,35 +58,6 @@ QJsonObject mergeVersionJson(const QJsonObject &parent, const QJsonObject &child
     return out;
 }
 
-bool ruleMatchesCurrentLinux(const QJsonObject &rule) {
-    const QString action = rule.value("action").toString();
-    const QJsonObject os = rule.value("os").toObject();
-    if (os.isEmpty()) return action == "allow";
-    const QString name = os.value("name").toString();
-    if (name.isEmpty() || name == "linux") return action == "allow";
-    return action == "disallow";
-}
-
-bool allowedByRules(const QJsonArray &rules) {
-    if (rules.isEmpty()) return true;
-    bool allowed = false;
-    for (const QJsonValue &v : rules) {
-        const QJsonObject rule = v.toObject();
-        if (ruleMatchesCurrentLinux(rule)) allowed = rule.value("action").toString() == "allow";
-    }
-    return allowed;
-}
-
-QString libraryPathFromName(const QString &name) {
-    const QStringList parts = name.split(':');
-    if (parts.size() < 3) return QString();
-    QString groupPath = parts.at(0);
-    groupPath.replace('.', '/');
-    const QString artifact = parts.at(1);
-    const QString version = parts.at(2);
-    return groupPath + "/" + artifact + "/" + version + "/" + artifact + "-" + version + ".jar";
-}
-
 QStringList stringOrArray(const QJsonValue &value) {
     QStringList out;
     if (value.isString()) {
@@ -112,7 +84,7 @@ QStringList parseArgumentList(const QJsonArray &array, const QHash<QString, QStr
             out << replaceLaunchPlaceholders(v.toString(), vars);
         } else if (v.isObject()) {
             const QJsonObject obj = v.toObject();
-            if (!allowedByRules(obj.value("rules").toArray())) continue;
+            if (!VersionRules::allowedByRules(obj.value("rules").toArray())) continue;
             for (const QString &item : stringOrArray(obj.value("value"))) {
                 out << replaceLaunchPlaceholders(item, vars);
             }
@@ -127,9 +99,9 @@ QString buildClasspath(const QString &versionId, const QJsonObject &versionJson)
     const QString librariesRoot = LauncherPaths::minecraftDir() + "/libraries";
     for (const QJsonValue &v : versionJson.value("libraries").toArray()) {
         const QJsonObject lib = v.toObject();
-        if (!allowedByRules(lib.value("rules").toArray())) continue;
+        if (!VersionRules::allowedByRules(lib.value("rules").toArray())) continue;
         QString rel = lib.value("downloads").toObject().value("artifact").toObject().value("path").toString();
-        if (rel.isEmpty()) rel = libraryPathFromName(lib.value("name").toString());
+        if (rel.isEmpty()) rel = VersionRules::libraryPathFromName(lib.value("name").toString());
         if (rel.isEmpty()) continue;
         const QString abs = librariesRoot + "/" + rel;
         if (QFileInfo::exists(abs) && !seen.contains(abs)) {

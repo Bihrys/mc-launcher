@@ -21,7 +21,8 @@
       "Bash(QT_QPA_PLATFORM=offscreen timeout 8 ./target/debug/launcher-qt)",
       "Bash(echo \"exit:$?\")",
       "Bash(awk '{print $9, $5}')",
-      "Bash(grep -iE \"\\\\.\\(java|fxml\\)$\")"
+      "Bash(grep -iE \"\\\\.\\(java|fxml\\)$\")",
+      "Bash(cmake --build build-cpp)"
     ],
     "additionalDirectories": [
       "/tmp"
