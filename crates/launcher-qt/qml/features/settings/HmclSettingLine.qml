@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import "../../components"
 
 Rectangle {
     id: root
@@ -14,7 +15,7 @@ Rectangle {
     width: parent ? parent.width : 800
     implicitHeight: Math.max(48, titleColumn.implicitHeight + 20)
     height: implicitHeight
-    color: hover.hovered ? root.styleValue("cSurfaceContainer", "#F5F2FA") : root.styleValue("cSurface", "#FFFBFE")
+    color: root.styleValue("cSurface", "#FFFBFE")
     opacity: enabledRow ? 1.0 : 0.42
 
 
@@ -41,6 +42,15 @@ Rectangle {
         anchors.top: parent.top
         height: 1
         color: root.styleValue("cBorder", "#D9D7E2")
+    }
+
+    HmclRipple {
+        id: ripple
+        anchors.fill: parent
+        hovered: hover.hovered && root.enabledRow
+        hoverColor: root.styleValue("cTextOnSurface", "#1B1B21")
+        rippleColor: root.styleValue("cTextOnSurface", "#1B1B21")
+        animationsEnabled: !!root.styleValue("animationsEnabled", true)
     }
 
     RowLayout {
@@ -86,6 +96,9 @@ Rectangle {
         enabled: root.clickable && root.enabledRow
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
+        onPressed: function(mouse) { ripple.press(mouse.x, mouse.y) }
+        onReleased: ripple.release()
+        onCanceled: ripple.cancel()
         onClicked: root.clicked()
     }
 

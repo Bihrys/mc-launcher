@@ -1,4 +1,5 @@
 import QtQuick
+import "../../components"
 
 Rectangle {
     id: root
@@ -12,8 +13,18 @@ Rectangle {
     radius: 2
     border.width: 1
     border.color: styleValue("cBorder", "#D9D7E2")
-    color: mouse.containsMouse && enabledButton ? styleValue("cButtonHover", "#F0F0F8") : "transparent"
+    color: "transparent"
     opacity: enabledButton ? 1.0 : 0.45
+    clip: true
+
+    HmclRipple {
+        id: ripple
+        anchors.fill: parent
+        hovered: mouse.containsMouse && root.enabledButton
+        hoverColor: root.styleValue("cTextOnSurface", "#1B1B21")
+        rippleColor: root.styleValue("cTextOnSurface", "#1B1B21")
+        animationsEnabled: !!root.styleValue("animationsEnabled", true)
+    }
 
     function styleValue(name, fallback) {
         if (root.style !== undefined && root.style !== null) {
@@ -37,6 +48,9 @@ Rectangle {
         hoverEnabled: true
         enabled: root.enabledButton
         cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+        onPressed: function(mouse) { ripple.press(mouse.x, mouse.y) }
+        onReleased: ripple.release()
+        onCanceled: ripple.cancel()
         onClicked: root.clicked()
     }
 }

@@ -1,5 +1,6 @@
 import QtQuick
 import "../../Hmcl/icons" as Icons
+import "../../components"
 
 Item {
     id: root
@@ -21,6 +22,17 @@ Item {
         return fallback
     }
 
+    HmclRipple {
+        id: ripple
+        anchors.fill: parent
+        hovered: mouse.containsMouse && root.enabledBox
+        hoverColor: root.styleValue("cLaunchButton", "#4352A5")
+        rippleColor: root.styleValue("cLaunchButton", "#4352A5")
+        hoverOpacity: 0.08
+        rippleOpacity: 0.22
+        animationsEnabled: !!root.styleValue("animationsEnabled", true)
+    }
+
     Rectangle {
         anchors.centerIn: parent
         width: 18
@@ -40,9 +52,14 @@ Item {
     }
 
     MouseArea {
+        id: mouse
         anchors.fill: parent
         enabled: root.enabledBox
+        hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
+        onPressed: function(mouse) { ripple.press(mouse.x, mouse.y) }
+        onReleased: ripple.release()
+        onCanceled: ripple.cancel()
         onClicked: function(mouse) { mouse.accepted = true; root.toggled(!root.checked) }
     }
 }

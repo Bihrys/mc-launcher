@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import QtQuick.Controls
 import QtQuick.Window
 import "../../Hmcl/icons" as Icons
+import "../../components"
 
 HmclSettingLine {
     id: root
@@ -54,6 +55,15 @@ HmclSettingLine {
         color: mouse.containsMouse || popup.opened ? root.styleValue("cSurfaceContainerHigh", "#ECE9F1") : root.styleValue("cSurfaceContainer", "#F5F2FA")
         opacity: root.enabledRow ? 1.0 : 0.45
 
+        HmclRipple {
+            id: buttonRipple
+            anchors.fill: parent
+            hovered: mouse.containsMouse && root.enabledRow
+            hoverColor: root.styleValue("cTextOnSurface", "#1B1B21")
+            rippleColor: root.styleValue("cTextOnSurface", "#1B1B21")
+            animationsEnabled: !!root.styleValue("animationsEnabled", true)
+        }
+
         Text {
             anchors.left: parent.left
             anchors.right: arrow.left
@@ -90,6 +100,9 @@ HmclSettingLine {
             enabled: root.enabledRow
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
+            onPressed: function(mouse) { buttonRipple.press(mouse.x, mouse.y) }
+            onReleased: buttonRipple.release()
+            onCanceled: buttonRipple.cancel()
             onClicked: {
                 if (popup.opened) {
                     popup.close()
@@ -140,6 +153,15 @@ HmclSettingLine {
                                    ? root.styleValue("cNavSelected", "#E7E7FF")
                                    : optionMouse.containsMouse ? root.styleValue("cSurfaceContainer", "#F5F2FA") : root.styleValue("cSurface", "#FFFBFE")
 
+                            HmclRipple {
+                                id: optionRipple
+                                anchors.fill: parent
+                                hovered: optionMouse.containsMouse
+                                hoverColor: root.styleValue("cTextOnSurface", "#1B1B21")
+                                rippleColor: root.styleValue("cTextOnSurface", "#1B1B21")
+                                animationsEnabled: !!root.styleValue("animationsEnabled", true)
+                            }
+
                             Text {
                                 anchors.left: parent.left
                                 anchors.right: parent.right
@@ -159,6 +181,9 @@ HmclSettingLine {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
+                                onPressed: function(mouse) { optionRipple.press(mouse.x, mouse.y) }
+                                onReleased: optionRipple.release()
+                                onCanceled: optionRipple.cancel()
                                 onClicked: {
                                     popup.close()
                                     root.selected(String(modelData.value))

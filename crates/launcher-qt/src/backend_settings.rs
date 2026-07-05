@@ -6,6 +6,25 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 impl qobject::LauncherBackend {
+    pub fn refresh_appearance_options(self: Pin<&mut Self>) -> QString {
+        QString::from(&appearance_options_json())
+    }
+
+    pub fn export_launcher_theme_pack(mut self: Pin<&mut Self>) -> QString {
+        match export_theme_pack_file() {
+            Ok(path) => {
+                let message = format!("主题包已导出：{}", path.display());
+                self.as_mut().set_output(QString::from(&message));
+                QString::from(&path.display().to_string())
+            }
+            Err(err) => {
+                let message = format!("导出主题包失败。\n\n{err}");
+                self.as_mut().set_output(QString::from(&message));
+                QString::from(&message)
+            }
+        }
+    }
+
     pub fn refresh_system_memory(self: Pin<&mut Self>) -> QString {
         QString::from(&system_memory_json())
     }
@@ -302,8 +321,118 @@ fn launcher_special_folder(kind: &str) -> PathBuf {
             .parent()
             .map(Path::to_path_buf)
             .unwrap_or_else(launcher_config_dir),
+        "themes" => launcher_config_dir().join("themes"),
         _ => launcher_config_dir(),
     }
+}
+
+
+fn appearance_options_json() -> String {
+    let fonts = detect_font_families();
+    serde_json::json!({
+        "themePacks": [
+            {"id": "default", "title": "默认"}
+        ],
+        "builtinBackgrounds": [
+            {"id": "classic", "title": "经典"},
+            {"id": "default", "title": "默认"}
+        ],
+        "themeColors": [
+            {"id": "default", "title": "默认"},
+            {"id": "purple", "title": "紫色"},
+            {"id": "blue", "title": "蓝色"},
+            {"id": "green", "title": "绿色"},
+            {"id": "red", "title": "红色"},
+            {"id": "orange", "title": "橙色"}
+        ],
+        "fonts": fonts
+    }).to_string()
+}
+
+fn detect_font_families() -> Vec<String> {
+    let mut fonts: Vec<String> = Vec::new();
+
+    if let Ok(output) = std::process::Command::new("fc-list")
+        .args([":", "family"])
+        .output()
+    {
+        if output.status.success() {
+            let text = String::from_utf8_lossy(&output.stdout);
+            for line in text.lines() {
+                for family in line.split(',') {
+                    let family = family.trim();
+                    if !family.is_empty() && !fonts.iter().any(|item| item == family) {
+                        fonts.push(family.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    if fonts.is_empty() {
+        fonts.extend([
+            "Noto Sans CJK SC".to_string(),
+            "Sans Serif".to_string(),
+            "Serif".to_string(),
+            "monospace".to_string(),
+        ]);
+    }
+
+    fonts.sort();
+    fonts.truncate(120);
+    fonts
+}
+
+fn export_theme_pack_file() -> Result<PathBuf, Box<dyn std::error::Error + Send + Sync + 'static>> {
+    let settings = load_launcher_settings_value();
+    let themes_dir = launcher_config_dir().join("themes");
+    fs::create_dir_all(&themes_dir)?;
+
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0);
+    let path = themes_dir.join(format!("theme-pack-{timestamp}.json"));
+
+    let package = serde_json::json!({
+        "format": "mc-launcher-theme-pack",
+        "hmcl_mapping": {
+            "source_classes": [
+                "PersonalizationPage.java",
+                "Themes.java",
+                "ThemePackExporter.java",
+                "ThemePackManager.java"
+            ]
+        },
+        "exported_at_unix": timestamp,
+        "appearance": {
+            "selectedThemeTitle": settings.get("selectedThemeTitle"),
+            "themeBrightnessMode": settings.get("themeBrightnessMode"),
+            "themeColorType": settings.get("themeColorType"),
+            "customThemeColor": settings.get("customThemeColor"),
+            "themeColor": settings.get("themeColor"),
+            "themeColorStyle": settings.get("themeColorStyle"),
+            "backgroundType": settings.get("backgroundType"),
+            "builtinBackgroundId": settings.get("builtinBackgroundId"),
+            "customBackgroundImagePath": settings.get("customBackgroundImagePath"),
+            "networkBackgroundImageUrl": settings.get("networkBackgroundImageUrl"),
+            "customBackgroundPaint": settings.get("customBackgroundPaint"),
+            "backgroundOpacity": settings.get("backgroundOpacity"),
+            "backgroundFallbackType": settings.get("backgroundFallbackType"),
+            "backgroundFallbackPaint": settings.get("backgroundFallbackPaint"),
+            "backgroundLoadPolicy": settings.get("backgroundLoadPolicy"),
+            "titleBarTransparent": settings.get("titleBarTransparent"),
+            "animationDisabled": settings.get("animationDisabled"),
+            "launcherFontFamily": settings.get("launcherFontFamily"),
+            "logFontFamily": settings.get("logFontFamily"),
+            "logFontSize": settings.get("logFontSize"),
+            "fontAntiAliasing": settings.get("fontAntiAliasing"),
+            "themeAppearanceOverrides": settings.get("themeAppearanceOverrides")
+        }
+    });
+
+    fs::write(&path, serde_json::to_string_pretty(&package)?)?;
+    Ok(path)
 }
 
 fn default_launcher_settings_value() -> serde_json::Value {
@@ -312,7 +441,12 @@ fn default_launcher_settings_value() -> serde_json::Value {
     serde_json::from_str::<serde_json::Value>(
         r#"{
             "themeMode": "light",
+            "themeBrightnessMode": "auto",
             "themeColor": "default",
+            "themeColorType": "default",
+            "customThemeColor": "default",
+            "themeAppearanceOverrides": "",
+            "selectedThemeTitle": "默认",
             "launcherVisibility": "hide",
 
             "updateChannel": "stable",
@@ -367,16 +501,24 @@ fn default_launcher_settings_value() -> serde_json::Value {
             "themeColorStyle": "system",
             "themeBrightness": "auto",
             "backgroundType": "default",
+            "builtinBackgroundId": "classic",
             "backgroundImage": "",
+            "customBackgroundImagePath": "",
             "backgroundImageUrl": "",
+            "networkBackgroundImageUrl": "",
             "backgroundPaint": "",
+            "customBackgroundPaint": "",
             "backgroundOpacity": 1.0,
-            "fallbackBackgroundType": "default",
-            "backgroundLoadPolicy": "async",
+            "fallbackBackgroundType": "builtin",
+            "backgroundFallbackType": "builtin",
+            "backgroundFallbackPaint": "",
+            "backgroundLoadPolicy": "wait_for_background",
+            "networkBackgroundImageCachePolicy": "enabled",
             "logFont": "monospace",
             "logFontFamily": "monospace",
             "logFontSize": 12.0,
             "globalFontFamily": "",
+            "launcherFontFamily": "",
 
             "autoChooseDownloadSource": true,
             "versionListSource": "balanced",
@@ -456,6 +598,7 @@ fn parse_launcher_setting_value(key: &str, raw: &str) -> serde_json::Value {
         | "javaAuto"
         | "titleTransparent"
         | "turnOffAnimations"
+        | "animationDisabled"
         | "acceptPreviewUpdate"
         | "disableAutoShowUpdateDialog"
         | "checkUpdateOnStartup"

@@ -28,6 +28,11 @@ Item {
     property string launcherThemeColor: appSettings.launcherThemeColor
     property string launcherVisibility: appSettings.launcherVisibility
     property bool animationsEnabled: true
+    property string launcherBackgroundType: "default"
+    property string launcherBackgroundImage: ""
+    property string launcherBackgroundImageUrl: ""
+    property string launcherBackgroundPaint: ""
+    property real launcherBackgroundOpacity: 1.0
 
     property var launchTaskStatus: ({
         "id": "",
@@ -141,19 +146,33 @@ Item {
     }
 
     Rectangle {
+        id: baseGradientBackground
         anchors.fill: parent
-
+        visible: !(root.launcherBackgroundType === "paint" && root.launcherBackgroundPaint.length > 0)
         gradient: Gradient {
-            GradientStop {
-                position: 0.0
-                color: style.cBgStart
-            }
-
-            GradientStop {
-                position: 1.0
-                color: style.cBgEnd
-            }
+            GradientStop { position: 0.0; color: style.cBgStart }
+            GradientStop { position: 1.0; color: style.cBgEnd }
         }
+    }
+
+    Rectangle {
+        id: paintBackground
+        anchors.fill: parent
+        visible: root.launcherBackgroundType === "paint" && root.launcherBackgroundPaint.length > 0
+        color: root.launcherBackgroundPaint.length > 0 ? root.launcherBackgroundPaint : style.cBgStart
+    }
+
+    Image {
+        anchors.fill: parent
+        visible: (root.launcherBackgroundType === "custom" && root.launcherBackgroundImage.length > 0)
+                 || (root.launcherBackgroundType === "network" && root.launcherBackgroundImageUrl.length > 0)
+        source: root.launcherBackgroundType === "custom"
+                ? (root.launcherBackgroundImage.indexOf("file:") === 0 ? root.launcherBackgroundImage : "file://" + root.launcherBackgroundImage)
+                : root.launcherBackgroundImageUrl
+        fillMode: Image.PreserveAspectCrop
+        asynchronous: true
+        cache: true
+        opacity: Math.max(0.0, Math.min(1.0, root.launcherBackgroundOpacity))
     }
 
     Rectangle {
@@ -371,6 +390,8 @@ Item {
                         id: splitLaunch
                         anchors.right: parent.right
                         anchors.bottom: parent.bottom
+                        anchors.rightMargin: 20
+                        anchors.bottomMargin: 20
                         style: root.appStyle
                         title: root.backend.selectedGameVersion.length > 0 ? "启动游戏" : "开始游戏"
                         subtitle: root.backend.selectedGameVersion.length > 0
@@ -847,7 +868,28 @@ Item {
             if (data.launcherVisibility !== undefined && data.launcherVisibility !== null) {
                 root.launcherVisibility = String(data.launcherVisibility)
             }
-            root.animationsEnabled = !(data.turnOffAnimations === true || String(data.turnOffAnimations) === "true")
+            if (data.backgroundType !== undefined && data.backgroundType !== null) {
+                root.launcherBackgroundType = String(data.backgroundType)
+            }
+            if (data.customBackgroundImagePath !== undefined && data.customBackgroundImagePath !== null) {
+                root.launcherBackgroundImage = String(data.customBackgroundImagePath)
+            } else if (data.backgroundImage !== undefined && data.backgroundImage !== null) {
+                root.launcherBackgroundImage = String(data.backgroundImage)
+            }
+            if (data.networkBackgroundImageUrl !== undefined && data.networkBackgroundImageUrl !== null) {
+                root.launcherBackgroundImageUrl = String(data.networkBackgroundImageUrl)
+            } else if (data.backgroundImageUrl !== undefined && data.backgroundImageUrl !== null) {
+                root.launcherBackgroundImageUrl = String(data.backgroundImageUrl)
+            }
+            if (data.customBackgroundPaint !== undefined && data.customBackgroundPaint !== null) {
+                root.launcherBackgroundPaint = String(data.customBackgroundPaint)
+            } else if (data.backgroundPaint !== undefined && data.backgroundPaint !== null) {
+                root.launcherBackgroundPaint = String(data.backgroundPaint)
+            }
+            if (data.backgroundOpacity !== undefined && data.backgroundOpacity !== null) {
+                root.launcherBackgroundOpacity = Number(data.backgroundOpacity)
+            }
+            root.animationsEnabled = !(data.turnOffAnimations === true || String(data.turnOffAnimations) === "true" || data.animationDisabled === true || String(data.animationDisabled) === "true")
         } catch (e) {
             console.log("Failed to parse launcher settings", e)
         }

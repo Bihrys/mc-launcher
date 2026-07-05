@@ -23,6 +23,15 @@ Item {
         return fallback
     }
 
+    HmclRipple {
+        id: ripple
+        anchors.fill: parent
+        hovered: mouse.containsMouse
+        hoverColor: root.styleValue("cTextOnSurface", "#1B1B21")
+        rippleColor: root.styleValue("cTextOnSurface", "#1B1B21")
+        animationsEnabled: !!root.styleValue("animationsEnabled", true)
+    }
+
     HmclSvgIcon {
         anchors.left: parent.left
         anchors.leftMargin: 12
@@ -46,8 +55,13 @@ Item {
     }
 
     MouseArea {
+        id: mouse
         anchors.fill: parent
+        hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
+        onPressed: function(mouse) { ripple.press(mouse.x, mouse.y) }
+        onReleased: ripple.release()
+        onCanceled: ripple.cancel()
         onClicked: root.clicked()
     }
 }

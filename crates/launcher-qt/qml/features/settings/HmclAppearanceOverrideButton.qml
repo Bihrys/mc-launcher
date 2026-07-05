@@ -1,23 +1,24 @@
 import QtQuick
 import "../../components"
 
-Item {
+Rectangle {
     id: root
 
-    required property var style
-    property bool checked: false
-
+    property var style
+    property bool overridden: false
     signal clicked()
 
-    width: 24
-    height: 24
+    width: 15
+    height: 15
+    radius: 8
+    color: "transparent"
+    clip: true
 
     function styleValue(name, fallback) {
         if (root.style !== undefined && root.style !== null) {
             var value = root.style[name]
-            if (value !== undefined && value !== null) {
+            if (value !== undefined && value !== null)
                 return value
-            }
         }
         return fallback
     }
@@ -26,30 +27,20 @@ Item {
         id: ripple
         anchors.fill: parent
         hovered: mouse.containsMouse
-        hoverColor: root.styleValue("cLaunchButton", "#2f6fed")
-        rippleColor: root.styleValue("cLaunchButton", "#2f6fed")
+        hoverColor: root.styleValue("cPrimary", "#4352A5")
+        rippleColor: root.styleValue("cPrimary", "#4352A5")
         hoverOpacity: 0.08
         rippleOpacity: 0.22
         animationsEnabled: !!root.styleValue("animationsEnabled", true)
+        circularMask: true
     }
 
-    Rectangle {
+    HmclSvgIcon {
         anchors.centerIn: parent
-        width: 14
-        height: 14
-        radius: 7
-        border.width: 2
-        border.color: root.checked ? root.styleValue("cLaunchButton", "#2f6fed") : root.styleValue("cTextOnSurfaceVariant", "#666666")
-        color: "transparent"
-    }
-
-    Rectangle {
-        anchors.centerIn: parent
-        width: 7
-        height: 7
-        radius: 4
-        color: root.styleValue("cLaunchButton", "#2f6fed")
-        visible: root.checked
+        icon: root.overridden ? "EDIT" : "STYLE"
+        iconSize: 12
+        iconColor: root.overridden ? root.styleValue("cPrimary", "#4352A5") : "#CCCC33"
+        animationsEnabled: !!root.styleValue("animationsEnabled", true)
     }
 
     MouseArea {

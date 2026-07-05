@@ -127,7 +127,7 @@ Item {
         HmclSvgIcon {
             anchors.centerIn: parent
             icon: "ARROW_DROP_UP"
-            iconSize: 20
+            iconSize: 30
             iconColor: root.style.cTextOnPrimaryContainer
             animationsEnabled: root.style.animationsEnabled
             animationDuration: root.style.motionShort4

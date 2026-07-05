@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import "../icons"
+import "../../components"
 
 Item {
     id: root
@@ -30,7 +31,16 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        color: root.selected ? root.styleValue("cNavSelected", "transparent") : mouse.containsMouse ? root.styleValue("cNavHover", "transparent") : "transparent"
+        color: root.selected ? root.styleValue("cNavSelected", "transparent") : "transparent"
+    }
+
+    HmclRipple {
+        id: ripple
+        anchors.fill: parent
+        hovered: mouse.containsMouse && root.enabledItem
+        hoverColor: root.styleValue("cTextOnSurface", "#1B1B21")
+        rippleColor: root.styleValue("cTextOnSurface", "#1B1B21")
+        animationsEnabled: !!root.styleValue("animationsEnabled", true)
     }
 
     RowLayout {
@@ -83,6 +93,9 @@ Item {
         hoverEnabled: true
         enabled: root.enabledItem
         cursorShape: Qt.PointingHandCursor
+        onPressed: function(mouse) { ripple.press(mouse.x, mouse.y) }
+        onReleased: ripple.release()
+        onCanceled: ripple.cancel()
         onClicked: root.clicked()
     }
 }

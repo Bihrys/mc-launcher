@@ -53,6 +53,10 @@ QtObject {
     readonly property color cSurfaceContainer: darkMode ? "#CC252631" : "#CCF5F2FA"
     readonly property color cSurfaceContainerHigh: darkMode ? "#E82D2E3A" : "#E8F5F2FA"
 
+    readonly property color cInverseSurface: darkMode ? "#E6E1E5" : "#313033"
+    readonly property color cInverseSurfaceTransparent80: darkMode ? "#CCE6E1E5" : "#CC313033"
+    readonly property color cInverseOnSurface: darkMode ? "#313033" : "#F4EFF4"
+
     readonly property color cTextOnSurface: darkMode ? "#E4E1E9" : "#1B1B21"
     readonly property color cTextOnSurfaceVariant: darkMode ? "#C7C5D0" : "#454651"
 

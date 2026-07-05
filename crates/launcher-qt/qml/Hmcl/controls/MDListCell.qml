@@ -1,4 +1,5 @@
 import QtQuick
+import "../../components"
 
 Item {
     id: root
@@ -26,9 +27,13 @@ Item {
         return styleValue(name, fallback)
     }
 
-    Rectangle {
+    HmclRipple {
+        id: ripple
         anchors.fill: parent
-        color: root.hovered ? root.styleColor("cNavHover", "transparent") : "transparent"
+        hovered: root.hovered
+        hoverColor: root.styleValue("cTextOnSurface", "#1B1B21")
+        rippleColor: root.styleValue("cTextOnSurface", "#1B1B21")
+        animationsEnabled: !!root.styleValue("animationsEnabled", true)
     }
 
     Rectangle {
@@ -45,6 +50,9 @@ Item {
         anchors.fill: parent
         hoverEnabled: true
         acceptedButtons: Qt.LeftButton
+        onPressed: function(mouse) { ripple.press(mouse.x, mouse.y) }
+        onReleased: ripple.release()
+        onCanceled: ripple.cancel()
         onClicked: root.clicked()
     }
 }

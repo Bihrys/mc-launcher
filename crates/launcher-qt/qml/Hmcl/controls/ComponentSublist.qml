@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import "../icons"
+import "../../components"
 
 Item {
     id: root
@@ -17,6 +18,7 @@ Item {
     property bool expanded: false
     property bool componentPadding: true
     property bool animationsEnabled: styleValue("animationsEnabled", true)
+    property alias titleRight: titleRightBox.children
     default property alias content: contentColumn.children
 
     width: parent ? parent.width : 600
@@ -35,7 +37,7 @@ Item {
         id: header
         width: root.width
         height: root.hasSubtitle ? 68 : 48
-        color: mouse.containsMouse ? Qt.rgba(0, 0, 0, 0.045) : root.styleValue("cSurface", "#FFFBFE")
+        color: root.styleValue("cSurface", "#FFFBFE")
 
         Rectangle {
             anchors.left: parent.left
@@ -45,11 +47,23 @@ Item {
             color: root.styleValue("cBorder", "#D9D7E2")
         }
 
+        HmclRipple {
+            id: ripple
+            anchors.fill: parent
+            hovered: mouse.containsMouse
+            hoverColor: root.styleValue("cTextOnSurface", "#1B1B21")
+            rippleColor: root.styleValue("cTextOnSurface", "#1B1B21")
+            animationsEnabled: root.animationsEnabled
+        }
+
         MouseArea {
             id: mouse
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
+            onPressed: function(mouse) { ripple.press(mouse.x, mouse.y) }
+            onReleased: ripple.release()
+            onCanceled: ripple.cancel()
             onClicked: root.expanded = !root.expanded
         }
 
@@ -92,6 +106,14 @@ Item {
                 font.pixelSize: 12
                 horizontalAlignment: Text.AlignRight
                 elide: Text.ElideRight
+            }
+
+            RowLayout {
+                id: titleRightBox
+                Layout.maximumWidth: 90
+                Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                spacing: 6
+                visible: children.length > 0
             }
 
             SvgIcon {

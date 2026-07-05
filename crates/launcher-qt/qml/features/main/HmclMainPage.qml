@@ -43,13 +43,13 @@ Item {
         visible: root.showUpdateBubble
         width: 230
         height: 55
-        radius: 4
+        radius: 2
         anchors.right: parent.right
         anchors.top: parent.top
-        anchors.margins: 16
-        color: root.style.cSurfaceContainerHigh
-        border.width: 1
-        border.color: root.style.cBorder
+        anchors.margins: 20
+        color: root.style.cInverseSurfaceTransparent80
+        border.width: 0
+        border.color: "transparent"
 
         // HMCL doAnimation：从右侧 260px 滑入。
         transform: Translate {
@@ -74,22 +74,34 @@ Item {
                 Layout.preferredHeight: 20
                 icon: "UPDATE"
                 iconSize: 20
-                iconColor: root.style.cTextOnSurface
+                iconColor: root.style.cInverseOnSurface
                 animationsEnabled: root.style.animationsEnabled
             }
 
-            TwoLineListItem {
+            ColumnLayout {
                 Layout.fillWidth: true
-                style: root.style
-                title: root.latestVersionText.length > 0
-                       ? "发现新版本 " + root.latestVersionText
-                       : "发现新版本"
-                subtitle: "点击查看更新内容"
+                spacing: 2
+                Text {
+                    Layout.fillWidth: true
+                    text: root.latestVersionText.length > 0 ? "发现更新：" + root.latestVersionText : "发现更新"
+                    color: root.style.cInverseOnSurface
+                    font.pixelSize: 13
+                    elide: Text.ElideRight
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: "点击此处进行升级"
+                    color: root.style.cInverseOnSurface
+                    opacity: 0.86
+                    font.pixelSize: 11
+                    elide: Text.ElideRight
+                }
             }
 
             ToolbarButton {
                 style: root.style
                 iconKind: "CLOSE"
+                iconColor: root.style.cInverseOnSurface
                 onClicked: root.showUpdateBubble = false
             }
         }

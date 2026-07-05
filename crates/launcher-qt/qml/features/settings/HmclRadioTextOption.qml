@@ -1,5 +1,6 @@
 import QtQuick
 import "../../Hmcl/controls" as Hmcl
+import "../../components"
 
 Item {
     id: root
@@ -17,6 +18,17 @@ Item {
             if (value !== undefined && value !== null) return value
         }
         return fallback
+    }
+
+    HmclRipple {
+        id: ripple
+        anchors.fill: parent
+        hovered: mouse.containsMouse
+        hoverColor: root.styleValue("cLaunchButton", "#4352A5")
+        rippleColor: root.styleValue("cLaunchButton", "#4352A5")
+        hoverOpacity: 0.08
+        rippleOpacity: 0.22
+        animationsEnabled: !!root.styleValue("animationsEnabled", true)
     }
 
     Hmcl.RadioButton {
@@ -39,8 +51,13 @@ Item {
     }
 
     MouseArea {
+        id: mouse
         anchors.fill: parent
+        hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
+        onPressed: function(mouse) { ripple.press(mouse.x, mouse.y) }
+        onReleased: ripple.release()
+        onCanceled: ripple.cancel()
         onClicked: root.clicked()
     }
 }

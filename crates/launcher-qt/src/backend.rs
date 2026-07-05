@@ -373,6 +373,14 @@ pub mod qobject {
         #[qinvokable]
         #[cxx_name = "refreshSystemMemory"]
         fn refresh_system_memory(self: Pin<&mut LauncherBackend>) -> QString;
+        #[qinvokable]
+        #[cxx_name = "refreshAppearanceOptions"]
+        fn refresh_appearance_options(self: Pin<&mut LauncherBackend>) -> QString;
+
+        #[qinvokable]
+        #[cxx_name = "exportLauncherThemePack"]
+        fn export_launcher_theme_pack(self: Pin<&mut LauncherBackend>) -> QString;
+
 
         #[qinvokable]
         #[cxx_name = "updateLauncherSetting"]

@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import QtQuick.Controls
 import QtQuick.Window
 import "../../Hmcl/icons" as Icons
+import "../../components"
 
 HmclSettingLine {
     id: root
@@ -47,6 +48,15 @@ HmclSettingLine {
             color: selectMouse.containsMouse || popup.opened ? root.styleValue("cSurfaceContainerHigh", "#ECE9F1") : root.styleValue("cSurfaceContainer", "#F5F2FA")
             opacity: root.enabledRow && !root.fullscreen ? 1.0 : 0.45
 
+            HmclRipple {
+                id: buttonRipple
+                anchors.fill: parent
+                hovered: selectMouse.containsMouse && root.enabledRow && !root.fullscreen
+                hoverColor: root.styleValue("cTextOnSurface", "#1B1B21")
+                rippleColor: root.styleValue("cTextOnSurface", "#1B1B21")
+                animationsEnabled: !!root.styleValue("animationsEnabled", true)
+            }
+
             Text {
                 anchors.left: parent.left
                 anchors.right: arrow.left
@@ -77,6 +87,9 @@ HmclSettingLine {
                 enabled: root.enabledRow && !root.fullscreen
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
+                onPressed: function(mouse) { buttonRipple.press(mouse.x, mouse.y) }
+                onReleased: buttonRipple.release()
+                onCanceled: buttonRipple.cancel()
                 onClicked: {
                     if (popup.opened) {
                         popup.close()
@@ -115,8 +128,9 @@ HmclSettingLine {
                                 width: popup.width
                                 height: 40
                                 color: root.resolution === modelData ? root.styleValue("cNavSelected", "#E7E7FF") : optionMouse.containsMouse ? root.styleValue("cSurfaceContainer", "#F5F2FA") : root.styleValue("cSurface", "#FFFBFE")
+                                HmclRipple { id: optionRipple; anchors.fill: parent; hovered: optionMouse.containsMouse; hoverColor: root.styleValue("cTextOnSurface", "#1B1B21"); rippleColor: root.styleValue("cTextOnSurface", "#1B1B21"); animationsEnabled: !!root.styleValue("animationsEnabled", true) }
                                 Text { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; anchors.leftMargin: 12; text: modelData; color: root.styleValue("cTextOnSurface", "#1B1B21"); font.pixelSize: 12 }
-                                MouseArea { id: optionMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: { popup.close(); root.resolutionSelected(modelData) } }
+                                MouseArea { id: optionMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onPressed: function(mouse) { optionRipple.press(mouse.x, mouse.y) }; onReleased: optionRipple.release(); onCanceled: optionRipple.cancel(); onClicked: { popup.close(); root.resolutionSelected(modelData) } }
                             }
                         }
                     }

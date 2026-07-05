@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import "../../Hmcl/controls" as Hmcl
+import "../../components"
 
 Rectangle {
     id: root
@@ -29,6 +30,15 @@ Rectangle {
         return fallback
     }
 
+    HmclRipple {
+        id: ripple
+        anchors.fill: parent
+        hovered: mouse.containsMouse && root.enabledRow
+        hoverColor: root.styleValue("cTextOnSurface", "#1B1B21")
+        rippleColor: root.styleValue("cTextOnSurface", "#1B1B21")
+        animationsEnabled: !!root.styleValue("animationsEnabled", true)
+    }
+
     Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
@@ -39,10 +49,14 @@ Rectangle {
     }
 
     MouseArea {
+        id: mouse
         anchors.fill: parent
         enabled: root.enabledRow
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
+        onPressed: function(mouse) { ripple.press(mouse.x, mouse.y) }
+        onReleased: ripple.release()
+        onCanceled: ripple.cancel()
         onClicked: root.clicked()
     }
 
