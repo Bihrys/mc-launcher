@@ -53,6 +53,7 @@ Column {
         if (value === "custom") return root.st("customBackgroundImagePath", root.st("backgroundImage", "自定义"))
         if (value === "network") return root.st("networkBackgroundImageUrl", root.st("backgroundImageUrl", "网络"))
         if (value === "paint") return root.st("customBackgroundPaint", root.st("backgroundPaint", "纯色"))
+        if (value === "theme_color") return "主题色"
         return "默认"
     }
 
@@ -166,8 +167,9 @@ Column {
             style: root.style
             value: root.st("backgroundType", "default")
             options: [
-                {"text":"默认","value":"default"},
-                {"text":"经典","value":"builtin"},
+                {"text":"默认","value":"default", "subtitle":"使用主题背景；无主题背景时使用 HMCL 内置默认壁纸"},
+                {"text":"经典","value":"builtin", "rightText": root.st("builtinBackgroundId", "2021-08-26")},
+                {"text":"主题色","value":"theme_color"},
                 {"text":"自定义","value":"custom"},
                 {"text":"网络","value":"network"},
                 {"text":"纯色","value":"paint"}
@@ -178,6 +180,7 @@ Column {
         HmclSelectLine {
             style: root.style
             title: "经典背景"
+            subtitle: "HMCL 内置壁纸"
             enabledRow: root.st("backgroundType", "default") === "builtin"
             value: root.st("builtinBackgroundId", "2021-08-26")
             options: root.builtinOptions()

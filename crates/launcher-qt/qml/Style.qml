@@ -48,7 +48,10 @@ QtObject {
     readonly property color cBgStart: darkMode ? "#121318" : "#F8F6FF"
     readonly property color cBgEnd: darkMode ? "#1B1B24" : Qt.lighter(accentBase, 2.4)
 
-    readonly property color cSurfaceTransparent: darkMode ? "#EE1B1B21" : "#EEFBF8FF"
+    // HMCL 的背景图直接作为 Decorator contentBackground 绘制；浅色模式不再叠一层接近不透明的白色遮罩。
+    readonly property color cSurfaceTransparent: "#00000000"
+    // root.css: .gray-background / .content-background -> -monet-surface-transparent-50
+    readonly property color cTitleBarTransparent: darkMode ? "#801B1B21" : "#80FBF8FF"
     readonly property color cSurface: darkMode ? "#1B1B21" : "#FFFBFE"
     readonly property color cSurfaceContainer: darkMode ? "#CC252631" : "#CCF5F2FA"
     readonly property color cSurfaceContainerHigh: darkMode ? "#E82D2E3A" : "#E8F5F2FA"

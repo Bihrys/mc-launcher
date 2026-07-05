@@ -12,6 +12,10 @@ Rectangle {
     property int stateSerial: 0
     property string navigationDirection: "next"
     property bool navigatorCanBack: false
+    property bool titleTransparent: false
+    readonly property color titleForeground: titleTransparent
+            ? (style.darkMode ? style.cTextOnSurface : "#000000")
+            : style.cTextOnPrimaryContainer
 
     signal backRequested()
     signal closeRequested()
@@ -39,7 +43,7 @@ Rectangle {
 
     height: style.titleBarHeightValue
     implicitHeight: style.titleBarHeightValue
-    color: style.cPrimaryContainer
+    color: root.titleTransparent ? style.cTitleBarTransparent : style.cPrimaryContainer
     clip: true
 
     Component.onCompleted: {
@@ -195,6 +199,7 @@ Rectangle {
             canHome: root.shownHome
             canRefresh: root.shownRefresh
             style: root.style
+            foregroundColor: root.titleForeground
             onBackRequested: root.backRequested()
             onCloseRequested: root.closeRequested()
             onHomeRequested: root.homeRequested()
@@ -212,6 +217,7 @@ Rectangle {
             canHome: navBarTransition.running ? root.incomingHome : root.shownHome
             canRefresh: navBarTransition.running ? root.incomingRefresh : root.shownRefresh
             style: root.style
+            foregroundColor: root.titleForeground
             onBackRequested: root.backRequested()
             onCloseRequested: root.closeRequested()
             onHomeRequested: root.homeRequested()
@@ -230,6 +236,7 @@ Rectangle {
 
         WindowButton {
             style: root.style
+            foregroundColor: root.titleForeground
             text: "—"
             hoverDanger: false
             onClicked: root.appWindow.showMinimized()
@@ -237,6 +244,7 @@ Rectangle {
 
         WindowButton {
             style: root.style
+            foregroundColor: root.titleForeground
             text: root.appWindow.visibility === Window.Maximized ? "❐" : "□"
             hoverDanger: false
             onClicked: {
@@ -250,6 +258,7 @@ Rectangle {
 
         WindowButton {
             style: root.style
+            foregroundColor: root.titleForeground
             text: "×"
             hoverDanger: true
             onClicked: Qt.quit()
@@ -268,6 +277,7 @@ Rectangle {
         property bool canClose: false
         property bool canHome: false
         property bool canRefresh: false
+        property color foregroundColor: style.cTextOnPrimaryContainer
 
         signal backRequested()
         signal closeRequested()
@@ -289,6 +299,7 @@ Rectangle {
             DecoratorIconButton {
                 visible: content.canBack
                 style: content.style
+                foregroundColor: content.foregroundColor
                 iconKind: "ARROW_BACK"
                 onClicked: content.backRequested()
             }
@@ -296,6 +307,7 @@ Rectangle {
             DecoratorIconButton {
                 visible: content.canClose
                 style: content.style
+                foregroundColor: content.foregroundColor
                 iconKind: "CLOSE"
                 onClicked: content.closeRequested()
             }
@@ -303,6 +315,7 @@ Rectangle {
             DecoratorIconButton {
                 visible: content.canHome
                 style: content.style
+                foregroundColor: content.foregroundColor
                 iconKind: "HOME"
                 onClicked: content.homeRequested()
             }
@@ -331,7 +344,7 @@ Rectangle {
             Text {
                 text: content.showBrand ? "Hello Minecraft! Launcher" : content.title
                 visible: text.length > 0
-                color: content.style.cTextOnPrimaryContainer
+                color: content.foregroundColor
                 font.pixelSize: 14
                 font.bold: true
                 anchors.verticalCenter: parent.verticalCenter
@@ -358,6 +371,7 @@ Rectangle {
 
         required property var style
         property string iconKind: ""
+        property color foregroundColor: style.cTextOnPrimaryContainer
 
         signal clicked()
 
@@ -367,9 +381,9 @@ Rectangle {
         Rectangle {
             anchors.fill: parent
             color: mouse.containsMouse
-                   ? Qt.rgba(button.style.cTextOnPrimaryContainer.r,
-                             button.style.cTextOnPrimaryContainer.g,
-                             button.style.cTextOnPrimaryContainer.b,
+                   ? Qt.rgba(button.foregroundColor.r,
+                             button.foregroundColor.g,
+                             button.foregroundColor.b,
                              0.12)
                    : "transparent"
         }
@@ -378,7 +392,7 @@ Rectangle {
             anchors.centerIn: parent
             icon: button.iconKind
             iconSize: 20
-            iconColor: button.style.cTextOnPrimaryContainer
+            iconColor: button.foregroundColor
             animationsEnabled: button.style.animationsEnabled
         }
 
@@ -397,6 +411,7 @@ Rectangle {
         required property var style
         property string text: ""
         property bool hoverDanger: false
+        property color foregroundColor: style.cTextOnPrimaryContainer
 
         signal clicked()
 
@@ -413,7 +428,7 @@ Rectangle {
         Text {
             anchors.centerIn: parent
             text: button.text
-            color: button.style.cTextOnPrimaryContainer
+            color: button.foregroundColor
             font.pixelSize: 15
         }
 

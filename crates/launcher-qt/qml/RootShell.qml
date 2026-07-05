@@ -34,6 +34,7 @@ Item {
     property string launcherBackgroundPaint: ""
     property string launcherBuiltinBackgroundId: "2021-08-26"
     property real launcherBackgroundOpacity: 1.0
+    property bool titleBarTransparent: false
 
     property var launchTaskStatus: ({
         "id": "",
@@ -221,6 +222,8 @@ Item {
 
     Rectangle {
         anchors.fill: parent
+        // HMCL Themes.createBackgroundWithOpacity() 只改变壁纸自身透明度，
+        // 不在整层内容上叠加高不透明白色遮罩。
         color: style.cSurfaceTransparent
     }
 
@@ -330,6 +333,7 @@ Item {
             stateSerial: decoratorNavigator.stateSerial
             navigationDirection: decoratorNavigator.navigationDirection
             navigatorCanBack: decoratorNavigator.canGoBack
+            titleTransparent: root.titleBarTransparent
 
             onBackRequested: {
                 root.goBack()
@@ -933,6 +937,9 @@ Item {
             }
             if (data.backgroundOpacity !== undefined && data.backgroundOpacity !== null) {
                 root.launcherBackgroundOpacity = Number(data.backgroundOpacity)
+            }
+            if (data.titleTransparent !== undefined && data.titleTransparent !== null) {
+                root.titleBarTransparent = data.titleTransparent === true || String(data.titleTransparent) === "true"
             }
             root.animationsEnabled = !(data.turnOffAnimations === true || String(data.turnOffAnimations) === "true" || data.animationDisabled === true || String(data.animationDisabled) === "true")
         } catch (e) {
