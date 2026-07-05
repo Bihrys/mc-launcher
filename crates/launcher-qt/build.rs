@@ -53,6 +53,7 @@ fn main() {
         "qml/features/settings/HmclAppearanceOverrideButton.qml",
         "qml/features/settings/HmclChoiceList.qml",
         "qml/features/settings/HmclColorChip.qml",
+        "qml/features/settings/HmclThemeColorChoiceList.qml",
         "qml/features/settings/HmclFontPreviewLine.qml",
         "qml/features/settings/HmclResolutionLine.qml",
         "qml/features/settings/HmclMemorySettingsBlock.qml",
@@ -134,6 +135,9 @@ fn main() {
         "qml/assets/img/legacyfabric@2x.png",
         "qml/assets/img/terracotta.png",
         "qml/assets/img/terracotta@2x.png",
+        "qml/assets/img/wallpapers/2015-06-22.jpg",
+        "qml/assets/img/wallpapers/2016-02-25.jpg",
+        "qml/assets/img/wallpapers/2021-08-26.jpg",
     ])
     .qt_module("Network")
     .qt_module("QuickShapes")

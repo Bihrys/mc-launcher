@@ -9,6 +9,8 @@ Item {
     property real stepSize: 1
     property real value: 0
     property bool enabledControl: true
+    property bool showTickMarks: false
+    property int tickCount: 21
     signal moved(real value)
 
     implicitWidth: 220
@@ -54,6 +56,18 @@ Item {
             height: 2
             radius: 1
             color: root.styleValue("cLaunchButton", "#4352A5")
+        }
+    }
+
+    Repeater {
+        model: root.showTickMarks ? root.tickCount : 0
+        delegate: Rectangle {
+            required property int index
+            width: 1
+            height: 4
+            x: track.x + (track.width - width) * (root.tickCount <= 1 ? 0 : index / (root.tickCount - 1))
+            y: track.y + 8
+            color: root.styleValue("cBorder", "#D9D7E2")
         }
     }
 

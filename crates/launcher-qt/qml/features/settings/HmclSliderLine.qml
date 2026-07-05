@@ -25,6 +25,8 @@ HmclSettingLine {
             from: root.fromValue
             to: root.toValue
             value: root.valueNumber
+            showTickMarks: true
+            tickCount: 21
             onMoved: function(value) { root.movedValue(value) }
         }
 

@@ -32,6 +32,7 @@ Item {
     property string launcherBackgroundImage: ""
     property string launcherBackgroundImageUrl: ""
     property string launcherBackgroundPaint: ""
+    property string launcherBuiltinBackgroundId: "2021-08-26"
     property real launcherBackgroundOpacity: 1.0
 
     property var launchTaskStatus: ({
@@ -104,6 +105,30 @@ Item {
         property string launcherVisibility: "hide"
     }
 
+
+    function builtinBackgroundSource(id) {
+        switch (String(id || "2021-08-26")) {
+        case "2016-02-25":
+            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/wallpapers/2016-02-25.jpg"
+        case "2015-06-22":
+            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/wallpapers/2015-06-22.jpg"
+        case "2021-08-26":
+        default:
+            return "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/wallpapers/2021-08-26.jpg"
+        }
+    }
+
+    function effectiveThemeColorFromSettings(data) {
+        var type = data.themeColorType !== undefined && data.themeColorType !== null ? String(data.themeColorType) : "default"
+        if (type === "custom") {
+            var custom = data.customThemeColor !== undefined && data.customThemeColor !== null ? String(data.customThemeColor) : "#5C6BC0"
+            return custom.length > 0 ? custom : "#5C6BC0"
+        }
+        if (data.themeColor !== undefined && data.themeColor !== null)
+            return String(data.themeColor)
+        return "default"
+    }
+
     onLauncherThemeChanged: {
         appSettings.launcherTheme = root.launcherTheme
     }
@@ -163,12 +188,31 @@ Item {
     }
 
     Image {
+        id: builtinBackgroundImage
         anchors.fill: parent
-        visible: (root.launcherBackgroundType === "custom" && root.launcherBackgroundImage.length > 0)
-                 || (root.launcherBackgroundType === "network" && root.launcherBackgroundImageUrl.length > 0)
-        source: root.launcherBackgroundType === "custom"
+        visible: root.launcherBackgroundType === "default" || root.launcherBackgroundType === "builtin"
+        source: root.builtinBackgroundSource(root.launcherBuiltinBackgroundId)
+        fillMode: Image.PreserveAspectCrop
+        asynchronous: true
+        cache: true
+        opacity: Math.max(0.0, Math.min(1.0, root.launcherBackgroundOpacity))
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        visible: root.launcherBackgroundType === "theme_color"
+        color: style.cBgEnd
+        opacity: Math.max(0.0, Math.min(1.0, root.launcherBackgroundOpacity))
+    }
+
+    Image {
+        id: externalBackgroundImage
+        anchors.fill: parent
+        readonly property string resolvedSource: root.launcherBackgroundType === "custom" && root.launcherBackgroundImage.length > 0
                 ? (root.launcherBackgroundImage.indexOf("file:") === 0 ? root.launcherBackgroundImage : "file://" + root.launcherBackgroundImage)
-                : root.launcherBackgroundImageUrl
+                : (root.launcherBackgroundType === "network" && root.launcherBackgroundImageUrl.length > 0 ? root.launcherBackgroundImageUrl : "")
+        visible: resolvedSource.length > 0
+        source: resolvedSource.length > 0 ? resolvedSource : "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/wallpapers/2021-08-26.jpg"
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
         cache: true
@@ -862,14 +906,15 @@ Item {
             if (data.themeMode !== undefined && data.themeMode !== null) {
                 root.launcherTheme = String(data.themeMode)
             }
-            if (data.themeColor !== undefined && data.themeColor !== null) {
-                root.launcherThemeColor = String(data.themeColor)
-            }
+            root.launcherThemeColor = root.effectiveThemeColorFromSettings(data)
             if (data.launcherVisibility !== undefined && data.launcherVisibility !== null) {
                 root.launcherVisibility = String(data.launcherVisibility)
             }
             if (data.backgroundType !== undefined && data.backgroundType !== null) {
                 root.launcherBackgroundType = String(data.backgroundType)
+            }
+            if (data.builtinBackgroundId !== undefined && data.builtinBackgroundId !== null) {
+                root.launcherBuiltinBackgroundId = String(data.builtinBackgroundId)
             }
             if (data.customBackgroundImagePath !== undefined && data.customBackgroundImagePath !== null) {
                 root.launcherBackgroundImage = String(data.customBackgroundImagePath)

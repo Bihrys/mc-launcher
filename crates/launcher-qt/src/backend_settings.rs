@@ -329,21 +329,31 @@ fn launcher_special_folder(kind: &str) -> PathBuf {
 
 fn appearance_options_json() -> String {
     let fonts = detect_font_families();
+    // 对齐 HMCL BuiltinBackground.java / ThemeColor.java。
     serde_json::json!({
         "themePacks": [
             {"id": "default", "title": "默认"}
         ],
         "builtinBackgrounds": [
-            {"id": "classic", "title": "经典"},
-            {"id": "default", "title": "默认"}
+            {"id": "2021-08-26", "title": "2021-08-26", "resource": "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/wallpapers/2021-08-26.jpg", "seed": "#3F6AA2"},
+            {"id": "2016-02-25", "title": "2016-02-25", "resource": "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/wallpapers/2016-02-25.jpg", "seed": "#354264"},
+            {"id": "2015-06-22", "title": "2015-06-22", "resource": "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/wallpapers/2015-06-22.jpg", "seed": "#FBC578"}
+        ],
+        "standardThemeColors": [
+            {"name": "blue", "value": "#5C6BC0"},
+            {"name": "darker_blue", "value": "#283593"},
+            {"name": "green", "value": "#43A047"},
+            {"name": "orange", "value": "#E67E22"},
+            {"name": "purple", "value": "#9C27B0"},
+            {"name": "red", "value": "#B71C1C"}
         ],
         "themeColors": [
-            {"id": "default", "title": "默认"},
-            {"id": "purple", "title": "紫色"},
-            {"id": "blue", "title": "蓝色"},
-            {"id": "green", "title": "绿色"},
-            {"id": "red", "title": "红色"},
-            {"id": "orange", "title": "橙色"}
+            {"id": "default", "title": "默认", "value": "#5C6BC0"},
+            {"id": "darker_blue", "title": "深蓝", "value": "#283593"},
+            {"id": "green", "title": "绿色", "value": "#43A047"},
+            {"id": "orange", "title": "橙色", "value": "#E67E22"},
+            {"id": "purple", "title": "紫色", "value": "#9C27B0"},
+            {"id": "red", "title": "红色", "value": "#B71C1C"}
         ],
         "fonts": fonts
     }).to_string()
@@ -439,12 +449,12 @@ fn default_launcher_settings_value() -> serde_json::Value {
     // 按 HMCL 迁移规则：默认设置属于应用层配置模型，不在 QML 中硬编码。
     // 这里避免使用过深的 serde_json::json! 宏，防止 Rust 宏递归上限触发编译失败。
     serde_json::from_str::<serde_json::Value>(
-        r#"{
+        r##"{
             "themeMode": "light",
             "themeBrightnessMode": "auto",
             "themeColor": "default",
             "themeColorType": "default",
-            "customThemeColor": "default",
+            "customThemeColor": "#5C6BC0",
             "themeAppearanceOverrides": "",
             "selectedThemeTitle": "默认",
             "launcherVisibility": "hide",
@@ -501,7 +511,7 @@ fn default_launcher_settings_value() -> serde_json::Value {
             "themeColorStyle": "system",
             "themeBrightness": "auto",
             "backgroundType": "default",
-            "builtinBackgroundId": "classic",
+            "builtinBackgroundId": "2021-08-26",
             "backgroundImage": "",
             "customBackgroundImagePath": "",
             "backgroundImageUrl": "",
@@ -538,7 +548,7 @@ fn default_launcher_settings_value() -> serde_json::Value {
 
             "uiScale": 1.0,
             "fontAntiAliasing": "auto"
-        }"#,
+        }"##,
     )
     .expect("default launcher settings JSON must be valid")
 }
