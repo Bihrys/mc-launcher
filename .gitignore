@@ -60,3 +60,7 @@ Thumbs.db
 .idea/
 .vscode/.browse.c_cpp.db
 .vscode/ipch/
+# VSCode local workspace settings
+/.vscode/settings.json
+/.vscode/tasks.json
+/.vscode/launch.json
