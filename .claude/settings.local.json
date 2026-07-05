@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/Bihrys/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cxx-qt-0.8.1/src/**)",
+      "Read(//home/Bihrys/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cxx-qt-lib-0.8.1/src/core/**)",
+      "Bash(cargo check *)",
+      "Bash(cargo build *)",
+      "Bash(python3 -c ' *)",
+      "Bash(cat crates/launcher-qt/src/qml/mod.rs)",
+      "Bash(ls -la crates/launcher-qt/src/qml/)",
+      "Bash(timeout 12 env QT_QPA_PLATFORM=offscreen QT_LOGGING_RULES=\"qt.qml.*=true\" cargo run -p launcher-qt)",
+      "Bash(timeout 10 env QT_QPA_PLATFORM=offscreen QT_LOGGING_RULES=\"qt.qml.*=true\" ./target/debug/launcher-qt)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(grep -iE \"error|typeerror|cannot|undefined|null reference|unable|is not a|warning\" /tmp/qml_run.log | grep -viE \"qt.qml.*=true\" | head -40; echo \"----LINES----\"; wc -l /tmp/qml_run.log)",
+      "Read(//tmp/**)",
+      "Bash(timeout 10 env QT_QPA_PLATFORM=offscreen ./target/debug/launcher-qt > /tmp/qml_run.log 2>&1; echo \"exit=$?\"; echo \"----LINES----\"; wc -l /tmp/qml_run.log)",
+      "Bash(timeout 8 env QT_QPA_PLATFORM=offscreen ./target/debug/launcher-qt)",
+      "Bash(QT_QPA_PLATFORM=offscreen timeout 8 cargo run -p launcher-qt)",
+      "Bash(echo \"---exit:$?---\")",
+      "Bash(QT_QPA_PLATFORM=offscreen timeout 6 cargo run -p launcher-qt)",
+      "Bash(QT_QPA_PLATFORM=offscreen timeout 8 ./target/debug/launcher-qt)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(awk '{print $9, $5}')",
+      "Bash(grep -iE \"\\\\.\\(java|fxml\\)$\")"
+    ],
+    "additionalDirectories": [
+      "/tmp"
+    ]
+  }
+}
