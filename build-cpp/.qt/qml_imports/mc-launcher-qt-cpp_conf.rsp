@@ -1,0 +1,9 @@
+-rootPath
+/home/Bihrys/Projects/mc-launcher
+-cmake-output
+-output-file
+/home/Bihrys/Projects/mc-launcher/build-cpp/.qt/qml_imports/mc-launcher-qt-cpp_conf.cmake
+-importPath
+/home/Bihrys/Projects/mc-launcher/build-cpp
+-importPath
+/usr/lib/qt6/qml

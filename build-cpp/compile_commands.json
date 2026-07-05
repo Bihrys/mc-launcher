@@ -1,0 +1,86 @@
+[
+{
+  "directory": "/home/Bihrys/Projects/mc-launcher/build-cpp",
+  "command": "/usr/bin/c++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_OPENGL_LIB -DQT_QMLINTEGRATION_LIB -DQT_QML_LIB -DQT_QUICKCONTROLS2_LIB -DQT_QUICK_LIB -I/home/Bihrys/Projects/mc-launcher/build-cpp/mc-launcher-qt-cpp_autogen/include -I/home/Bihrys/Projects/mc-launcher/src -isystem /usr/include/qt6/QtCore -isystem /usr/include/qt6 -isystem /usr/lib/qt6/mkspecs/linux-g++ -isystem /usr/include/qt6/QtGui -isystem /usr/include/qt6/QtQml -isystem /usr/include/qt6/QtQmlIntegration -isystem /usr/include/qt6/QtNetwork -isystem /usr/include/qt6/QtQuick -isystem /usr/include/qt6/QtOpenGL -isystem /usr/include/qt6/QtQuickControls2 -g -std=gnu++17 -mno-direct-extern-access -o CMakeFiles/mc-launcher-qt-cpp.dir/mc-launcher-qt-cpp_autogen/mocs_compilation.cpp.o -c /home/Bihrys/Projects/mc-launcher/build-cpp/mc-launcher-qt-cpp_autogen/mocs_compilation.cpp",
+  "file": "/home/Bihrys/Projects/mc-launcher/build-cpp/mc-launcher-qt-cpp_autogen/mocs_compilation.cpp",
+  "output": "/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/mc-launcher-qt-cpp.dir/mc-launcher-qt-cpp_autogen/mocs_compilation.cpp.o"
+},
+{
+  "directory": "/home/Bihrys/Projects/mc-launcher/build-cpp",
+  "command": "/usr/bin/c++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_OPENGL_LIB -DQT_QMLINTEGRATION_LIB -DQT_QML_LIB -DQT_QUICKCONTROLS2_LIB -DQT_QUICK_LIB -I/home/Bihrys/Projects/mc-launcher/build-cpp/mc-launcher-qt-cpp_autogen/include -I/home/Bihrys/Projects/mc-launcher/src -isystem /usr/include/qt6/QtCore -isystem /usr/include/qt6 -isystem /usr/lib/qt6/mkspecs/linux-g++ -isystem /usr/include/qt6/QtGui -isystem /usr/include/qt6/QtQml -isystem /usr/include/qt6/QtQmlIntegration -isystem /usr/include/qt6/QtNetwork -isystem /usr/include/qt6/QtQuick -isystem /usr/include/qt6/QtOpenGL -isystem /usr/include/qt6/QtQuickControls2 -g -std=gnu++17 -mno-direct-extern-access -o CMakeFiles/mc-launcher-qt-cpp.dir/src/main.cpp.o -c /home/Bihrys/Projects/mc-launcher/src/main.cpp",
+  "file": "/home/Bihrys/Projects/mc-launcher/src/main.cpp",
+  "output": "/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/mc-launcher-qt-cpp.dir/src/main.cpp.o"
+},
+{
+  "directory": "/home/Bihrys/Projects/mc-launcher/build-cpp",
+  "command": "/usr/bin/c++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_OPENGL_LIB -DQT_QMLINTEGRATION_LIB -DQT_QML_LIB -DQT_QUICKCONTROLS2_LIB -DQT_QUICK_LIB -I/home/Bihrys/Projects/mc-launcher/build-cpp/mc-launcher-qt-cpp_autogen/include -I/home/Bihrys/Projects/mc-launcher/src -isystem /usr/include/qt6/QtCore -isystem /usr/include/qt6 -isystem /usr/lib/qt6/mkspecs/linux-g++ -isystem /usr/include/qt6/QtGui -isystem /usr/include/qt6/QtQml -isystem /usr/include/qt6/QtQmlIntegration -isystem /usr/include/qt6/QtNetwork -isystem /usr/include/qt6/QtQuick -isystem /usr/include/qt6/QtOpenGL -isystem /usr/include/qt6/QtQuickControls2 -g -std=gnu++17 -mno-direct-extern-access -o CMakeFiles/mc-launcher-qt-cpp.dir/src/core/LauncherPaths.cpp.o -c /home/Bihrys/Projects/mc-launcher/src/core/LauncherPaths.cpp",
+  "file": "/home/Bihrys/Projects/mc-launcher/src/core/LauncherPaths.cpp",
+  "output": "/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/mc-launcher-qt-cpp.dir/src/core/LauncherPaths.cpp.o"
+},
+{
+  "directory": "/home/Bihrys/Projects/mc-launcher/build-cpp",
+  "command": "/usr/bin/c++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_OPENGL_LIB -DQT_QMLINTEGRATION_LIB -DQT_QML_LIB -DQT_QUICKCONTROLS2_LIB -DQT_QUICK_LIB -I/home/Bihrys/Projects/mc-launcher/build-cpp/mc-launcher-qt-cpp_autogen/include -I/home/Bihrys/Projects/mc-launcher/src -isystem /usr/include/qt6/QtCore -isystem /usr/include/qt6 -isystem /usr/lib/qt6/mkspecs/linux-g++ -isystem /usr/include/qt6/QtGui -isystem /usr/include/qt6/QtQml -isystem /usr/include/qt6/QtQmlIntegration -isystem /usr/include/qt6/QtNetwork -isystem /usr/include/qt6/QtQuick -isystem /usr/include/qt6/QtOpenGL -isystem /usr/include/qt6/QtQuickControls2 -g -std=gnu++17 -mno-direct-extern-access -o CMakeFiles/mc-launcher-qt-cpp.dir/src/core/JsonUtil.cpp.o -c /home/Bihrys/Projects/mc-launcher/src/core/JsonUtil.cpp",
+  "file": "/home/Bihrys/Projects/mc-launcher/src/core/JsonUtil.cpp",
+  "output": "/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/mc-launcher-qt-cpp.dir/src/core/JsonUtil.cpp.o"
+},
+{
+  "directory": "/home/Bihrys/Projects/mc-launcher/build-cpp",
+  "command": "/usr/bin/c++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_OPENGL_LIB -DQT_QMLINTEGRATION_LIB -DQT_QML_LIB -DQT_QUICKCONTROLS2_LIB -DQT_QUICK_LIB -I/home/Bihrys/Projects/mc-launcher/build-cpp/mc-launcher-qt-cpp_autogen/include -I/home/Bihrys/Projects/mc-launcher/src -isystem /usr/include/qt6/QtCore -isystem /usr/include/qt6 -isystem /usr/lib/qt6/mkspecs/linux-g++ -isystem /usr/include/qt6/QtGui -isystem /usr/include/qt6/QtQml -isystem /usr/include/qt6/QtQmlIntegration -isystem /usr/include/qt6/QtNetwork -isystem /usr/include/qt6/QtQuick -isystem /usr/include/qt6/QtOpenGL -isystem /usr/include/qt6/QtQuickControls2 -g -std=gnu++17 -mno-direct-extern-access -o CMakeFiles/mc-launcher-qt-cpp.dir/src/settings/LauncherSettings.cpp.o -c /home/Bihrys/Projects/mc-launcher/src/settings/LauncherSettings.cpp",
+  "file": "/home/Bihrys/Projects/mc-launcher/src/settings/LauncherSettings.cpp",
+  "output": "/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/mc-launcher-qt-cpp.dir/src/settings/LauncherSettings.cpp.o"
+},
+{
+  "directory": "/home/Bihrys/Projects/mc-launcher/build-cpp",
+  "command": "/usr/bin/c++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_OPENGL_LIB -DQT_QMLINTEGRATION_LIB -DQT_QML_LIB -DQT_QUICKCONTROLS2_LIB -DQT_QUICK_LIB -I/home/Bihrys/Projects/mc-launcher/build-cpp/mc-launcher-qt-cpp_autogen/include -I/home/Bihrys/Projects/mc-launcher/src -isystem /usr/include/qt6/QtCore -isystem /usr/include/qt6 -isystem /usr/lib/qt6/mkspecs/linux-g++ -isystem /usr/include/qt6/QtGui -isystem /usr/include/qt6/QtQml -isystem /usr/include/qt6/QtQmlIntegration -isystem /usr/include/qt6/QtNetwork -isystem /usr/include/qt6/QtQuick -isystem /usr/include/qt6/QtOpenGL -isystem /usr/include/qt6/QtQuickControls2 -g -std=gnu++17 -mno-direct-extern-access -o CMakeFiles/mc-launcher-qt-cpp.dir/src/account/AccountService.cpp.o -c /home/Bihrys/Projects/mc-launcher/src/account/AccountService.cpp",
+  "file": "/home/Bihrys/Projects/mc-launcher/src/account/AccountService.cpp",
+  "output": "/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/mc-launcher-qt-cpp.dir/src/account/AccountService.cpp.o"
+},
+{
+  "directory": "/home/Bihrys/Projects/mc-launcher/build-cpp",
+  "command": "/usr/bin/c++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_OPENGL_LIB -DQT_QMLINTEGRATION_LIB -DQT_QML_LIB -DQT_QUICKCONTROLS2_LIB -DQT_QUICK_LIB -I/home/Bihrys/Projects/mc-launcher/build-cpp/mc-launcher-qt-cpp_autogen/include -I/home/Bihrys/Projects/mc-launcher/src -isystem /usr/include/qt6/QtCore -isystem /usr/include/qt6 -isystem /usr/lib/qt6/mkspecs/linux-g++ -isystem /usr/include/qt6/QtGui -isystem /usr/include/qt6/QtQml -isystem /usr/include/qt6/QtQmlIntegration -isystem /usr/include/qt6/QtNetwork -isystem /usr/include/qt6/QtQuick -isystem /usr/include/qt6/QtOpenGL -isystem /usr/include/qt6/QtQuickControls2 -g -std=gnu++17 -mno-direct-extern-access -o CMakeFiles/mc-launcher-qt-cpp.dir/src/game/InstanceService.cpp.o -c /home/Bihrys/Projects/mc-launcher/src/game/InstanceService.cpp",
+  "file": "/home/Bihrys/Projects/mc-launcher/src/game/InstanceService.cpp",
+  "output": "/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/mc-launcher-qt-cpp.dir/src/game/InstanceService.cpp.o"
+},
+{
+  "directory": "/home/Bihrys/Projects/mc-launcher/build-cpp",
+  "command": "/usr/bin/c++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_OPENGL_LIB -DQT_QMLINTEGRATION_LIB -DQT_QML_LIB -DQT_QUICKCONTROLS2_LIB -DQT_QUICK_LIB -I/home/Bihrys/Projects/mc-launcher/build-cpp/mc-launcher-qt-cpp_autogen/include -I/home/Bihrys/Projects/mc-launcher/src -isystem /usr/include/qt6/QtCore -isystem /usr/include/qt6 -isystem /usr/lib/qt6/mkspecs/linux-g++ -isystem /usr/include/qt6/QtGui -isystem /usr/include/qt6/QtQml -isystem /usr/include/qt6/QtQmlIntegration -isystem /usr/include/qt6/QtNetwork -isystem /usr/include/qt6/QtQuick -isystem /usr/include/qt6/QtOpenGL -isystem /usr/include/qt6/QtQuickControls2 -g -std=gnu++17 -mno-direct-extern-access -o CMakeFiles/mc-launcher-qt-cpp.dir/src/download/DownloadService.cpp.o -c /home/Bihrys/Projects/mc-launcher/src/download/DownloadService.cpp",
+  "file": "/home/Bihrys/Projects/mc-launcher/src/download/DownloadService.cpp",
+  "output": "/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/mc-launcher-qt-cpp.dir/src/download/DownloadService.cpp.o"
+},
+{
+  "directory": "/home/Bihrys/Projects/mc-launcher/build-cpp",
+  "command": "/usr/bin/c++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_OPENGL_LIB -DQT_QMLINTEGRATION_LIB -DQT_QML_LIB -DQT_QUICKCONTROLS2_LIB -DQT_QUICK_LIB -I/home/Bihrys/Projects/mc-launcher/build-cpp/mc-launcher-qt-cpp_autogen/include -I/home/Bihrys/Projects/mc-launcher/src -isystem /usr/include/qt6/QtCore -isystem /usr/include/qt6 -isystem /usr/lib/qt6/mkspecs/linux-g++ -isystem /usr/include/qt6/QtGui -isystem /usr/include/qt6/QtQml -isystem /usr/include/qt6/QtQmlIntegration -isystem /usr/include/qt6/QtNetwork -isystem /usr/include/qt6/QtQuick -isystem /usr/include/qt6/QtOpenGL -isystem /usr/include/qt6/QtQuickControls2 -g -std=gnu++17 -mno-direct-extern-access -o CMakeFiles/mc-launcher-qt-cpp.dir/src/java/JavaService.cpp.o -c /home/Bihrys/Projects/mc-launcher/src/java/JavaService.cpp",
+  "file": "/home/Bihrys/Projects/mc-launcher/src/java/JavaService.cpp",
+  "output": "/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/mc-launcher-qt-cpp.dir/src/java/JavaService.cpp.o"
+},
+{
+  "directory": "/home/Bihrys/Projects/mc-launcher/build-cpp",
+  "command": "/usr/bin/c++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_OPENGL_LIB -DQT_QMLINTEGRATION_LIB -DQT_QML_LIB -DQT_QUICKCONTROLS2_LIB -DQT_QUICK_LIB -I/home/Bihrys/Projects/mc-launcher/build-cpp/mc-launcher-qt-cpp_autogen/include -I/home/Bihrys/Projects/mc-launcher/src -isystem /usr/include/qt6/QtCore -isystem /usr/include/qt6 -isystem /usr/lib/qt6/mkspecs/linux-g++ -isystem /usr/include/qt6/QtGui -isystem /usr/include/qt6/QtQml -isystem /usr/include/qt6/QtQmlIntegration -isystem /usr/include/qt6/QtNetwork -isystem /usr/include/qt6/QtQuick -isystem /usr/include/qt6/QtOpenGL -isystem /usr/include/qt6/QtQuickControls2 -g -std=gnu++17 -mno-direct-extern-access -o CMakeFiles/mc-launcher-qt-cpp.dir/src/launch/LaunchService.cpp.o -c /home/Bihrys/Projects/mc-launcher/src/launch/LaunchService.cpp",
+  "file": "/home/Bihrys/Projects/mc-launcher/src/launch/LaunchService.cpp",
+  "output": "/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/mc-launcher-qt-cpp.dir/src/launch/LaunchService.cpp.o"
+},
+{
+  "directory": "/home/Bihrys/Projects/mc-launcher/build-cpp",
+  "command": "/usr/bin/c++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_OPENGL_LIB -DQT_QMLINTEGRATION_LIB -DQT_QML_LIB -DQT_QUICKCONTROLS2_LIB -DQT_QUICK_LIB -I/home/Bihrys/Projects/mc-launcher/build-cpp/mc-launcher-qt-cpp_autogen/include -I/home/Bihrys/Projects/mc-launcher/src -isystem /usr/include/qt6/QtCore -isystem /usr/include/qt6 -isystem /usr/lib/qt6/mkspecs/linux-g++ -isystem /usr/include/qt6/QtGui -isystem /usr/include/qt6/QtQml -isystem /usr/include/qt6/QtQmlIntegration -isystem /usr/include/qt6/QtNetwork -isystem /usr/include/qt6/QtQuick -isystem /usr/include/qt6/QtOpenGL -isystem /usr/include/qt6/QtQuickControls2 -g -std=gnu++17 -mno-direct-extern-access -o CMakeFiles/mc-launcher-qt-cpp.dir/src/bridge/LauncherBackend.cpp.o -c /home/Bihrys/Projects/mc-launcher/src/bridge/LauncherBackend.cpp",
+  "file": "/home/Bihrys/Projects/mc-launcher/src/bridge/LauncherBackend.cpp",
+  "output": "/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/mc-launcher-qt-cpp.dir/src/bridge/LauncherBackend.cpp.o"
+},
+{
+  "directory": "/home/Bihrys/Projects/mc-launcher/build-cpp",
+  "command": "/usr/bin/c++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_OPENGL_LIB -DQT_QMLINTEGRATION_LIB -DQT_QML_LIB -DQT_QUICKCONTROLS2_LIB -DQT_QUICK_LIB -I/home/Bihrys/Projects/mc-launcher/build-cpp/mc-launcher-qt-cpp_autogen/include -I/home/Bihrys/Projects/mc-launcher/src -isystem /usr/include/qt6/QtCore -isystem /usr/include/qt6 -isystem /usr/lib/qt6/mkspecs/linux-g++ -isystem /usr/include/qt6/QtGui -isystem /usr/include/qt6/QtQml -isystem /usr/include/qt6/QtQmlIntegration -isystem /usr/include/qt6/QtNetwork -isystem /usr/include/qt6/QtQuick -isystem /usr/include/qt6/QtOpenGL -isystem /usr/include/qt6/QtQuickControls2 -g -std=gnu++17 -mno-direct-extern-access -o CMakeFiles/mc-launcher-qt-cpp.dir/src/models/GameListModel.cpp.o -c /home/Bihrys/Projects/mc-launcher/src/models/GameListModel.cpp",
+  "file": "/home/Bihrys/Projects/mc-launcher/src/models/GameListModel.cpp",
+  "output": "/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/mc-launcher-qt-cpp.dir/src/models/GameListModel.cpp.o"
+},
+{
+  "directory": "/home/Bihrys/Projects/mc-launcher/build-cpp",
+  "command": "/usr/bin/c++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_OPENGL_LIB -DQT_QMLINTEGRATION_LIB -DQT_QML_LIB -DQT_QUICKCONTROLS2_LIB -DQT_QUICK_LIB -I/home/Bihrys/Projects/mc-launcher/build-cpp/mc-launcher-qt-cpp_autogen/include -I/home/Bihrys/Projects/mc-launcher/src -isystem /usr/include/qt6/QtCore -isystem /usr/include/qt6 -isystem /usr/lib/qt6/mkspecs/linux-g++ -isystem /usr/include/qt6/QtGui -isystem /usr/include/qt6/QtQml -isystem /usr/include/qt6/QtQmlIntegration -isystem /usr/include/qt6/QtNetwork -isystem /usr/include/qt6/QtQuick -isystem /usr/include/qt6/QtOpenGL -isystem /usr/include/qt6/QtQuickControls2 -g -std=gnu++17 -mno-direct-extern-access -o CMakeFiles/mc-launcher-qt-cpp.dir/src/models/ProfileListModel.cpp.o -c /home/Bihrys/Projects/mc-launcher/src/models/ProfileListModel.cpp",
+  "file": "/home/Bihrys/Projects/mc-launcher/src/models/ProfileListModel.cpp",
+  "output": "/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/mc-launcher-qt-cpp.dir/src/models/ProfileListModel.cpp.o"
+},
+{
+  "directory": "/home/Bihrys/Projects/mc-launcher/build-cpp",
+  "command": "/usr/bin/c++ -DQT_CORE_LIB -DQT_GUI_LIB -DQT_NETWORK_LIB -DQT_OPENGL_LIB -DQT_QMLINTEGRATION_LIB -DQT_QML_LIB -DQT_QUICKCONTROLS2_LIB -DQT_QUICK_LIB -I/home/Bihrys/Projects/mc-launcher/build-cpp/mc-launcher-qt-cpp_autogen/include -I/home/Bihrys/Projects/mc-launcher/src -isystem /usr/include/qt6/QtCore -isystem /usr/include/qt6 -isystem /usr/lib/qt6/mkspecs/linux-g++ -isystem /usr/include/qt6/QtGui -isystem /usr/include/qt6/QtQml -isystem /usr/include/qt6/QtQmlIntegration -isystem /usr/include/qt6/QtNetwork -isystem /usr/include/qt6/QtQuick -isystem /usr/include/qt6/QtOpenGL -isystem /usr/include/qt6/QtQuickControls2 -g -std=gnu++17 -mno-direct-extern-access -o CMakeFiles/mc-launcher-qt-cpp.dir/mc-launcher-qt-cpp_autogen/DWVX5UVEJZ/qrc_launcher_qml.cpp.o -c /home/Bihrys/Projects/mc-launcher/build-cpp/mc-launcher-qt-cpp_autogen/DWVX5UVEJZ/qrc_launcher_qml.cpp",
+  "file": "/home/Bihrys/Projects/mc-launcher/build-cpp/mc-launcher-qt-cpp_autogen/DWVX5UVEJZ/qrc_launcher_qml.cpp",
+  "output": "/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/mc-launcher-qt-cpp.dir/mc-launcher-qt-cpp_autogen/DWVX5UVEJZ/qrc_launcher_qml.cpp.o"
+}
+]

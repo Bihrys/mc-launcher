@@ -1,0 +1,10 @@
+/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/mc-launcher-qt-cpp.dir
+/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/mc-launcher-qt-cpp_qmlimportscan.dir
+/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/edit_cache.dir
+/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/rebuild_cache.dir
+/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/list_install_components.dir
+/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/install.dir
+/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/install/local.dir
+/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/install/strip.dir
+/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/mc-launcher-qt-cpp_autogen_timestamp_deps.dir
+/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/mc-launcher-qt-cpp_autogen.dir

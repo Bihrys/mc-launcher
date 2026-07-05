@@ -1,0 +1,25 @@
+# ninja log v7
+4	25	1783254626904474770	/home/Bihrys/Projects/mc-launcher/build-cpp/CMakeFiles/cmake.verify_globs	63d4641cbcad83fb
+26	175	1783254627074184283	.qt/qml_imports/mc-launcher-qt-cpp_build.cmake	da6b322130d57800
+26	175	1783254627074184283	/home/Bihrys/Projects/mc-launcher/build-cpp/.qt/qml_imports/mc-launcher-qt-cpp_build.cmake	da6b322130d57800
+175	359	1783254627252715405	mc-launcher-qt-cpp_autogen/timestamp	6363f3f316fe94d6
+175	359	1783254627252715405	mc-launcher-qt-cpp_autogen/mocs_compilation.cpp	6363f3f316fe94d6
+175	359	1783254627252715405	/home/Bihrys/Projects/mc-launcher/build-cpp/mc-launcher-qt-cpp_autogen/timestamp	6363f3f316fe94d6
+175	359	1783254627252715405	/home/Bihrys/Projects/mc-launcher/build-cpp/mc-launcher-qt-cpp_autogen/mocs_compilation.cpp	6363f3f316fe94d6
+362	552	1783254627450712804	mc-launcher-qt-cpp_autogen/DWVX5UVEJZ/qrc_launcher_qml.cpp	a0e0a8cf52e1df60
+362	552	1783254627450712804	/home/Bihrys/Projects/mc-launcher/build-cpp/mc-launcher-qt-cpp_autogen/DWVX5UVEJZ/qrc_launcher_qml.cpp	a0e0a8cf52e1df60
+554	705	1783254627454276215	CMakeFiles/mc-launcher-qt-cpp.dir/mc-launcher-qt-cpp_autogen/DWVX5UVEJZ/qrc_launcher_qml.cpp.o	b31be1404bd44eda
+553	2107	1783254627453599571	CMakeFiles/mc-launcher-qt-cpp.dir/src/account/AccountService.cpp.o	9c950ca23f68d063
+553	2309	1783254627453293256	CMakeFiles/mc-launcher-qt-cpp.dir/src/core/LauncherPaths.cpp.o	7f238ad967b87bbf
+553	2370	1783254627453535197	CMakeFiles/mc-launcher-qt-cpp.dir/src/settings/LauncherSettings.cpp.o	4a920220be9452bd
+553	2402	1783254627453463445	CMakeFiles/mc-launcher-qt-cpp.dir/src/core/JsonUtil.cpp.o	7bbd4bd806a1f883
+553	2423	1783254627453928585	CMakeFiles/mc-launcher-qt-cpp.dir/src/launch/LaunchService.cpp.o	e0b0eca3ca825ca4
+554	2488	1783254627454086015	CMakeFiles/mc-launcher-qt-cpp.dir/src/models/GameListModel.cpp.o	3be4650b4432ba79
+553	2571	1783254627452712778	CMakeFiles/mc-launcher-qt-cpp.dir/mc-launcher-qt-cpp_autogen/mocs_compilation.cpp.o	5c474bce86c793ed
+553	2582	1783254627453668452	CMakeFiles/mc-launcher-qt-cpp.dir/src/game/InstanceService.cpp.o	758a4874b890ef17
+553	2641	1783254627453829466	CMakeFiles/mc-launcher-qt-cpp.dir/src/java/JavaService.cpp.o	23490d44e6cad0cc
+554	2731	1783254627454175354	CMakeFiles/mc-launcher-qt-cpp.dir/src/models/ProfileListModel.cpp.o	4f880e6e5e4e4774
+553	2849	1783254627453741155	CMakeFiles/mc-launcher-qt-cpp.dir/src/download/DownloadService.cpp.o	e3e65f62d677e045
+554	3037	1783254627454005479	CMakeFiles/mc-launcher-qt-cpp.dir/src/bridge/LauncherBackend.cpp.o	f6df4f2d9046c3a7
+553	4130	1783254627453214195	CMakeFiles/mc-launcher-qt-cpp.dir/src/main.cpp.o	85b8a3009d162809
+4130	4406	1783254631030917495	mc-launcher-qt-cpp	fa94553ae3557c85
