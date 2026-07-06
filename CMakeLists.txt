@@ -14,6 +14,7 @@ qt_standard_project_setup(REQUIRES 6.5)
 
 file(GLOB_RECURSE QML_ASSET_FILES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/qml/*.qml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/qml/**/qmldir"
     "${CMAKE_CURRENT_SOURCE_DIR}/qml/*.png"
     "${CMAKE_CURRENT_SOURCE_DIR}/qml/*.jpg"
     "${CMAKE_CURRENT_SOURCE_DIR}/qml/*.jpeg"

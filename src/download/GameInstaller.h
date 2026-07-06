@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QMutex>
 #include <QObject>
@@ -9,6 +10,27 @@
 
 class QThread;
 class Downloader;
+
+struct TaskStage {
+    QString id;
+    QString title;
+    enum Status { Waiting, Running, Success, Failed };
+    Status status = Waiting;
+    int count = 0;
+    int total = 0;
+
+    QJsonObject toJson() const {
+        return QJsonObject{
+            {"id", id},
+            {"title", title},
+            {"status", status == Waiting ? "waiting"
+                       : status == Running ? "running"
+                       : status == Success ? "success" : "failed"},
+            {"count", count},
+            {"total", total}
+        };
+    }
+};
 
 // Orchestrates the vanilla Minecraft install pipeline, ported from HMCL's
 // GameInstallTask chain (VersionJsonDownloadTask -> GameDownloadTask +
@@ -48,8 +70,15 @@ private:
     QJsonObject buildTask(const QString &status, const QString &title,
                           const QString &message, int percent) const;
 
+    void beginStage(const QString &id, const QString &title);
+    void updateStageCount(const QString &id, int count, int total);
+    void succeedStage(const QString &id);
+    void failStage(const QString &id);
+    QJsonArray stagesJson() const;
+
     mutable QMutex m_mutex;
     QJsonObject m_task;
+    QList<TaskStage> m_stages;
 
     QThread *m_thread = nullptr;
     Downloader *m_downloader = nullptr;

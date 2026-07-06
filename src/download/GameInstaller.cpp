@@ -18,7 +18,6 @@
 
 namespace {
 
-
 QString formatSpeed(qint64 bytesPerSec) {
     double v = static_cast<double>(bytesPerSec);
     const char *unit = "B/s";
@@ -34,7 +33,7 @@ GameInstaller::GameInstaller(QObject *parent) : QObject(parent) {
                          {"title", "空闲"}, {"message", "还没有下载任务。"},
                          {"totalFiles", 0}, {"finishedFiles", 0}, {"totalBytes", 0},
                          {"downloadedBytes", 0}, {"currentFile", ""}, {"speed", 0},
-                         {"status", "idle"}};
+                         {"status", "idle"}, {"stages", QJsonArray()}};
 }
 
 GameInstaller::~GameInstaller() {
@@ -53,11 +52,13 @@ QJsonObject GameInstaller::task() const {
 void GameInstaller::setTask(const QJsonObject &task) {
     QMutexLocker lock(&m_mutex);
     m_task = task;
+    m_task.insert("stages", stagesJson());
 }
 
 void GameInstaller::mergeTask(const QJsonObject &patch) {
     QMutexLocker lock(&m_mutex);
     for (auto it = patch.begin(); it != patch.end(); ++it) m_task.insert(it.key(), it.value());
+    m_task.insert("stages", stagesJson());
 }
 
 QJsonObject GameInstaller::buildTask(const QString &status, const QString &title,
@@ -67,7 +68,54 @@ QJsonObject GameInstaller::buildTask(const QString &status, const QString &title
                        {"percent", percent}, {"title", title}, {"message", message},
                        {"totalFiles", 0}, {"finishedFiles", 0}, {"totalBytes", 0},
                        {"downloadedBytes", 0}, {"currentFile", ""}, {"speed", 0},
-                       {"status", status}};
+                       {"status", status}, {"stages", QJsonArray()}};
+}
+
+void GameInstaller::beginStage(const QString &id, const QString &title) {
+    QMutexLocker lock(&m_mutex);
+    for (auto &s : m_stages) {
+        if (s.id == id) {
+            s.status = TaskStage::Running;
+            s.title = title;
+            return;
+        }
+    }
+    TaskStage stage;
+    stage.id = id;
+    stage.title = title;
+    stage.status = TaskStage::Running;
+    m_stages.append(stage);
+}
+
+void GameInstaller::updateStageCount(const QString &id, int count, int total) {
+    QMutexLocker lock(&m_mutex);
+    for (auto &s : m_stages) {
+        if (s.id == id) {
+            s.count = count;
+            s.total = total;
+            return;
+        }
+    }
+}
+
+void GameInstaller::succeedStage(const QString &id) {
+    QMutexLocker lock(&m_mutex);
+    for (auto &s : m_stages) {
+        if (s.id == id) { s.status = TaskStage::Success; return; }
+    }
+}
+
+void GameInstaller::failStage(const QString &id) {
+    QMutexLocker lock(&m_mutex);
+    for (auto &s : m_stages) {
+        if (s.id == id) { s.status = TaskStage::Failed; return; }
+    }
+}
+
+QJsonArray GameInstaller::stagesJson() const {
+    QJsonArray arr;
+    for (const auto &s : m_stages) arr.append(s.toJson());
+    return arr;
 }
 
 void GameInstaller::cancel() {
@@ -81,6 +129,11 @@ void GameInstaller::start(const QString &source, const QString &gameVersion,
     if (m_running.load()) return;
     m_running.store(true);
     m_cancelled.store(false);
+
+    {
+        QMutexLocker lock(&m_mutex);
+        m_stages.clear();
+    }
 
     setTask(buildTask("preparing", "准备安装", "正在获取版本信息…", 0));
 
@@ -188,7 +241,9 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
     if (m_cancelled.load()) { cancelledExit(); return; }
 
     // --- Build the concurrent batch: client jar + libraries + asset objects ---
+    // Track index ranges per stage so progress callbacks can update per-stage counts.
     QList<DownloadItem> batch;
+    int gameStartIdx = 0;
 
     // Client jar (downloads.client).
     const QJsonObject clientInfo = versionJson.value("downloads").toObject().value("client").toObject();
@@ -206,8 +261,10 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
         item.size = static_cast<qint64>(clientInfo.value("size").toDouble());
         batch.append(item);
     }
+    int gameEndIdx = batch.size();
 
     // Libraries (OS-rule filtered, same logic as launch classpath).
+    int libStartIdx = batch.size();
     for (const QJsonValue &v : versionJson.value("libraries").toArray()) {
         const QJsonObject lib = v.toObject();
         if (!VersionRules::allowedByRules(lib.value("rules").toArray())) continue;
@@ -224,8 +281,10 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
         item.size = static_cast<qint64>(artifact.value("size").toDouble());
         batch.append(item);
     }
+    int libEndIdx = batch.size();
 
     // Asset objects: objects map { name -> { hash, size } }, location hash[0:2]/hash.
+    int assetStartIdx = batch.size();
     const QJsonObject objects = assetIndex.value("objects").toObject();
     for (auto it = objects.begin(); it != objects.end(); ++it) {
         const QJsonObject obj = it.value().toObject();
@@ -239,12 +298,28 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
         item.size = static_cast<qint64>(obj.value("size").toDouble());
         batch.append(item);
     }
+    int assetEndIdx = batch.size();
 
     if (m_cancelled.load()) { cancelledExit(); return; }
 
     const int totalFiles = batch.size();
     qint64 totalBytes = 0;
     for (const DownloadItem &i : batch) totalBytes += i.size;
+
+    // Declare stages matching HMCL's TaskListPane stage hints.
+    const QString gameStage = QString("hmcl.install.game:%1").arg(gameVersion);
+    const QString libStage = QStringLiteral("hmcl.install.libraries");
+    const QString assetStage = QStringLiteral("hmcl.install.assets");
+
+    beginStage(gameStage, QString("安装游戏 %1").arg(gameVersion));
+    if (libEndIdx > libStartIdx)
+        beginStage(libStage, QStringLiteral("下载依赖库"));
+    if (assetEndIdx > assetStartIdx)
+        beginStage(assetStage, QStringLiteral("下载资源文件"));
+
+    updateStageCount(gameStage, 0, gameEndIdx - gameStartIdx);
+    updateStageCount(libStage, 0, libEndIdx - libStartIdx);
+    updateStageCount(assetStage, 0, assetEndIdx - assetStartIdx);
 
     {
         QMutexLocker lock(&m_mutex);
@@ -253,16 +328,28 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
                              {"message", QString("正在下载游戏文件（%1 个）…").arg(totalFiles)},
                              {"totalFiles", totalFiles}, {"finishedFiles", 0},
                              {"totalBytes", static_cast<double>(totalBytes)}, {"downloadedBytes", 0},
-                             {"currentFile", ""}, {"speed", 0}, {"status", "downloading"}};
+                             {"currentFile", ""}, {"speed", 0}, {"status", "downloading"},
+                             {"stages", stagesJson()}};
     }
 
     QElapsedTimer timer;
     timer.start();
     connect(dl, &Downloader::progress, this,
-            [this, totalBytes, timer](int finished, int total, qint64 bytes, const QString &current) {
+            [this, totalBytes, timer, gameStage, libStage, assetStage,
+             gameStartIdx, gameEndIdx, libStartIdx, libEndIdx, assetStartIdx, assetEndIdx]
+            (int finished, int total, qint64 bytes, const QString &current) {
                 const qint64 elapsedMs = timer.elapsed();
                 const qint64 speed = elapsedMs > 0 ? (bytes * 1000 / elapsedMs) : 0;
                 const int percent = total > 0 ? static_cast<int>(finished * 100.0 / total) : 0;
+
+                // Update per-stage counts based on how many files finished in each range.
+                const int gameTotal = gameEndIdx - gameStartIdx;
+                const int libTotal = libEndIdx - libStartIdx;
+                const int assetTotal = assetEndIdx - assetStartIdx;
+                const int gameFinished = qMin(finished, gameTotal);
+                const int libFinished = qMin(qMax(0, finished - gameTotal), libTotal);
+                const int assetFinished = qMin(qMax(0, finished - gameTotal - libTotal), assetTotal);
+
                 QMutexLocker lock(&m_mutex);
                 m_task.insert("finishedFiles", finished);
                 m_task.insert("totalFiles", total);
@@ -272,6 +359,24 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
                 m_task.insert("speed", static_cast<double>(speed));
                 m_task.insert("speedText", formatSpeed(speed));
                 if (!current.isEmpty()) m_task.insert("currentFile", current);
+
+                // Update stage progress (within lock since m_stages is guarded).
+                for (auto &s : m_stages) {
+                    if (s.id == gameStage) {
+                        s.count = gameFinished;
+                        if (gameFinished >= gameTotal && s.status == TaskStage::Running)
+                            s.status = TaskStage::Success;
+                    } else if (s.id == libStage) {
+                        s.count = libFinished;
+                        if (libFinished >= libTotal && s.status == TaskStage::Running)
+                            s.status = TaskStage::Success;
+                    } else if (s.id == assetStage) {
+                        s.count = assetFinished;
+                        if (assetFinished >= assetTotal && s.status == TaskStage::Running)
+                            s.status = TaskStage::Success;
+                    }
+                }
+                m_task.insert("stages", stagesJson());
             },
             Qt::DirectConnection);
 
@@ -279,12 +384,33 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
 
     if (m_cancelled.load()) { cancelledExit(); return; }
 
-    if (ok && installingLoader) {
+    if (!ok) {
+        failStage(gameStage);
+        failStage(libStage);
+        failStage(assetStage);
+        QJsonObject fail = buildTask("failed", "安装失败", "部分文件下载失败，请检查网络后重试。", 0);
+        {
+            QMutexLocker lock(&m_mutex);
+            fail.insert("stages", stagesJson());
+        }
+        setTask(fail);
+        teardown();
+        return;
+    }
+
+    succeedStage(gameStage);
+    succeedStage(libStage);
+    succeedStage(assetStage);
+
+    if (installingLoader) {
+        const QString loaderStage = "hmcl.install." + loaderKind;
+        beginStage(loaderStage, QString("安装 %1 %2").arg(loaderKind, loaderVersion));
+
         QString finalId;
         QString loaderError;
         const bool loaderOk = HmclLoaderInstaller::install(
             dl, provider, gameVersion, loaderKind, loaderVersion, &finalId, &loaderError,
-            [this](const QString &message, int percent) {
+            [this, &loaderStage](const QString &message, int percent) {
                 mergeTask(QJsonObject{{"title", "正在安装加载器"},
                                       {"message", message},
                                       {"percent", percent},
@@ -292,24 +418,30 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
             });
         if (m_cancelled.load()) { cancelledExit(); return; }
         if (loaderOk) {
-            setTask(QJsonObject{{"active", false}, {"cancelled", false}, {"percent", 100},
-                                {"title", "安装完成"}, {"message", QString("%1 安装完成，可以启动了。").arg(finalId)},
-                                {"totalFiles", totalFiles}, {"finishedFiles", totalFiles},
-                                {"totalBytes", static_cast<double>(totalBytes)},
-                                {"downloadedBytes", static_cast<double>(totalBytes)},
-                                {"currentFile", ""}, {"speed", 0}, {"status", "finished"}});
+            succeedStage(loaderStage);
+            QJsonObject done{{"active", false}, {"cancelled", false}, {"percent", 100},
+                             {"title", "安装完成"}, {"message", QString("%1 安装完成，可以启动了。").arg(finalId)},
+                             {"totalFiles", totalFiles}, {"finishedFiles", totalFiles},
+                             {"totalBytes", static_cast<double>(totalBytes)},
+                             {"downloadedBytes", static_cast<double>(totalBytes)},
+                             {"currentFile", ""}, {"speed", 0}, {"status", "finished"}};
+            { QMutexLocker lock(&m_mutex); done.insert("stages", stagesJson()); }
+            setTask(done);
         } else {
-            setTask(buildTask("failed", "加载器安装失败", loaderError, 0));
+            failStage(loaderStage);
+            QJsonObject fail = buildTask("failed", "加载器安装失败", loaderError, 0);
+            { QMutexLocker lock(&m_mutex); fail.insert("stages", stagesJson()); }
+            setTask(fail);
         }
-    } else if (ok) {
-        setTask(QJsonObject{{"active", false}, {"cancelled", false}, {"percent", 100},
-                            {"title", "安装完成"}, {"message", QString("%1 安装完成，可以启动了。").arg(id)},
-                            {"totalFiles", totalFiles}, {"finishedFiles", totalFiles},
-                            {"totalBytes", static_cast<double>(totalBytes)},
-                            {"downloadedBytes", static_cast<double>(totalBytes)},
-                            {"currentFile", ""}, {"speed", 0}, {"status", "finished"}});
     } else {
-        setTask(buildTask("failed", "安装失败", "部分文件下载失败，请检查网络后重试。", 0));
+        QJsonObject done{{"active", false}, {"cancelled", false}, {"percent", 100},
+                         {"title", "安装完成"}, {"message", QString("%1 安装完成，可以启动了。").arg(id)},
+                         {"totalFiles", totalFiles}, {"finishedFiles", totalFiles},
+                         {"totalBytes", static_cast<double>(totalBytes)},
+                         {"downloadedBytes", static_cast<double>(totalBytes)},
+                         {"currentFile", ""}, {"speed", 0}, {"status", "finished"}};
+        { QMutexLocker lock(&m_mutex); done.insert("stages", stagesJson()); }
+        setTask(done);
     }
 
     teardown();

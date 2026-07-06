@@ -1,0 +1,5 @@
+singleton ContainerAnimations 1.0 ContainerAnimations.qml
+singleton Motion 1.0 Motion.qml
+TransitionPane 1.0 TransitionPane.qml
+FadeTransition 1.0 FadeTransition.qml
+SlideUpFadeTransition 1.0 SlideUpFadeTransition.qml
