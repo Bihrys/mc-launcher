@@ -12,8 +12,10 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QProcess>
 #include <QRegularExpression>
 #include <QSet>
+#include <QTextStream>
 
 #include <utility>
 
@@ -147,6 +149,127 @@ void collectMavenField(const QJsonObject &meta, const QString &fieldName,
     if (!dlItem.destPath.isEmpty()) downloads.append(dlItem);
 }
 
+
+QString forgeArtifactVersion(const QString &gameVersion, const QString &loaderVersion) {
+    if (loaderVersion.startsWith(gameVersion + "-")) return loaderVersion;
+    return gameVersion + "-" + loaderVersion;
+}
+
+QString installerUrlFor(const QString &gameVersion, const QString &loaderKind, const QString &loaderVersion) {
+    if (loaderKind == "forge") {
+        const QString artifact = forgeArtifactVersion(gameVersion, loaderVersion);
+        return QString("https://maven.minecraftforge.net/net/minecraftforge/forge/%1/forge-%1-installer.jar").arg(artifact);
+    }
+
+    if (loaderKind == "neoforge") {
+        // NeoForge 1.20.1 used the legacy net.neoforged:forge coordinate;
+        // newer versions use net.neoforged:neoforge.
+        if (loaderVersion.startsWith("1.20.1-")) {
+            return QString("https://maven.neoforged.net/releases/net/neoforged/forge/%1/forge-%1-installer.jar").arg(loaderVersion);
+        }
+        return QString("https://maven.neoforged.net/releases/net/neoforged/neoforge/%1/neoforge-%1-installer.jar").arg(loaderVersion);
+    }
+
+    return QString();
+}
+
+QString javaExecutable() {
+    const QString javaHome = qEnvironmentVariable("JAVA_HOME");
+    if (!javaHome.isEmpty()) {
+        const QString candidate = javaHome + "/bin/java";
+        if (QFileInfo::exists(candidate)) return candidate;
+    }
+    return QStringLiteral("java");
+}
+
+QSet<QString> versionDirectoryIds() {
+    QSet<QString> out;
+    QDir dir(LauncherPaths::versionsDir());
+    for (const QFileInfo &info : dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        out.insert(info.fileName());
+    }
+    return out;
+}
+
+QString findInstalledLoaderVersionId(const QSet<QString> &before,
+                                     const QString &gameVersion,
+                                     const QString &loaderKind,
+                                     const QString &loaderVersion) {
+    Q_UNUSED(before)
+    QDir dir(LauncherPaths::versionsDir());
+    QFileInfo best;
+    const QString gameKey = gameVersion.toLower();
+    const QString kindKey = loaderKind.toLower();
+    const QString versionKey = loaderVersion.toLower();
+
+    for (const QFileInfo &info : dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        const QString id = info.fileName();
+        const QString low = id.toLower();
+        if (!low.contains(gameKey)) continue;
+        if (!low.contains(kindKey)) continue;
+        if (!versionKey.isEmpty() && !low.contains(versionKey)) {
+            // Forge installer ids sometimes omit the Minecraft prefix in the
+            // selected value. Keep the game+kind test as the hard requirement.
+        }
+        const QString jsonPath = info.absoluteFilePath() + "/" + id + ".json";
+        if (!QFileInfo::exists(jsonPath)) continue;
+        if (!best.exists() || info.lastModified() > best.lastModified()) best = info;
+    }
+
+    if (best.exists()) return best.fileName();
+    return QString();
+}
+
+bool runJavaInstaller(const QString &installerJar,
+                      const QString &minecraftDir,
+                      const QString &loaderKind,
+                      QString *errorMessage,
+                      const HmclLoaderInstaller::StatusCallback &statusCallback) {
+    QDir().mkpath(minecraftDir);
+
+    const QString java = javaExecutable();
+    const QList<QStringList> attempts = {
+        QStringList{QStringLiteral("-jar"), installerJar, QStringLiteral("--installClient"), minecraftDir},
+        QStringList{QStringLiteral("-jar"), installerJar, QStringLiteral("--installClient")}
+    };
+
+    QString combinedLog;
+    for (int i = 0; i < attempts.size(); ++i) {
+        if (statusCallback) statusCallback(QString("正在执行 %1 安装器 processor（第 %2 次）…").arg(loaderKind).arg(i + 1), 88 + i * 4);
+
+        QProcess process;
+        process.setWorkingDirectory(minecraftDir);
+        process.setProcessChannelMode(QProcess::MergedChannels);
+        process.start(java, attempts.at(i));
+
+        if (!process.waitForStarted(15000)) {
+            combinedLog += QString("\n无法启动 Java：%1 %2\n").arg(java, attempts.at(i).join(' '));
+            continue;
+        }
+
+        if (!process.waitForFinished(15 * 60 * 1000)) {
+            process.kill();
+            process.waitForFinished(5000);
+            combinedLog += QString("\n%1 安装器执行超时。\n").arg(loaderKind);
+            continue;
+        }
+
+        const QString output = QString::fromLocal8Bit(process.readAllStandardOutput());
+        combinedLog += output;
+        if (process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0) {
+            return true;
+        }
+        combinedLog += QString("\n退出码：%1\n").arg(process.exitCode());
+    }
+
+    if (errorMessage) {
+        QString tail = combinedLog;
+        if (tail.size() > 4000) tail = tail.right(4000);
+        *errorMessage = QString("%1 安装器执行失败。请确认本机 java 可用，并检查安装器输出：\n%2").arg(loaderKind, tail);
+    }
+    return false;
+}
+
 bool copyBaseJarToChild(const QString &gameVersion, const QString &finalId, QString *error) {
     const QString baseJar = LauncherPaths::versionsDir() + "/" + gameVersion + "/" + gameVersion + ".jar";
     const QString childJar = LauncherPaths::versionsDir() + "/" + finalId + "/" + finalId + ".jar";
@@ -181,17 +304,70 @@ bool HmclLoaderInstaller::install(Downloader *downloader,
                                  outVersionId, errorMessage, statusCallback);
     }
 
-    // HMCL's Forge/NeoForge/OptiFine/LiteLoader installers depend on installer
-    // JAR internals and Forge processor tasks. This file keeps the correct
-    // dispatch point and explicit failure instead of creating broken versions.
+    if (loaderKind == "forge" || loaderKind == "neoforge") {
+        return installForgeLike(downloader, provider, gameVersion, loaderKind, loaderVersion,
+                                outVersionId, errorMessage, statusCallback);
+    }
+
     if (errorMessage) {
-        *errorMessage = QString("%1 安装器需要移植 HMCL 的安装器 JAR/processor/native patch 流程；当前补丁已接入版本列表和 Fabric/Quilt 的完整安装，尚未生成可启动的 %1 版本。").arg(loaderKind);
+        *errorMessage = QString("%1 安装器暂未在当前前端启用；不会生成损坏实例。").arg(loaderKind);
     }
     if (outVersionId) *outVersionId = versionIdFor(gameVersion, loaderKind, loaderVersion);
     Q_UNUSED(downloader)
     Q_UNUSED(provider)
     Q_UNUSED(statusCallback)
     return false;
+}
+
+
+bool HmclLoaderInstaller::installForgeLike(Downloader *downloader,
+                                           const HmclDownloadProvider &provider,
+                                           const QString &gameVersion,
+                                           const QString &loaderKind,
+                                           const QString &loaderVersion,
+                                           QString *outVersionId,
+                                           QString *errorMessage,
+                                           const StatusCallback &statusCallback) {
+    if (!downloader) {
+        if (errorMessage) *errorMessage = "下载器未初始化。";
+        return false;
+    }
+
+    const QString url = installerUrlFor(gameVersion, loaderKind, loaderVersion);
+    if (url.isEmpty()) {
+        if (errorMessage) *errorMessage = QString("无法构造 %1 安装器 URL。").arg(loaderKind);
+        return false;
+    }
+
+    const QString artifact = loaderKind == "forge"
+        ? forgeArtifactVersion(gameVersion, loaderVersion)
+        : loaderVersion;
+    const QString installerPath = LauncherPaths::cacheDir() + "/hmcl-loader-installers/" + loaderKind + "-" + sanitizeId(artifact) + "-installer.jar";
+    QDir().mkpath(QFileInfo(installerPath).absolutePath());
+
+    if (statusCallback) statusCallback(QString("正在下载 %1 安装器…").arg(loaderKind), 74);
+    if (!downloader->downloadSync(provider.candidatesFor(url), installerPath)) {
+        if (errorMessage) *errorMessage = QString("无法下载 %1 安装器：%2").arg(loaderKind, url);
+        return false;
+    }
+
+    const QSet<QString> before = versionDirectoryIds();
+    if (statusCallback) statusCallback(QString("正在运行 %1 安装器…").arg(loaderKind), 84);
+    if (!runJavaInstaller(installerPath, LauncherPaths::minecraftDir(), loaderKind, errorMessage, statusCallback)) {
+        return false;
+    }
+
+    QString installedId = findInstalledLoaderVersionId(before, gameVersion, loaderKind, loaderVersion);
+    if (installedId.isEmpty()) {
+        // If the installer succeeded but the id cannot be inferred, keep the
+        // expected HMCL Qt id as the outward status. The installed version will
+        // still be picked up by InstanceService on refresh if it exists.
+        installedId = versionIdFor(gameVersion, loaderKind, loaderVersion);
+    }
+
+    if (outVersionId) *outVersionId = installedId;
+    if (statusCallback) statusCallback(QString("%1 安装完成：%2").arg(loaderKind, installedId), 100);
+    return true;
 }
 
 bool HmclLoaderInstaller::installFabricLike(Downloader *downloader,

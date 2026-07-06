@@ -119,7 +119,7 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
     auto teardown = [&]() {
         QMutexLocker lock(&m_mutex);
         m_downloader = nullptr;
-        dl->deleteLater();
+        delete dl;
     };
 
     auto cancelledExit = [&]() {

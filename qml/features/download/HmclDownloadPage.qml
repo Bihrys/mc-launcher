@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../../components"
+import "../../Hmcl/controls" as HmclControls
 
 Item {
     id: root
@@ -238,11 +239,17 @@ Item {
     Rectangle {
         anchors.fill: parent
         z: 1000
-        visible: root.downloadDialogOpen
+        visible: opacity > 0
+        opacity: root.downloadDialogOpen ? 1 : 0
         color: "#80000000"
+
+        Behavior on opacity {
+            NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
+        }
 
         MouseArea {
             anchors.fill: parent
+            enabled: root.downloadDialogOpen
             onClicked: {
                 if (!root.downloadTaskStatus.active) {
                     root.downloadDialogOpen = false
@@ -252,8 +259,10 @@ Item {
 
         DownloadDialogCard {
             anchors.centerIn: parent
-            width: Math.min(root.width - 64, 520)
-            height: Math.min(root.height - 64, 310)
+            width: Math.min(root.width - 64, 560)
+            height: Math.min(root.height - 64, 380)
+            opacity: root.downloadDialogOpen ? 1 : 0
+            scale: root.downloadDialogOpen ? 1 : 0.97
             style: root.style
             status: root.downloadTaskStatus
 
@@ -2125,6 +2134,16 @@ Item {
             color: button.primary ? button.style.cButtonSelectedText : button.style.cTextOnSurface
             font.pixelSize: 12
             font.bold: button.primary
+            z: 2
+        }
+
+        HmclRipple {
+            id: buttonRipple
+            hoverColor: button.style.cTextOnSurface
+            rippleColor: button.primary ? button.style.cButtonSelectedText : button.style.cPrimary
+            hovered: mouse.containsMouse && button.buttonEnabled
+            animationsEnabled: button.style.animationsEnabled
+            z: 1
         }
 
         MouseArea {
@@ -2133,6 +2152,9 @@ Item {
             hoverEnabled: true
             enabled: button.buttonEnabled
             cursorShape: button.buttonEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+            onPressed: buttonRipple.press(mouse.x, mouse.y)
+            onReleased: buttonRipple.release()
+            onCanceled: buttonRipple.cancel()
             onClicked: button.clicked()
         }
     }
@@ -2142,6 +2164,11 @@ Item {
 
         required property var style
         property var status: ({})
+        property bool activeTask: !!card.status.active
+        property real percentValue: Math.max(0, Math.min(100, Number(card.status.percent || 0)))
+        property string currentFileText: (card.status.currentFile && String(card.status.currentFile).length > 0)
+                                         ? String(card.status.currentFile)
+                                         : (card.activeTask ? "正在准备下一个文件…" : "")
 
         signal cancelRequested()
         signal closeRequested()
@@ -2151,66 +2178,180 @@ Item {
         border.color: style.cBorder
         border.width: 1
         clip: true
+        opacity: 1
+        scale: 1
+
+        function formatBytes(v) {
+            var n = Number(v || 0)
+            if (n <= 0) return "0 B"
+            var units = ["B", "KB", "MB", "GB"]
+            var idx = 0
+            while (n >= 1024 && idx < units.length - 1) {
+                n = n / 1024
+                idx++
+            }
+            return n.toFixed(idx === 0 ? 0 : 1) + " " + units[idx]
+        }
+
+        function formatSpeedValue(v) {
+            if (card.status.speedText && String(card.status.speedText).length > 0) {
+                return String(card.status.speedText)
+            }
+            return formatBytes(v) + "/s"
+        }
+
+        function statusIconText() {
+            if (card.activeTask) return ""
+            if (card.status.status === "finished") return "✓"
+            if (card.status.status === "failed") return "!"
+            if (card.status.status === "cancelled") return "×"
+            return ""
+        }
+
+        Behavior on scale {
+            NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+        }
 
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: 18
             spacing: 12
 
-            Text {
+            RowLayout {
                 Layout.fillWidth: true
-                text: card.status.title || "下载任务"
-                color: card.style.cTextOnSurface
-                font.pixelSize: 16
-                font.bold: true
-                elide: Text.ElideRight
-            }
+                spacing: 12
 
-            Text {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                text: card.status.message || ""
-                color: card.style.cTextOnSurfaceVariant
-                font.pixelSize: 12
-                wrapMode: Text.WordWrap
+                Item {
+                    Layout.preferredWidth: 48
+                    Layout.preferredHeight: 48
+
+                    HmclControls.SpinnerPane {
+                        anchors.centerIn: parent
+                        style: card.style
+                        running: card.activeTask
+                        visible: card.activeTask
+                        width: 48
+                        height: 48
+                    }
+
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: 42
+                        height: 42
+                        radius: 21
+                        visible: !card.activeTask
+                        color: card.status.status === "finished"
+                               ? Qt.rgba(card.style.cPrimary.r, card.style.cPrimary.g, card.style.cPrimary.b, 0.16)
+                               : Qt.rgba(card.style.cTextOnSurfaceVariant.r, card.style.cTextOnSurfaceVariant.g, card.style.cTextOnSurfaceVariant.b, 0.12)
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: card.statusIconText()
+                            color: card.status.status === "finished" ? card.style.cPrimary : card.style.cTextOnSurfaceVariant
+                            font.pixelSize: 22
+                            font.bold: true
+                        }
+                    }
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: card.status.title || "下载任务"
+                        color: card.style.cTextOnSurface
+                        font.pixelSize: 16
+                        font.bold: true
+                        elide: Text.ElideRight
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: card.status.message || ""
+                        color: card.style.cTextOnSurfaceVariant
+                        font.pixelSize: 12
+                        wrapMode: Text.WordWrap
+                        maximumLineCount: 2
+                        elide: Text.ElideRight
+                    }
+                }
             }
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 6
-                radius: 3
-                color: Qt.rgba(card.style.cTextOnSurface.r, card.style.cTextOnSurface.g, card.style.cTextOnSurface.b, 0.10)
+                Layout.preferredHeight: 1
+                color: card.style.cBorder
+            }
 
-                Rectangle {
-                    height: parent.height
-                    radius: 3
-                    width: parent.width * Math.max(0, Math.min(100, card.status.percent || 0)) / 100
-                    color: card.style.cPrimary
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                DownloadInfoLine {
+                    style: card.style
+                    label: "当前文件"
+                    value: card.currentFileText
+                }
+
+                DownloadInfoLine {
+                    style: card.style
+                    label: "文件数量"
+                    value: String(card.status.finishedFiles || 0) + " / " + String(card.status.totalFiles || 0)
+                }
+
+                DownloadInfoLine {
+                    style: card.style
+                    label: "已下载"
+                    value: card.formatBytes(card.status.downloadedBytes || 0)
+                           + " / " + card.formatBytes(card.status.totalBytes || 0)
+                }
+
+                DownloadInfoLine {
+                    style: card.style
+                    label: "下载速度"
+                    value: card.activeTask ? card.formatSpeedValue(card.status.speed || 0) : "—"
                 }
             }
 
-            Text {
+            Rectangle {
                 Layout.fillWidth: true
-                text: Math.round(card.status.percent || 0) + "%  " + (card.status.currentFile || "")
-                color: card.style.cTextOnSurfaceVariant
-                font.pixelSize: 11
-                elide: Text.ElideMiddle
+                Layout.preferredHeight: 7
+                radius: 3.5
+                color: Qt.rgba(card.style.cTextOnSurface.r, card.style.cTextOnSurface.g, card.style.cTextOnSurface.b, 0.10)
+                clip: true
+
+                Rectangle {
+                    id: bar
+                    height: parent.height
+                    radius: 3.5
+                    width: parent.width * card.percentValue / 100
+                    color: card.style.cPrimary
+
+                    Behavior on width {
+                        NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+                    }
+                }
             }
 
             RowLayout {
                 Layout.fillWidth: true
 
-                Item {
+                Text {
                     Layout.fillWidth: true
+                    text: Math.round(card.percentValue) + "%"
+                    color: card.style.cTextOnSurfaceVariant
+                    font.pixelSize: 11
                 }
 
                 HmclButton {
                     Layout.preferredWidth: 90
                     style: card.style
-                    text: card.status.active ? "取消" : "关闭"
+                    text: card.activeTask ? "取消" : "关闭"
                     primary: false
                     onClicked: {
-                        if (card.status.active) {
+                        if (card.activeTask) {
                             card.cancelRequested()
                         } else {
                             card.closeRequested()
@@ -2218,6 +2359,31 @@ Item {
                     }
                 }
             }
+        }
+    }
+
+    component DownloadInfoLine: RowLayout {
+        id: line
+        required property var style
+        property string label: ""
+        property string value: ""
+
+        Layout.fillWidth: true
+        spacing: 12
+
+        Text {
+            Layout.preferredWidth: 68
+            text: line.label
+            color: line.style.cTextOnSurfaceVariant
+            font.pixelSize: 11
+        }
+
+        Text {
+            Layout.fillWidth: true
+            text: line.value
+            color: line.style.cTextOnSurface
+            font.pixelSize: 11
+            elide: Text.ElideMiddle
         }
     }
 }

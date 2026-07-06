@@ -38,4 +38,13 @@ private:
                                   QString *outVersionId,
                                   QString *errorMessage,
                                   const StatusCallback &statusCallback);
+
+    static bool installForgeLike(Downloader *downloader,
+                                 const HmclDownloadProvider &provider,
+                                 const QString &gameVersion,
+                                 const QString &loaderKind,
+                                 const QString &loaderVersion,
+                                 QString *outVersionId,
+                                 QString *errorMessage,
+                                 const StatusCallback &statusCallback);
 };

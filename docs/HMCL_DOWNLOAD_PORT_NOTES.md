@@ -37,3 +37,11 @@ Forge / NeoForge / OptiFine / LiteLoader 的“可启动安装”没有在本补
 - `src/download/hmcl/processor/SpecialSourceRemapper.cpp`
 
 并引入 ZIP、LZMA、classfile/remapper 相关实现或库。
+
+## 2026-07-06 patch: HMCL-style task details and Forge installer bridge
+
+- 下载弹窗不再只有一条进度条：现在显示当前文件、文件数量、已下载大小、总大小、实时速度和百分比。
+- 弹窗使用已移植的 HMCL `SpinnerPane` 和 `HmclRipple`，加入遮罩淡入、卡片缩放和进度条缓动。
+- `Downloader` 增加 `QNetworkReply::downloadProgress` 对接，下载速度不再等到单个文件完成后才跳变。
+- 减少 `QNetworkReply` 在关闭状态下 `readAll()/abort()` 产生的 `QIODevice::read/write device not open` 警告。
+- Forge / NeoForge 不再直接返回“未完成”：下载 installer JAR 后调用安装器 CLI 执行 client 安装，行为对齐 HMCL 使用 Forge/NeoForge installer/processor 的方向。此实现优先保证可用性；后续若要完全不调用 Java，需要继续重写 Forge binarypatcher、jarsplitter、mapping remapper 等 processor 本体。

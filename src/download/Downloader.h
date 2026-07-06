@@ -62,6 +62,8 @@ private:
         QFile *file = nullptr;
         int retriesLeft = 0;
         int urlIndex = 0;
+        qint64 receivedBytes = 0;
+        qint64 expectedBytes = 0;
     };
 
     void dispatchNext();
@@ -78,6 +80,9 @@ private:
     int m_concurrency = 6;
     int m_totalFiles = 0;
     int m_finishedFiles = 0;
+    // Bytes of fully completed files. In-flight reply progress is added when
+    // emitting status, which makes the QML dialog show live speed instead of
+    // only jumping when each file finishes.
     qint64 m_downloadedBytes = 0;
 
     std::atomic_bool m_cancelled{false};

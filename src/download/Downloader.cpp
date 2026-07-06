@@ -72,6 +72,7 @@ bool Downloader::run(const QList<DownloadItem> &items) {
     for (const DownloadItem &item : m_queue) {
         if (!item.sha1.isEmpty() && fileMatchesSha1(item.destPath, item.sha1)) {
             ++m_finishedFiles;
+            m_downloadedBytes += QFileInfo(item.destPath).size();
             emit progress(m_finishedFiles, m_totalFiles, m_downloadedBytes,
                           QFileInfo(item.destPath).fileName());
         } else {
@@ -136,11 +137,26 @@ void Downloader::startItem(const DownloadItem &item, int retriesLeft, int urlInd
 
     connect(reply, &QNetworkReply::readyRead, this, [this, reply]() {
         auto it = m_active.find(reply);
-        if (it != m_active.end() && it->file) it->file->write(reply->readAll());
+        if (it != m_active.end() && it->file && reply->isReadable()) {
+            it->file->write(reply->readAll());
+        }
+    });
+    connect(reply, &QNetworkReply::downloadProgress, this, [this, reply](qint64 received, qint64 total) {
+        auto it = m_active.find(reply);
+        if (it == m_active.end()) return;
+        it->receivedBytes = qMax<qint64>(0, received);
+        it->expectedBytes = total;
+        qint64 visibleBytes = m_downloadedBytes;
+        for (auto activeIt = m_active.begin(); activeIt != m_active.end(); ++activeIt) {
+            visibleBytes += qMax<qint64>(0, activeIt->receivedBytes);
+        }
+        emit progress(m_finishedFiles, m_totalFiles, visibleBytes, QFileInfo(it->item.destPath).fileName());
     });
     connect(reply, &QNetworkReply::finished, this, [this, reply]() {
         onReplyFinished(reply);
     });
+
+    emit progress(m_finishedFiles, m_totalFiles, m_downloadedBytes, QFileInfo(item.destPath).fileName());
 }
 
 void Downloader::onReplyFinished(QNetworkReply *reply) {
@@ -151,7 +167,7 @@ void Downloader::onReplyFinished(QNetworkReply *reply) {
     m_active.erase(it);
 
     if (active.file) {
-        active.file->write(reply->readAll());
+        if (reply->isReadable()) active.file->write(reply->readAll());
         active.file->close();
     }
 

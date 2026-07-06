@@ -54,11 +54,12 @@ QByteArray HmclVersionListService::httpGetFirst(const QList<QUrl> &urls, int tim
         QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
         timer.start(timeoutMs);
         loop.exec();
-        if (timer.isActive() && reply->error() == QNetworkReply::NoError) {
+        const bool timedOut = !timer.isActive();
+        if (!timedOut && reply->error() == QNetworkReply::NoError && reply->isReadable()) {
             QByteArray data = reply->readAll();
             reply->deleteLater();
             if (!data.isEmpty()) return data;
-        } else {
+        } else if (timedOut && !reply->isFinished()) {
             reply->abort();
         }
         reply->deleteLater();
