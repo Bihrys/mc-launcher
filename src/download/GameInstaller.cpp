@@ -3,6 +3,8 @@
 #include "core/JsonUtil.h"
 #include "core/LauncherPaths.h"
 #include "download/Downloader.h"
+#include "download/hmcl/DownloadProvider.h"
+#include "download/hmcl/LoaderInstaller.h"
 #include "game/VersionRules.h"
 
 #include <QDir>
@@ -16,12 +18,6 @@
 
 namespace {
 
-// HMCL MojangDownloadProvider concurrency for the Mojang provider.
-const int kConcurrency = 6;
-
-const char *kVersionManifestUrl =
-    "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
-const char *kAssetBaseUrl = "https://resources.download.minecraft.net/";
 
 QString formatSpeed(qint64 bytesPerSec) {
     double v = static_cast<double>(bytesPerSec);
@@ -97,17 +93,12 @@ void GameInstaller::start(const QString &source, const QString &gameVersion,
 
 void GameInstaller::runPipeline(const QString &source, const QString &gameVersion,
                                 const QString &loaderKind, const QString &loaderVersion) {
-    Q_UNUSED(source)
-    Q_UNUSED(loaderVersion)
+    const HmclDownloadProvider provider = HmclDownloadProvider::fromSource(source);
+    const bool installingLoader = !loaderKind.isEmpty() && loaderKind != "vanilla";
 
-    // This slice ports the vanilla flow only. Loaders fail with a clear message,
-    // matching the placeholder tone used elsewhere in the backend.
-    if (!loaderKind.isEmpty() && loaderKind != "vanilla") {
-        setTask(buildTask("failed", "暂不支持",
-                          QString("加载器 %1 的安装将在后续切片接入。本次仅实现原版下载。").arg(loaderKind), 0));
-        return;
-    }
-
+    // HMCL installs the vanilla game first, then applies loader patches on top.
+    // The base version id stays the raw Minecraft version; loader installs create
+    // a child version that inherits from it.
     const QString id = gameVersion;
     const QString mcDir = LauncherPaths::minecraftDir();
     const QString versionDir = LauncherPaths::versionsDir() + "/" + id;
@@ -119,7 +110,7 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
     QDir().mkpath(versionDir);
 
     Downloader *dl = new Downloader();
-    dl->setConcurrency(kConcurrency);
+    dl->setConcurrency(provider.concurrency());
     {
         QMutexLocker lock(&m_mutex);
         m_downloader = dl;
@@ -139,7 +130,7 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
     // --- Step 1: version manifest -> find version JSON URL ---
     const QString manifestTmp = LauncherPaths::cacheDir() + "/version_manifest_v2.json";
     QDir().mkpath(LauncherPaths::cacheDir());
-    if (!dl->downloadSync({QUrl(kVersionManifestUrl)}, manifestTmp)) {
+    if (!dl->downloadSync(provider.versionListUrls(), manifestTmp)) {
         if (m_cancelled.load()) { cancelledExit(); return; }
         setTask(buildTask("failed", "安装失败", "无法获取版本清单 (version_manifest_v2.json)。", 0));
         teardown();
@@ -163,7 +154,7 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
 
     // --- Step 2: version JSON ---
     mergeTask(QJsonObject{{"message", "正在下载版本 JSON…"}, {"currentFile", id + ".json"}});
-    if (!dl->downloadSync({QUrl(versionJsonUrl)}, versionJsonPath)) {
+    if (!dl->downloadSync(provider.candidatesFor(versionJsonUrl), versionJsonPath)) {
         if (m_cancelled.load()) { cancelledExit(); return; }
         setTask(buildTask("failed", "安装失败", "无法下载版本 JSON。", 0));
         teardown();
@@ -186,7 +177,7 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
     QJsonObject assetIndex;
     if (!assetIndexUrl.isEmpty()) {
         mergeTask(QJsonObject{{"message", "正在下载资源索引…"}, {"currentFile", assetId + ".json"}});
-        if (!dl->downloadSync({QUrl(assetIndexUrl)}, assetIndexPath, assetIndexSha1)) {
+        if (!dl->downloadSync(provider.candidatesFor(assetIndexUrl), assetIndexPath, assetIndexSha1)) {
             if (m_cancelled.load()) { cancelledExit(); return; }
             setTask(buildTask("failed", "安装失败", "无法下载资源索引 (asset index)。", 0));
             teardown();
@@ -209,7 +200,7 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
     }
     {
         DownloadItem item;
-        item.urls = {QUrl(clientUrl)};
+        item.urls = provider.candidatesFor(clientUrl);
         item.destPath = clientJarPath;
         item.sha1 = clientInfo.value("sha1").toString();
         item.size = static_cast<qint64>(clientInfo.value("size").toDouble());
@@ -227,7 +218,7 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
         const QString url = artifact.value("url").toString();
         if (url.isEmpty()) continue;
         DownloadItem item;
-        item.urls = {QUrl(url)};
+        item.urls = provider.candidatesFor(url);
         item.destPath = librariesRoot + "/" + rel;
         item.sha1 = artifact.value("sha1").toString();
         item.size = static_cast<qint64>(artifact.value("size").toDouble());
@@ -242,7 +233,7 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
         if (hash.size() < 2) continue;
         const QString location = hash.left(2) + "/" + hash;
         DownloadItem item;
-        item.urls = {QUrl(kAssetBaseUrl + location)};
+        item.urls = provider.assetObjectCandidates(location);
         item.destPath = assetsRoot + "/objects/" + location;
         item.sha1 = hash;
         item.size = static_cast<qint64>(obj.value("size").toDouble());
@@ -288,7 +279,29 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
 
     if (m_cancelled.load()) { cancelledExit(); return; }
 
-    if (ok) {
+    if (ok && installingLoader) {
+        QString finalId;
+        QString loaderError;
+        const bool loaderOk = HmclLoaderInstaller::install(
+            dl, provider, gameVersion, loaderKind, loaderVersion, &finalId, &loaderError,
+            [this](const QString &message, int percent) {
+                mergeTask(QJsonObject{{"title", "正在安装加载器"},
+                                      {"message", message},
+                                      {"percent", percent},
+                                      {"currentFile", QString()}});
+            });
+        if (m_cancelled.load()) { cancelledExit(); return; }
+        if (loaderOk) {
+            setTask(QJsonObject{{"active", false}, {"cancelled", false}, {"percent", 100},
+                                {"title", "安装完成"}, {"message", QString("%1 安装完成，可以启动了。").arg(finalId)},
+                                {"totalFiles", totalFiles}, {"finishedFiles", totalFiles},
+                                {"totalBytes", static_cast<double>(totalBytes)},
+                                {"downloadedBytes", static_cast<double>(totalBytes)},
+                                {"currentFile", ""}, {"speed", 0}, {"status", "finished"}});
+        } else {
+            setTask(buildTask("failed", "加载器安装失败", loaderError, 0));
+        }
+    } else if (ok) {
         setTask(QJsonObject{{"active", false}, {"cancelled", false}, {"percent", 100},
                             {"title", "安装完成"}, {"message", QString("%1 安装完成，可以启动了。").arg(id)},
                             {"totalFiles", totalFiles}, {"finishedFiles", totalFiles},

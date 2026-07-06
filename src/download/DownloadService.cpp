@@ -2,6 +2,8 @@
 
 #include "core/JsonUtil.h"
 #include "core/LauncherPaths.h"
+#include "download/hmcl/DownloadProvider.h"
+#include "download/hmcl/VersionListService.h"
 
 #include <QDir>
 #include <QEventLoop>
@@ -64,28 +66,25 @@ QJsonObject DownloadService::fallbackCatalog() const {
 }
 
 QJsonObject DownloadService::refreshCatalog(const QString &source) {
-    Q_UNUSED(source)
-    const QByteArray data = httpGet(QUrl("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"));
-    if (data.isEmpty()) return fallbackCatalog();
-    QJsonObject manifest = JsonUtil::objectFromString(QString::fromUtf8(data), {});
-    if (manifest.isEmpty()) return fallbackCatalog();
-    QJsonArray versions;
-    const auto in = manifest.value("versions").toArray();
-    for (int i = 0; i < in.size() && i < 300; ++i) {
-        QJsonObject item = in.at(i).toObject();
-        versions.append(QJsonObject{{"id", item.value("id").toString()}, {"versionType", item.value("type").toString()}, {"releaseTime", item.value("releaseTime").toString()}});
-    }
-    QJsonObject latest = manifest.value("latest").toObject();
-    return QJsonObject{{"latestRelease", latest.value("release").toString()}, {"latestSnapshot", latest.value("snapshot").toString()}, {"gameVersions", versions}, {"fabricLoaders", fallbackFabricLoaders()}, {"quiltLoaders", fallbackQuiltLoaders()}, {"forgeInstallers", QJsonArray{}}, {"neoforgeInstallers", QJsonArray{}}};
+    HmclVersionListService service(HmclDownloadProvider::fromSource(source));
+    QJsonObject catalog = service.refreshCatalog();
+    if (catalog.isEmpty()) return fallbackCatalog();
+    if (catalog.value("fabricLoaders").toArray().isEmpty()) catalog.insert("fabricLoaders", fallbackFabricLoaders());
+    if (catalog.value("quiltLoaders").toArray().isEmpty()) catalog.insert("quiltLoaders", fallbackQuiltLoaders());
+    return catalog;
 }
 
 QJsonObject DownloadService::loaderMetadata(const QString &source, const QString &gameVersion, const QString &loaderKind) {
-    Q_UNUSED(source)
-    QJsonObject out{{"loaderKind", loaderKind}};
-    if (loaderKind == "fabric" || loaderKind.isEmpty()) out.insert("fabricLoaders", fallbackFabricLoaders());
-    if (loaderKind == "quilt" || loaderKind.isEmpty()) out.insert("quiltLoaders", fallbackQuiltLoaders());
-    if (loaderKind == "forge") out.insert("forgeInstallers", fallbackForgeInstallers(gameVersion));
-    if (loaderKind == "neoforge") out.insert("neoforgeInstallers", fallbackForgeInstallers(gameVersion));
+    HmclVersionListService service(HmclDownloadProvider::fromSource(source));
+    QJsonObject out = service.loaderMetadata(gameVersion, loaderKind);
+    if ((loaderKind == "fabric" || loaderKind.isEmpty()) && out.value("fabricLoaders").toArray().isEmpty())
+        out.insert("fabricLoaders", fallbackFabricLoaders());
+    if ((loaderKind == "quilt" || loaderKind.isEmpty()) && out.value("quiltLoaders").toArray().isEmpty())
+        out.insert("quiltLoaders", fallbackQuiltLoaders());
+    if (loaderKind == "forge" && out.value("forgeInstallers").toArray().isEmpty())
+        out.insert("forgeInstallers", fallbackForgeInstallers(gameVersion));
+    if (loaderKind == "neoforge" && out.value("neoforgeInstallers").toArray().isEmpty())
+        out.insert("neoforgeInstallers", fallbackForgeInstallers(gameVersion));
     return out;
 }
 
