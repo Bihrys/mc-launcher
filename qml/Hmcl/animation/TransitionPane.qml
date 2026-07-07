@@ -10,6 +10,12 @@ Item {
 
     clip: true
 
+    Component.onDestruction: {
+        exitAnim.stop()
+        enterAnim.stop()
+        cleanupTimer.stop()
+    }
+
     onSourceComponentChanged: {
         if (!d.initialized) return
         d.switchTo(root.sourceComponent)
@@ -32,21 +38,29 @@ Item {
         property bool initialized: false
         property Loader currentLoader: null
         property bool animating: false
+        property Item pendingCleanup: null
 
         function switchTo(comp) {
             if (animating) {
                 exitAnim.stop()
                 enterAnim.stop()
-                if (currentLoader) {
-                    currentLoader.opacity = 0
-                    currentLoader.visible = false
-                }
+                cleanupOutgoing()
             }
 
             var outgoing = currentLoader
             var incoming = (outgoing === loaderA) ? loaderB : loaderA
-            currentLoader = incoming
 
+            if (!outgoing) {
+                currentLoader = incoming
+                incoming.sourceComponent = comp
+                incoming.opacity = 1
+                incoming.x = 0
+                incoming.y = 0
+                incoming.visible = true
+                return
+            }
+
+            currentLoader = incoming
             incoming.sourceComponent = comp
             incoming.visible = true
 
@@ -54,15 +68,16 @@ Item {
                 incoming.opacity = 1
                 incoming.x = 0
                 incoming.y = 0
-                if (outgoing) {
-                    outgoing.opacity = 0
-                    outgoing.visible = false
-                    outgoing.sourceComponent = undefined
-                }
+                outgoing.opacity = 0
+                outgoing.visible = false
+                outgoing.x = 0
+                outgoing.y = 0
+                deferCleanup(outgoing)
                 return
             }
 
             d.animating = true
+            d.pendingCleanup = outgoing
             var type = root.animationType
             var w = root.width
             var h = root.height
@@ -72,38 +87,39 @@ Item {
             case ContainerAnimations.fade:
                 incoming.x = 0; incoming.y = 0
                 incoming.opacity = 0
-                if (outgoing) { outgoing.x = 0; outgoing.y = 0 }
+                outgoing.x = 0; outgoing.y = 0
                 break
             case ContainerAnimations.forward:
                 offset = w > 0 ? w * 0.2 : 50
                 incoming.x = offset; incoming.y = 0; incoming.opacity = 0
-                if (outgoing) { outgoing.y = 0 }
+                outgoing.y = 0
                 break
             case ContainerAnimations.backward:
                 offset = w > 0 ? w * 0.2 : 50
                 incoming.x = -offset; incoming.y = 0; incoming.opacity = 0
-                if (outgoing) { outgoing.y = 0 }
+                outgoing.y = 0
                 break
             case ContainerAnimations.swipeLeft:
                 incoming.x = w; incoming.y = 0; incoming.opacity = 1
-                if (outgoing) { outgoing.y = 0 }
+                outgoing.y = 0
                 break
             case ContainerAnimations.swipeRight:
                 incoming.x = -w; incoming.y = 0; incoming.opacity = 1
-                if (outgoing) { outgoing.y = 0 }
+                outgoing.y = 0
                 break
             case ContainerAnimations.slideUpFadeIn:
                 offset = h > 0 ? h * 0.2 : 50
                 incoming.x = 0; incoming.y = offset; incoming.opacity = 0
-                if (outgoing) { outgoing.x = 0 }
+                outgoing.x = 0
                 break
             case ContainerAnimations.navigation:
                 incoming.x = 0; incoming.y = 0; incoming.opacity = 0
-                if (outgoing) { outgoing.y = 0 }
+                outgoing.y = 0
                 break
             default:
                 incoming.opacity = 1; incoming.x = 0; incoming.y = 0
-                if (outgoing) { outgoing.opacity = 0; outgoing.visible = false; outgoing.sourceComponent = undefined }
+                outgoing.opacity = 0; outgoing.visible = false
+                deferCleanup(outgoing)
                 d.animating = false
                 return
             }
@@ -116,9 +132,37 @@ Item {
             enterAnim.type = type
             enterAnim.containerW = w
             enterAnim.containerH = h
-            exitAnim.outgoingRef = outgoing
             exitAnim.start()
             enterAnim.start()
+        }
+
+        function cleanupOutgoing() {
+            if (pendingCleanup) {
+                pendingCleanup.visible = false
+                pendingCleanup.opacity = 0
+                pendingCleanup.x = 0
+                pendingCleanup.y = 0
+                deferCleanup(pendingCleanup)
+                pendingCleanup = null
+            }
+        }
+
+        function deferCleanup(loader) {
+            cleanupTimer.targetLoader = loader
+            cleanupTimer.start()
+        }
+    }
+
+    Timer {
+        id: cleanupTimer
+        property Loader targetLoader: null
+        interval: 0
+        repeat: false
+        onTriggered: {
+            if (targetLoader && targetLoader !== d.currentLoader) {
+                targetLoader.sourceComponent = undefined
+            }
+            targetLoader = null
         }
     }
 
@@ -128,7 +172,6 @@ Item {
         width: parent.width
         height: parent.height
         visible: false
-        asynchronous: true
     }
 
     Loader {
@@ -137,7 +180,6 @@ Item {
         width: parent.width
         height: parent.height
         visible: false
-        asynchronous: true
     }
 
     ParallelAnimation {
@@ -146,7 +188,6 @@ Item {
         property int type
         property real containerW
         property real containerH
-        property Item outgoingRef
 
         NumberAnimation {
             target: exitAnim.target
@@ -180,12 +221,13 @@ Item {
         }
 
         onStopped: {
-            if (outgoingRef) {
-                outgoingRef.visible = false
-                outgoingRef.opacity = 0
-                outgoingRef.x = 0
-                outgoingRef.y = 0
-                outgoingRef.sourceComponent = undefined
+            if (d.pendingCleanup) {
+                d.pendingCleanup.visible = false
+                d.pendingCleanup.opacity = 0
+                d.pendingCleanup.x = 0
+                d.pendingCleanup.y = 0
+                d.deferCleanup(d.pendingCleanup)
+                d.pendingCleanup = null
             }
         }
     }

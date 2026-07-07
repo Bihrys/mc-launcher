@@ -2,33 +2,20 @@ pragma Singleton
 import QtQuick
 
 QtObject {
-    enum Type {
-        None,
-        Fade,
-        Forward,
-        Backward,
-        SwipeLeft,
-        SwipeRight,
-        SlideUpFadeIn,
-        Navigation
-    }
-
-    readonly property int none: ContainerAnimations.Type.None
-    readonly property int fade: ContainerAnimations.Type.Fade
-    readonly property int forward: ContainerAnimations.Type.Forward
-    readonly property int backward: ContainerAnimations.Type.Backward
-    readonly property int swipeLeft: ContainerAnimations.Type.SwipeLeft
-    readonly property int swipeRight: ContainerAnimations.Type.SwipeRight
-    readonly property int slideUpFadeIn: ContainerAnimations.Type.SlideUpFadeIn
-    readonly property int navigation: ContainerAnimations.Type.Navigation
+    readonly property int none: 0
+    readonly property int fade: 1
+    readonly property int forward: 2
+    readonly property int backward: 3
+    readonly property int swipeLeft: 4
+    readonly property int swipeRight: 5
+    readonly property int slideUpFadeIn: 6
+    readonly property int navigation: 7
 
     function opposite(type) {
-        switch (type) {
-        case ContainerAnimations.Type.Forward: return ContainerAnimations.Type.Backward
-        case ContainerAnimations.Type.Backward: return ContainerAnimations.Type.Forward
-        case ContainerAnimations.Type.SwipeLeft: return ContainerAnimations.Type.SwipeRight
-        case ContainerAnimations.Type.SwipeRight: return ContainerAnimations.Type.SwipeLeft
-        default: return type
-        }
+        if (type === 2) return 3
+        if (type === 3) return 2
+        if (type === 4) return 5
+        if (type === 5) return 4
+        return type
     }
 }

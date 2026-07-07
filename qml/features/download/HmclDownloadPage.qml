@@ -36,6 +36,8 @@ Item {
     property bool downloadFinishHandled: false
     property string loadedCatalogJson: ""
     property string loadedLoaderMetadataJson: ""
+    property bool catalogLoadFailed: false
+    property string catalogFailedMessage: ""
 
     property var downloadTaskStatus: ({
         "active": false,
@@ -323,6 +325,8 @@ Item {
         root.allNeoForgeInstallers = []
         root.loaderVersionPaneOpen = false
         root.loaderVersionKind = ""
+        root.catalogLoadFailed = false
+        root.catalogFailedMessage = ""
 
         root.catalogTaskStatus = {
             "active": true,
@@ -353,10 +357,17 @@ Item {
                     && status.catalogJson.length > 0
                     && status.catalogJson !== root.loadedCatalogJson) {
                 root.loadedCatalogJson = status.catalogJson
+                root.catalogLoadFailed = false
+                root.catalogFailedMessage = ""
                 root.parseCatalog(status.catalogJson)
+            } else if (!status.active && !status.catalogReady) {
+                root.catalogLoadFailed = true
+                root.catalogFailedMessage = status.message || "获取版本列表失败，点击重试"
             }
         } catch (e) {
             console.log("Failed to parse download catalog task status", e)
+            root.catalogLoadFailed = true
+            root.catalogFailedMessage = "解析版本数据失败，点击重试"
         }
     }
 
@@ -1094,10 +1105,6 @@ Item {
             previousPage = currentPage
         }
 
-        Component.onCompleted: {
-            pageTransition.sourceComponent = versionsComp
-        }
-
         Component {
             id: versionsComp
             VersionsPagePane {}
@@ -1118,6 +1125,7 @@ Item {
             anchors.fill: parent
             duration: root.style.animationsEnabled ? 400 : 0
             animationsEnabled: root.style.animationsEnabled
+            sourceComponent: versionsComp
         }
     }
 
@@ -1206,58 +1214,130 @@ Item {
                 border.width: 1
                 clip: true
 
-                ListView {
-                    id: versionList
+                property int catalogState: root.catalogTaskStatus.active ? 0
+                                         : root.catalogLoadFailed ? 2 : 1
 
-                    anchors.fill: parent
-                    anchors.margins: 8
-                    model: visibleVersionModel
-                    spacing: 0
-                    clip: true
-                    visible: !root.catalogTaskStatus.active
+                onCatalogStateChanged: {
+                    versionSpinner.animationType = HmclAnimation.ContainerAnimations.fade
+                    if (catalogState === 0)
+                        versionSpinner.sourceComponent = spinnerComp
+                    else if (catalogState === 2)
+                        versionSpinner.sourceComponent = failedComp
+                    else
+                        versionSpinner.sourceComponent = contentComp
+                }
 
-                    delegate: Item {
-                        id: versionDelegate
+                Component.onCompleted: {
+                    versionSpinner.sourceComponent = root.catalogTaskStatus.active ? spinnerComp : contentComp
+                }
 
-                        required property int index
-                        required property string versionId
-                        required property string versionType
-                        required property string releaseTime
-                        required property string group
-                        required property string iconSource
-                        required property string tagText
-
-                        width: versionList.width
-                        height: 64
-
-                        RemoteVersionCell {
-                            anchors.fill: parent
+                Component {
+                    id: spinnerComp
+                    Item {
+                        HmclSpinner {
+                            anchors.centerIn: parent
+                            width: 50
+                            height: 50
                             style: root.style
-                            versionId: versionDelegate.versionId
-                            subtitle: versionDelegate.releaseTime
-                            tagText: versionDelegate.tagText
-                            iconSource: versionDelegate.iconSource
-                            selected: root.selectedGameVersion === versionDelegate.versionId
-                            onClicked: root.openInstallerForVersion(versionDelegate.index)
+                            running: true
                         }
                     }
                 }
 
-                HmclSpinner {
-                    anchors.centerIn: parent
-                    width: 50
-                    height: 50
-                    style: root.style
-                    visible: root.catalogTaskStatus.active
-                    running: visible
+                Component {
+                    id: contentComp
+                    Item {
+                        ListView {
+                            id: versionList
+                            anchors.fill: parent
+                            anchors.margins: 8
+                            model: visibleVersionModel
+                            spacing: 0
+                            clip: true
+
+                            delegate: Item {
+                                id: versionDelegate
+
+                                required property int index
+                                required property string versionId
+                                required property string versionType
+                                required property string releaseTime
+                                required property string group
+                                required property string iconSource
+                                required property string tagText
+
+                                width: versionList.width
+                                height: 64
+
+                                RemoteVersionCell {
+                                    anchors.fill: parent
+                                    style: root.style
+                                    versionId: versionDelegate.versionId
+                                    subtitle: versionDelegate.releaseTime
+                                    tagText: versionDelegate.tagText
+                                    iconSource: versionDelegate.iconSource
+                                    selected: root.selectedGameVersion === versionDelegate.versionId
+                                    onClicked: root.openInstallerForVersion(versionDelegate.index)
+                                }
+                            }
+                        }
+
+                        Text {
+                            anchors.centerIn: parent
+                            visible: visibleVersionModel.count === 0
+                            text: "没有匹配的版本"
+                            color: root.style.cTextOnSurfaceVariant
+                            font.pixelSize: 13
+                        }
+                    }
                 }
 
-                Text {
-                    anchors.centerIn: parent
-                    visible: visibleVersionModel.count === 0 && !root.catalogTaskStatus.active
-                    text: "没有匹配的版本"
-                    color: root.style.cTextOnSurfaceVariant
-                    font.pixelSize: 13
+                Component {
+                    id: failedComp
+                    Item {
+                        Column {
+                            anchors.centerIn: parent
+                            spacing: 8
+
+                            Text {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                text: root.catalogTaskStatus.message || "加载失败，点击重试"
+                                color: root.style.cTextOnSurfaceVariant
+                                font.pixelSize: 13
+                            }
+
+                            Rectangle {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                width: retryLabel.implicitWidth + 24
+                                height: 32
+                                radius: 3
+                                color: retryMouse.containsMouse ? root.style.cButtonHover : root.style.cButtonSurface
+
+                                Text {
+                                    id: retryLabel
+                                    anchors.centerIn: parent
+                                    text: "重试"
+                                    color: root.style.cPrimary
+                                    font.pixelSize: 13
+                                }
+
+                                MouseArea {
+                                    id: retryMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.startRefreshCatalog()
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HmclAnimation.TransitionPane {
+                    id: versionSpinner
+                    anchors.fill: parent
+                    duration: root.style.animationsEnabled ? 300 : 0
+                    animationsEnabled: root.style.animationsEnabled
                 }
             }
         }
