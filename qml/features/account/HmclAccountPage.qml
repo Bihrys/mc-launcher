@@ -6,6 +6,7 @@ import "../../components"
 
 Item {
     id: root
+    objectName: "accountPage"
 
     required property var style
     required property var backend
@@ -63,7 +64,29 @@ Item {
         id: yggdrasilProfileModel
     }
 
+    function logAction(action, details) {
+        if (!root.backend)
+            return
+        root.backend.logUiAction("ui.account", action, JSON.stringify(details || {}))
+    }
+
+    onDialogModeChanged: root.logAction("dialog_mode_changed", {"mode": root.dialogMode})
+    onAccountMenuOpenChanged: root.logAction("account_menu_changed", {
+        "open": root.accountMenuOpen,
+        "index": root.accountMenuIndex,
+        "displayKind": root.accountMenuDisplayKind
+    })
+    onYggdrasilLoginBusyChanged: root.logAction("yggdrasil_busy_changed", {
+        "busy": root.yggdrasilLoginBusy
+    })
+    onYggdrasilProfileDialogOpenChanged: root.logAction("profile_dialog_changed", {
+        "open": root.yggdrasilProfileDialogOpen,
+        "profileCount": yggdrasilProfileModel.count
+    })
+    onDeleteIndexChanged: root.logAction("delete_target_changed", {"index": root.deleteIndex})
+
     Component.onCompleted: {
+        root.logAction("page_completed", {})
         root.reloadAuthServers()
         root.updateOfflinePreview()
 
@@ -73,6 +96,12 @@ Item {
             initialAccountLoadTimer.restart()
         }
     }
+
+    Component.onDestruction: root.logAction("page_destroyed", {
+        "dialogMode": root.dialogMode,
+        "accountMenuOpen": root.accountMenuOpen,
+        "accountCount": accountsModel.count
+    })
 
     Connections {
         target: root.backend
@@ -1008,7 +1037,7 @@ Item {
                 })
             }
         } catch (e) {
-            console.log("Failed to parse auth servers JSON", e)
+            root.logAction("auth_servers_parse_failed", {"error": String(e)}); console.log("Failed to parse auth servers JSON", e)
         }
     }
 
@@ -1201,7 +1230,7 @@ Item {
         } catch (e) {
             accountRefreshPoller.stop()
             root.refreshingAccountIndex = -1
-            console.log("Failed to parse account refresh task", e)
+            root.logAction("account_refresh_parse_failed", {"error": String(e), "rawLength": raw ? raw.length : 0}); console.log("Failed to parse account refresh task", e)
         }
     }
 
@@ -1242,7 +1271,7 @@ Item {
         } catch (e) {
             yggdrasilLoginPoller.stop()
             root.yggdrasilLoginBusy = false
-            console.log("Failed to parse yggdrasil login task", e)
+            root.logAction("yggdrasil_task_parse_failed", {"error": String(e), "rawLength": raw ? raw.length : 0}); console.log("Failed to parse yggdrasil login task", e)
         }
     }
 
@@ -1280,7 +1309,7 @@ Item {
                 })
             }
         } catch (e) {
-            console.log("Failed to parse accounts JSON", e)
+            root.logAction("accounts_parse_failed", {"error": String(e), "rawLength": raw ? raw.length : 0}); console.log("Failed to parse accounts JSON", e)
         }
     }
 
@@ -1316,7 +1345,7 @@ Item {
 
             root.yggdrasilProfileDialogOpen = yggdrasilProfileModel.count > 1
         } catch (e) {
-            console.log("Failed to parse pending yggdrasil profiles", e)
+            root.logAction("profiles_parse_failed", {"error": String(e)}); console.log("Failed to parse pending yggdrasil profiles", e)
             root.yggdrasilProfileDialogOpen = false
         }
     }
@@ -1335,11 +1364,11 @@ Item {
     function copyText(value) {
         // Qt QML 没有跨平台稳定剪贴板 API；这里先选中输出语义。
         // 后端剪贴板会下一步接到 Rust/系统命令层。
-        console.log("UUID:", value)
+        root.logAction("uuid_clicked", {"uuid": value}); console.log("UUID:", value)
     }
 
     function showUnsupportedHint(name) {
-        console.log(name + " 当前后端还没有实现。")
+        root.logAction("unimplemented_action", {"name": name}); console.log(name + " 当前后端还没有实现。")
     }
 
     component AccountMenuItem: Item {

@@ -12,7 +12,15 @@ Column {
     width: parent ? parent.width : 800
     spacing: 10
 
-    Component.onCompleted: refreshJava()
+    function logAction(action, details) {
+        if (root.backend)
+            root.backend.logUiAction("ui.settings.java", action, JSON.stringify(details || {}))
+    }
+
+    Component.onCompleted: {
+        root.logAction("panel_completed", {})
+        refreshJava()
+    }
 
     Timer {
         id: javaPollTimer
@@ -91,6 +99,7 @@ Column {
             if (!root.loading)
                 javaPollTimer.stop()
         } catch (e) {
+            root.logAction("java_task_parse_failed", {"error": String(e), "rawLength": raw ? raw.length : 0})
             root.loading = false
             javaPollTimer.stop()
         }

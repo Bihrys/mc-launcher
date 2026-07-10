@@ -49,6 +49,9 @@ class LauncherBackend : public QObject {
                  NOTIFY instanceResourcepacksJsonChanged)
   Q_PROPERTY(QString instanceWorldsJson READ instanceWorldsJson NOTIFY
                  instanceWorldsJsonChanged)
+  Q_PROPERTY(QString logFilePath READ logFilePath CONSTANT)
+  Q_PROPERTY(QString sessionLogFilePath READ sessionLogFilePath CONSTANT)
+  Q_PROPERTY(QString crashLogFilePath READ crashLogFilePath CONSTANT)
 
 public:
   explicit LauncherBackend(QObject *parent = nullptr);
@@ -77,6 +80,9 @@ public:
     return m_instanceResourcepacksJson;
   }
   QString instanceWorldsJson() const { return m_instanceWorldsJson; }
+  QString logFilePath() const;
+  QString sessionLogFilePath() const;
+  QString crashLogFilePath() const;
 
   Q_INVOKABLE void detectJava();
   Q_INVOKABLE void startDetectJava();
@@ -184,6 +190,9 @@ public:
   Q_INVOKABLE QString resetLauncherSettings();
   Q_INVOKABLE QString clearLauncherCache();
   Q_INVOKABLE void openUrl(const QString &url);
+  Q_INVOKABLE void logUiAction(const QString &category, const QString &action,
+                               const QString &detailsJson = QString());
+  Q_INVOKABLE QString flushLogs();
 
 signals:
   void outputChanged();
@@ -212,6 +221,8 @@ private:
   void setString(QString &field, const QString &value,
                  void (LauncherBackend::*signal)());
   QString stringify(const QJsonObject &object) const;
+  QString fieldName(const QString *field) const;
+  QString summarizeFieldValue(const QString *field, const QString &value) const;
 
   LauncherSettings m_settings;
   AccountService m_accounts;

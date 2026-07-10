@@ -7,6 +7,7 @@ import "../../components"
 
 Item {
     id: root
+    objectName: "versionDetailPage"
 
     required property var style
     required property var backend
@@ -34,7 +35,14 @@ Item {
     property var worlds: []
     property string worldSearchText: ""
 
+    function logAction(action, details) {
+        if (!root.backend)
+            return
+        root.backend.logUiAction("ui.instance", action, JSON.stringify(details || {}))
+    }
+
     onCurrentTabChanged: {
+        root.logAction("tab_changed", {"tab": root.currentTab, "versionId": root.versionId})
         if (root.versionId.length > 0) {
             if (root.currentTab === "mods") root.reloadMods()
             else if (root.currentTab === "resourcepacks") root.reloadResourcepacks()
@@ -48,6 +56,7 @@ Item {
             var parsed = JSON.parse(raw)
             root.mods = parsed.mods || []
         } catch (e) {
+            root.logAction("mods_parse_failed", {"error": String(e), "rawLength": raw ? raw.length : 0})
             root.mods = []
         }
     }
@@ -58,6 +67,7 @@ Item {
             var parsed = JSON.parse(raw)
             root.resourcepacks = parsed.resourcepacks || []
         } catch (e) {
+            root.logAction("resourcepacks_parse_failed", {"error": String(e), "rawLength": raw ? raw.length : 0})
             root.resourcepacks = []
         }
     }
@@ -68,6 +78,7 @@ Item {
             var parsed = JSON.parse(raw)
             root.worlds = parsed.worlds || []
         } catch (e) {
+            root.logAction("worlds_parse_failed", {"error": String(e), "rawLength": raw ? raw.length : 0})
             root.worlds = []
         }
     }
@@ -75,9 +86,18 @@ Item {
     ListModel { id: folderModel }
     ListModel { id: loaderModel }
 
-    Component.onCompleted: root.reloadDetail()
+    Component.onCompleted: {
+        root.logAction("page_completed", {"versionId": root.versionId})
+        root.reloadDetail()
+    }
+    Component.onDestruction: root.logAction("page_destroyed", {
+        "versionId": root.versionId,
+        "tab": root.currentTab,
+        "promptMode": root.promptMode
+    })
 
     onVersionIdChanged: {
+        root.logAction("version_changed", {"versionId": root.versionId})
         if (versionId.length > 0) {
             root.reloadDetail()
             if (root.currentTab === "mods") root.reloadMods()
@@ -97,6 +117,7 @@ Item {
                 var parsed = JSON.parse(root.backend.instanceModsJson)
                 root.mods = parsed.mods || []
             } catch (e) {
+                root.logAction("mods_signal_parse_failed", {"error": String(e), "rawLength": root.backend.instanceModsJson.length})
                 root.mods = []
             }
         }
@@ -106,6 +127,7 @@ Item {
                 var parsed = JSON.parse(root.backend.instanceResourcepacksJson)
                 root.resourcepacks = parsed.resourcepacks || []
             } catch (e) {
+                root.logAction("resourcepacks_signal_parse_failed", {"error": String(e), "rawLength": root.backend.instanceResourcepacksJson.length})
                 root.resourcepacks = []
             }
         }
@@ -115,6 +137,7 @@ Item {
                 var parsed = JSON.parse(root.backend.instanceWorldsJson)
                 root.worlds = parsed.worlds || []
             } catch (e) {
+                root.logAction("worlds_signal_parse_failed", {"error": String(e), "rawLength": root.backend.instanceWorldsJson.length})
                 root.worlds = []
             }
         }

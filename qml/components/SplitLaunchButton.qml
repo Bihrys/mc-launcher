@@ -2,6 +2,7 @@ import QtQuick
 
 Item {
     id: root
+    objectName: "SplitLaunchButton:" + root.title
 
     required property var style
 
@@ -16,6 +17,7 @@ Item {
 
     Rectangle {
         id: mainButton
+        objectName: "LaunchMainButton:" + root.title
 
         x: 0
         y: 1
@@ -76,6 +78,7 @@ Item {
 
         MouseArea {
             id: mainMouse
+            objectName: "LaunchMainMouse:" + root.title
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
@@ -88,6 +91,7 @@ Item {
 
     Rectangle {
         id: menuButton
+        objectName: "LaunchMenuButton"
 
         x: 210
         y: 1
@@ -135,6 +139,7 @@ Item {
 
         MouseArea {
             id: menuMouse
+            objectName: "LaunchMenuMouse"
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor

@@ -12,6 +12,7 @@ import "features/main"
 
 Item {
     id: root
+    objectName: "rootShell"
 
     required property var appWindow
     required property var backend
@@ -64,7 +65,18 @@ Item {
 
     focus: true
 
+    function logAction(category, action, details) {
+        if (!root.backend)
+            return
+        root.backend.logUiAction(category, action, JSON.stringify(details || {}))
+    }
+
     Component.onCompleted: {
+        root.logAction("ui.lifecycle", "root_shell_completed", {
+            "width": root.width,
+            "height": root.height,
+            "initialPage": "main"
+        })
         decoratorNavigator.init("main", mainPageComponent, mainState)
 
         root.backend.refreshAccounts()
@@ -77,6 +89,10 @@ Item {
 
     Keys.onReleased: function(event) {
         if (event.key === Qt.Key_Escape || event.key === Qt.Key_Back) {
+            root.logAction("ui.navigation", "back_key_released", {
+                "key": event.key,
+                "currentPage": root.currentPage
+            })
             if (root.goBack()) {
                 event.accepted = true
             }
@@ -132,15 +148,45 @@ Item {
 
     onLauncherThemeChanged: {
         appSettings.launcherTheme = root.launcherTheme
+        root.logAction("ui.settings", "launcher_theme_changed", {"value": root.launcherTheme})
     }
 
     onLauncherThemeColorChanged: {
         appSettings.launcherThemeColor = root.launcherThemeColor
+        root.logAction("ui.settings", "launcher_theme_color_changed", {"value": root.launcherThemeColor})
     }
 
     onLauncherVisibilityChanged: {
         appSettings.launcherVisibility = root.launcherVisibility
+        root.logAction("ui.settings", "launcher_visibility_changed", {"value": root.launcherVisibility})
     }
+
+    onCurrentPageChanged: root.logAction("ui.navigation", "current_page_changed", {
+        "page": root.currentPage,
+        "canGoBack": decoratorNavigator.canGoBack
+    })
+    onCurrentSettingsSectionChanged: root.logAction("ui.navigation", "settings_section_changed", {
+        "section": root.currentSettingsSection
+    })
+    onActiveInstanceVersionChanged: root.logAction("ui.navigation", "active_instance_changed", {
+        "versionId": root.activeInstanceVersion
+    })
+    onLaunchDialogOpenChanged: root.logAction("ui.launch", "launch_dialog_changed", {
+        "open": root.launchDialogOpen,
+        "status": root.launchTaskStatus.status || ""
+    })
+    onLauncherBackgroundTypeChanged: root.logAction("ui.settings", "background_type_changed", {
+        "value": root.launcherBackgroundType
+    })
+    onLauncherBuiltinBackgroundIdChanged: root.logAction("ui.settings", "builtin_background_changed", {
+        "value": root.launcherBuiltinBackgroundId
+    })
+    onLauncherBackgroundOpacityChanged: root.logAction("ui.settings", "background_opacity_changed", {
+        "value": root.launcherBackgroundOpacity
+    })
+    onTitleBarTransparentChanged: root.logAction("ui.settings", "title_bar_transparency_changed", {
+        "value": root.titleBarTransparent
+    })
 
     SystemPalette {
         id: systemPalette
@@ -662,6 +708,10 @@ Item {
     }
 
     function navigate(page) {
+        root.logAction("ui.navigation", "navigate_requested", {
+            "from": root.currentPage,
+            "to": page
+        })
         if (page === "main") {
             root.goHome()
             return
@@ -678,6 +728,11 @@ Item {
 
     function navigateInstance(versionId) {
         var targetVersion = versionId && versionId.length > 0 ? versionId : root.backend.selectedGameVersion
+        root.logAction("ui.navigation", "navigate_instance_requested", {
+            "from": root.currentPage,
+            "requestedVersionId": versionId || "",
+            "targetVersionId": targetVersion || ""
+        })
 
         if (!targetVersion || targetVersion.length === 0) {
             root.navigate("versions")
@@ -691,6 +746,11 @@ Item {
     }
 
     function navigateSettingsSection(section) {
+        root.logAction("ui.navigation", "navigate_settings_section_requested", {
+            "fromPage": root.currentPage,
+            "fromSection": root.currentSettingsSection,
+            "toSection": section
+        })
         root.requestedSettingsSection = section
         root.currentSettingsSection = section
         root.prepareSettingsPage()
@@ -701,6 +761,10 @@ Item {
     }
 
     function goBack() {
+        root.logAction("ui.navigation", "go_back_requested", {
+            "currentPage": root.currentPage,
+            "canGoBack": decoratorNavigator.canGoBack
+        })
         if (root.currentPage === "download"
                 && root.activeDownloadPage
                 && typeof root.activeDownloadPage.handleBack === "function"
@@ -710,16 +774,22 @@ Item {
         }
 
         var result = decoratorNavigator.close()
+        root.logAction("ui.navigation", "go_back_result", {
+            "result": result,
+            "currentPage": root.currentPage
+        })
         root.forceActiveFocus()
         return result
     }
 
     function goHome() {
+        root.logAction("ui.navigation", "go_home_requested", {"from": root.currentPage})
         decoratorNavigator.clear()
         root.forceActiveFocus()
     }
 
     function refreshCurrentPage() {
+        root.logAction("ui.navigation", "refresh_current_page", {"page": root.currentPage})
         switch (root.currentPage) {
         case "download":
             if (root.backend.refreshDownloadCatalog !== undefined) {
@@ -794,6 +864,10 @@ Item {
     }
 
     function startLaunch() {
+        root.logAction("ui.launch", "start_launch_requested", {
+            "selectedGameVersion": root.backend.selectedGameVersion,
+            "visibility": root.launcherVisibility
+        })
         if (root.backend.selectedGameVersion.length === 0) {
             root.navigate("download")
             return
@@ -828,6 +902,10 @@ Item {
 
             root.applyLaunchWindowAction()
         } catch (e) {
+            root.logAction("ui.error", "launch_task_parse_failed", {
+                "error": String(e),
+                "rawLength": raw ? raw.length : 0
+            })
             console.log("Failed to parse launch task status", e)
         }
     }
@@ -845,6 +923,12 @@ Item {
         }
 
         if (status.gameStarted && root.launchWindowActionHandledId !== id) {
+            root.logAction("ui.launch", "game_started_window_action", {
+                "id": id,
+                "visibility": status.visibility || "",
+                "shouldHide": status.shouldHide === true,
+                "shouldClose": status.shouldClose === true
+            })
             root.launchWindowActionHandledId = id
             root.launchDialogOpen = false
 
@@ -869,6 +953,7 @@ Item {
         }
 
         if (status.shouldReopen && root.launchReopenHandledId !== id) {
+            root.logAction("ui.launch", "launcher_reopen_requested", {"id": id})
             root.launchReopenHandledId = id
             root.launchDialogOpen = false
             root.launchActionArmed = false
@@ -943,6 +1028,10 @@ Item {
             }
             root.animationsEnabled = !(data.turnOffAnimations === true || String(data.turnOffAnimations) === "true" || data.animationDisabled === true || String(data.animationDisabled) === "true")
         } catch (e) {
+            root.logAction("ui.error", "launcher_settings_parse_failed", {
+                "error": String(e),
+                "rawLength": raw ? raw.length : 0
+            })
             console.log("Failed to parse launcher settings", e)
         }
     }

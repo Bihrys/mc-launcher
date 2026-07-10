@@ -17,7 +17,15 @@ Column {
     width: parent ? parent.width : 800
     spacing: 10
 
-    Component.onCompleted: root.reloadAppearanceOptions()
+    function logAction(action, details) {
+        if (root.backend)
+            root.backend.logUiAction("ui.settings.appearance", action, JSON.stringify(details || {}))
+    }
+
+    Component.onCompleted: {
+        root.logAction("panel_completed", {})
+        root.reloadAppearanceOptions()
+    }
 
     function reloadAppearanceOptions() {
         if (!root.backend || root.backend.refreshAppearanceOptions === undefined)
@@ -25,6 +33,7 @@ Column {
         try {
             root.appearanceOptions = JSON.parse(root.backend.refreshAppearanceOptions() || "{}")
         } catch (e) {
+            root.logAction("appearance_options_parse_failed", {"error": String(e)})
             root.appearanceOptions = {"fonts": [], "builtinBackgrounds": [], "standardThemeColors": []}
         }
     }
@@ -83,6 +92,7 @@ Column {
                 chosen = String(selectedFiles[0])
             if (chosen.indexOf("file://") === 0)
                 chosen = decodeURIComponent(chosen.substring(7))
+            root.logAction("background_file_selected", {"path": chosen})
             root.set("customBackgroundImagePath", chosen)
             root.set("backgroundImage", chosen)
             root.set("backgroundType", "custom")

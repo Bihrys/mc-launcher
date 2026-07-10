@@ -157,7 +157,7 @@ Rectangle {
                     return root.iconBase + String(instance.iconName || "grass") + ".png";
                 }
             }
-        } catch (e) {}
+        } catch (e) { console.warn("JSON parse failed", e) }
 
         try {
             var payload = JSON.parse(root.backend.installedVersionsJson || "{}");
@@ -169,7 +169,7 @@ Rectangle {
                     return root.iconBase + String(version.iconName || "grass") + ".png";
                 }
             }
-        } catch (e) {}
+        } catch (e) { console.warn("JSON parse failed", e) }
 
         return fallback;
     }

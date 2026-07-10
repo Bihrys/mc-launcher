@@ -4,6 +4,7 @@ import "../../components"
 
 Rectangle {
     id: root
+    objectName: "SettingsLine:" + root.title
     property var style
     property string title: ""
     property string subtitle: ""
@@ -92,6 +93,7 @@ Rectangle {
         }
     }
     MouseArea {
+        objectName: "SettingsLineMouse:" + root.title
         anchors.fill: parent
         enabled: root.clickable && root.enabledRow
         hoverEnabled: true

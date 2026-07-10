@@ -13,6 +13,7 @@ import "../../Hmcl/controls"
 // 不经过 JSON.parse。左侧游戏目录面板 + 安装/导入/全局设置；右侧工具栏（刷新/搜索）+ 列表。
 Item {
     id: root
+    objectName: "gameListPage"
 
     required property var style
     required property var backend
@@ -23,16 +24,28 @@ Item {
     property bool searchMode: false
     property string menuInstanceId: ""
 
+    function logAction(action, details) {
+        if (!root.backend)
+            return
+        root.backend.logUiAction("ui.instances", action, JSON.stringify(details || {}))
+    }
+
+    onSearchModeChanged: root.logAction("search_mode_changed", {"enabled": root.searchMode})
+    onPendingSearchChanged: root.logAction("search_text_changed", {"length": root.pendingSearch.length})
+    onMenuInstanceIdChanged: root.logAction("menu_instance_changed", {"versionId": root.menuInstanceId})
+
     // 真模型：QML 元素，自动注册到 com.bihrys.launcher。
     GameListModel { id: gameListModel }
     ProfileListModel { id: profileListModel }
 
     Component.onCompleted: {
+        root.logAction("page_completed", {})
         gameListModel.refresh()
         profileListModel.refresh()
     }
 
     onVisibleChanged: {
+        root.logAction("visible_changed", {"visible": visible})
         if (visible) {
             gameListModel.refresh()
             profileListModel.refresh()

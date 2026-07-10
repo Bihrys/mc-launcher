@@ -3,6 +3,7 @@ import "../../components"
 
 Rectangle {
     id: root
+    objectName: "SettingsTextButton:" + root.text
     property var style
     property string text: "执行"
     property bool enabledButton: true
@@ -44,6 +45,7 @@ Rectangle {
 
     MouseArea {
         id: mouse
+        objectName: "SettingsTextButtonMouse:" + root.text
         anchors.fill: parent
         hoverEnabled: true
         enabled: root.enabledButton

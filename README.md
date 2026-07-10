@@ -15,3 +15,7 @@ cmake --build build
 ## 当前状态
 
 这一版完成的是“可启动的 C++/QML 项目骨架 + 当前 QML 前端对接层”。后端按 HMCL 模块边界拆分，但没有逐行复制 HMCL Java 代码。若后续直接翻译 HMCL 具体实现，需要遵守 HMCL 的 GPLv3 许可要求。
+
+## Detailed operation and crash logging
+
+The launcher now records UI interactions, navigation, backend calls, task state transitions, Qt/QML warnings, clean/unclean shutdown state, and native crash backtraces. See `docs/LOGGING.md`.

@@ -34,6 +34,8 @@ qt_add_executable(mc-launcher-qt-cpp
     src/main.cpp
     src/core/LauncherPaths.cpp
     src/core/JsonUtil.cpp
+    src/logging/AppLogger.cpp
+    src/logging/InteractionEventFilter.cpp
     src/settings/LauncherSettings.cpp
     src/account/AccountService.cpp
     src/game/InstanceService.cpp
@@ -67,3 +69,12 @@ install(TARGETS mc-launcher-qt-cpp
     BUNDLE DESTINATION .
     RUNTIME DESTINATION bin
 )
+
+# Linux 崩溃日志中的 backtrace 需要导出符号；Debug 构建保留帧指针，
+# 便于使用 addr2line / gdb 对 crash-last.log 做进一步符号化。
+if(UNIX AND NOT APPLE)
+    target_link_options(mc-launcher-qt-cpp PRIVATE -rdynamic)
+    target_compile_options(mc-launcher-qt-cpp PRIVATE
+        $<$<CONFIG:Debug>:-fno-omit-frame-pointer>
+    )
+endif()

@@ -2,6 +2,7 @@ import QtQuick
 
 Rectangle {
     id: root
+    objectName: "NavItem:" + root.page + ":" + root.title
 
     required property var style
 
@@ -29,6 +30,7 @@ Rectangle {
 
     MouseArea {
         id: navMouse
+        objectName: "NavItemMouse:" + root.page + ":" + root.title
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor

@@ -7,6 +7,7 @@ import "../../Hmcl/animation" as HmclAnimation
 
 Item {
     id: root
+    objectName: "downloadPage"
 
     required property var style
     required property var backend
@@ -81,9 +82,47 @@ Item {
     ListModel { id: neoforgeInstallerModel }
     ListModel { id: visibleLoaderVersionModel }
 
+    function logAction(action, details) {
+        if (!root.backend)
+            return
+        root.backend.logUiAction("ui.download", action, JSON.stringify(details || {}))
+    }
+
+    onCurrentTabChanged: root.logAction("tab_changed", {"tab": root.currentTab})
+    onDownloadSourceChanged: root.logAction("source_changed", {"source": root.downloadSource})
+    onSelectedGameVersionChanged: root.logAction("game_version_selected", {
+        "version": root.selectedGameVersion
+    })
+    onSelectedLoaderKindChanged: root.logAction("loader_kind_selected", {
+        "loaderKind": root.selectedLoaderKind,
+        "loaderVersion": root.selectedLoaderVersion()
+    })
+    onInstallerPaneOpenChanged: root.logAction("installer_pane_changed", {
+        "open": root.installerPaneOpen,
+        "gameVersion": root.selectedGameVersion
+    })
+    onLoaderVersionPaneOpenChanged: root.logAction("loader_version_pane_changed", {
+        "open": root.loaderVersionPaneOpen,
+        "kind": root.loaderVersionKind
+    })
+    onDownloadDialogOpenChanged: root.logAction("download_dialog_changed", {
+        "open": root.downloadDialogOpen,
+        "status": root.downloadTaskStatus.status || ""
+    })
+    onVersionFilterChanged: root.logAction("version_filter_changed", {"filter": root.versionFilter})
+    onSearchTextChanged: root.logAction("search_changed", {"length": root.searchText.length})
+    onLoaderSearchTextChanged: root.logAction("loader_search_changed", {"length": root.loaderSearchText.length})
+
     Component.onCompleted: {
+        root.logAction("page_completed", {})
         root.startRefreshCatalog()
     }
+
+    Component.onDestruction: root.logAction("page_destroyed", {
+        "selectedGameVersion": root.selectedGameVersion,
+        "selectedLoaderKind": root.selectedLoaderKind,
+        "downloadDialogOpen": root.downloadDialogOpen
+    })
 
     Timer {
         id: catalogTaskPoller
@@ -365,7 +404,7 @@ Item {
                 root.catalogFailedMessage = status.message || "获取版本列表失败，点击重试"
             }
         } catch (e) {
-            console.log("Failed to parse download catalog task status", e)
+            root.logAction("catalog_task_parse_failed", {"error": String(e), "rawLength": raw ? raw.length : 0}); console.log("Failed to parse download catalog task status", e)
             root.catalogLoadFailed = true
             root.catalogFailedMessage = "解析版本数据失败，点击重试"
         }
@@ -457,7 +496,7 @@ Item {
                 }
             }
         } catch (e) {
-            console.log("Failed to parse installer metadata task", e)
+            root.logAction("installer_task_parse_failed", {"error": String(e), "rawLength": raw ? raw.length : 0}); console.log("Failed to parse installer metadata task", e)
         }
     }
 
@@ -515,7 +554,7 @@ Item {
 
             root.rebuildVisibleLoaderVersions()
         } catch (e) {
-            console.log("Failed to parse installer metadata", e)
+            root.logAction("installer_metadata_parse_failed", {"error": String(e), "rawLength": raw ? raw.length : 0}); console.log("Failed to parse installer metadata", e)
         }
     }
 
@@ -545,7 +584,7 @@ Item {
                 root.downloadCancelDismissed = false
             }
         } catch (e) {
-            console.log("Failed to parse download task status", e)
+            root.logAction("download_task_parse_failed", {"error": String(e), "rawLength": raw ? raw.length : 0}); console.log("Failed to parse download task status", e)
         }
     }
 
@@ -604,7 +643,7 @@ Item {
             root.loaderVersionPaneOpen = false
             root.loaderVersionKind = ""
         } catch (e) {
-            console.log("Failed to parse download catalog", e)
+            root.logAction("catalog_parse_failed", {"error": String(e), "rawLength": raw ? raw.length : 0}); console.log("Failed to parse download catalog", e)
         }
     }
 

@@ -3,6 +3,7 @@ import QtQuick.Controls
 
 Item {
     id: root
+    objectName: "settingsPage"
 
     required property var style
     required property var backend
@@ -25,13 +26,21 @@ Item {
     signal launcherVisibilitySelected(string mode)
     signal requestAdvancedSettings()
 
+    function logAction(action, details) {
+        if (!root.backend)
+            return
+        root.backend.logUiAction("ui.settings.page", action, JSON.stringify(details || {}))
+    }
+
     Component.onCompleted: {
+        root.logAction("page_completed", {"section": root.currentSection})
         root.reloadSettings()
         root.switchRightSection(false)
         root.pageActive = true
     }
 
     onCurrentSectionChanged: {
+        root.logAction("section_changed", {"section": root.currentSection, "pageActive": root.pageActive})
         if (root.pageActive)
             root.switchRightSection(true)
     }
@@ -50,6 +59,7 @@ Item {
         try {
             root.settingsData = JSON.parse(raw || "{}")
         } catch (e) {
+            root.logAction("settings_json_parse_failed", {"error": String(e), "rawLength": raw ? raw.length : 0})
             root.settingsData = {}
         }
         root.themeMode = root.settingText("themeMode", "light")
@@ -58,6 +68,7 @@ Item {
     }
 
     function setSetting(key, value) {
+        root.logAction("setting_changed", {"key": key, "value": String(value)})
         var next = {}
         for (var k in root.settingsData)
             next[k] = root.settingsData[k]

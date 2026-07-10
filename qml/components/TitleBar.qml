@@ -4,6 +4,7 @@ import QtQuick.Window
 
 Rectangle {
     id: root
+    objectName: "HmclTitleBar:" + root.shownTitle
 
     required property var appWindow
     required property var style

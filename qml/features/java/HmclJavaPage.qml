@@ -6,6 +6,7 @@ import QtQuick.Layouts
 
 Item {
     id: root
+    objectName: "javaPage"
 
     required property var style
     required property var backend
@@ -17,6 +18,16 @@ Item {
     // 解析后的本机 Java 运行时列表（来自 backend.detectedJavaJson）。
     property var detectedRuntimes: []
 
+    function logAction(action, details) {
+        if (!root.backend)
+            return
+        root.backend.logUiAction("ui.java", action, JSON.stringify(details || {}))
+    }
+
+    onSelectedDistributionChanged: root.logAction("distribution_changed", {"value": root.selectedDistribution})
+    onSelectedMajorChanged: root.logAction("major_changed", {"value": root.selectedMajor})
+    onSelectedPackageTypeChanged: root.logAction("package_type_changed", {"value": root.selectedPackageType})
+
     function reloadRuntimes() {
         var raw = root.backend.detectedJavaJson
         if (!raw || raw.length === 0) {
@@ -27,11 +38,16 @@ Item {
             var parsed = JSON.parse(raw)
             root.detectedRuntimes = parsed.runtimes || []
         } catch (e) {
+            root.logAction("runtime_json_parse_failed", {"error": String(e), "rawLength": raw ? raw.length : 0})
             root.detectedRuntimes = []
         }
     }
 
-    Component.onCompleted: root.reloadRuntimes()
+    Component.onCompleted: {
+        root.logAction("page_completed", {})
+        root.reloadRuntimes()
+    }
+    Component.onDestruction: root.logAction("page_destroyed", {"runtimeCount": root.detectedRuntimes.length})
 
     Connections {
         target: root.backend

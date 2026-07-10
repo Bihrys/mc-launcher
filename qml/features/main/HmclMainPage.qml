@@ -15,6 +15,7 @@ import "../../Hmcl/controls"
 // 切换走 backend.selectInstance 以同步 selectedGameVersion（启动按钮副标题）。
 Item {
     id: root
+    objectName: "mainPage"
 
     required property var style
     required property var backend

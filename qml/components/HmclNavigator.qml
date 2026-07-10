@@ -2,6 +2,7 @@ import QtQuick
 
 Item {
     id: root
+    objectName: "hmclNavigator"
 
     required property var style
 
