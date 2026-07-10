@@ -1,0 +1,9 @@
+[23:44:55] [Datafixer Bootstrap/INFO]: 287 Datafixer optimizations took 201 milliseconds
+[23:44:57] [main/WARN]: Failed to get system info for Render Extensions
+java.lang.IllegalStateException: Can't getDevice() before it was initialized
+	at com.mojang.blaze3d.systems.RenderSystem.getDevice(SourceFile:299)
+	at gfj.bG(SourceFile:2527)
+	at y.a(SourceFile:78)
+	at gfj.a(SourceFile:2527)
+	at gfj.a(SourceFile:2497)
+	at net.minecraft.client.main.Main.main(SourceFile:207)
