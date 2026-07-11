@@ -10,6 +10,7 @@ Rectangle {
     property int minMemoryMb: 256
     property real usedGiB: 12.9
     property real totalGiB: 31.2
+    property bool developmentPending: false
     signal autoMemoryChangedByUser(bool value)
     signal maxMemoryChangedByUser(int value)
 
@@ -17,6 +18,8 @@ Rectangle {
     implicitHeight: 170
     height: implicitHeight
     color: root.styleValue("cSurface", "#FFFBFE")
+    enabled: !root.developmentPending
+    opacity: root.developmentPending ? 0.72 : 1.0
 
     function styleValue(name, fallback) {
         if (root.style !== undefined && root.style !== null) {
@@ -43,10 +46,31 @@ Rectangle {
         anchors.bottomMargin: 10
         spacing: 10
 
-        Text {
-            text: "游戏内存"
-            color: root.styleValue("cTextOnSurface", "#1B1B21")
-            font.pixelSize: 13
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 7
+            Text {
+                Layout.fillWidth: true
+                text: "游戏内存"
+                color: root.styleValue("cTextOnSurface", "#1B1B21")
+                font.pixelSize: 13
+            }
+            Rectangle {
+                visible: root.developmentPending
+                Layout.preferredWidth: memoryPendingLabel.implicitWidth + 10
+                Layout.preferredHeight: 20
+                radius: 10
+                color: root.styleValue("cSurfaceContainerHigh", "#ECE9F1")
+                border.width: 1
+                border.color: root.styleValue("cBorder", "#D9D7E2")
+                Text {
+                    id: memoryPendingLabel
+                    anchors.centerIn: parent
+                    text: "待开发"
+                    color: root.styleValue("cTextOnSurfaceVariant", "#454651")
+                    font.pixelSize: 10
+                }
+            }
         }
 
         RowLayout {

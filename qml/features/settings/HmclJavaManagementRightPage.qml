@@ -45,8 +45,8 @@ Column {
                 spacing: 0
                 Hmcl.ToolbarButton { style: root.style; text: "刷新"; iconKind: "REFRESH"; onClicked: root.refreshJava() }
                 Hmcl.ToolbarButton { style: root.style; text: "下载"; iconKind: "DOWNLOAD"; onClicked: root.backend.downloadJava("temurin", "21", "jre") }
-                Hmcl.ToolbarButton { style: root.style; text: "添加"; iconKind: "ADD"; onClicked: root.backend.openLauncherSpecialFolder("data") }
-                Hmcl.ToolbarButton { style: root.style; text: "已禁用"; iconKind: "FORMAT_LIST_BULLETED"; onClicked: root.backend.openLauncherSpecialFolder("config") }
+                Hmcl.ToolbarButton { style: root.style; text: "添加（待开发）"; iconKind: "ADD"; enabledButton: false; onClicked: root.backend.openLauncherSpecialFolder("data") }
+                Hmcl.ToolbarButton { style: root.style; text: "已禁用（待开发）"; iconKind: "FORMAT_LIST_BULLETED"; enabledButton: false; onClicked: root.backend.openLauncherSpecialFolder("config") }
             }
         }
 

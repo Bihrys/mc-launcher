@@ -14,7 +14,7 @@ HmclSettingLine {
         anchors.verticalCenter: parent.verticalCenter
         width: Math.min(400, parent.width * 0.50)
         height: 32
-        enabled: root.enabledRow
+        enabled: root.effectiveEnabled
         text: root.valueText
         placeholderText: root.placeholderText
         echoMode: root.password ? TextInput.Password : TextInput.Normal

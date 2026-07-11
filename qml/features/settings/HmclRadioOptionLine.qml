@@ -13,15 +13,17 @@ Rectangle {
     property bool checked: false
     property bool enabledRow: true
     property bool showTopBorder: false
+    property bool developmentPending: false
+    readonly property bool effectiveEnabled: root.enabledRow && !root.developmentPending
     default property alias rightContent: rightBox.children
 
     signal clicked()
 
     width: parent ? parent.width : 800
-    implicitHeight: Math.max(30, Math.max(textColumn.implicitHeight, rightBox.implicitHeight) + 6)
+    implicitHeight: root.subtitle.length > 0 ? 46 : 30
     height: implicitHeight
     color: "transparent"
-    opacity: root.enabledRow ? 1.0 : 0.42
+    opacity: root.developmentPending ? 0.72 : (root.enabledRow ? 1.0 : 0.42)
 
     function styleValue(name, fallback) {
         if (root.style !== undefined && root.style !== null) {
@@ -35,7 +37,7 @@ Rectangle {
     HmclRipple {
         id: ripple
         anchors.fill: parent
-        hovered: mouse.containsMouse && root.enabledRow
+        hovered: mouse.containsMouse && root.effectiveEnabled
         hoverColor: root.styleValue("cTextOnSurface", "#1B1B21")
         rippleColor: root.styleValue("cTextOnSurface", "#1B1B21")
         hoverOpacity: 0.04
@@ -55,7 +57,7 @@ Rectangle {
     MouseArea {
         id: mouse
         anchors.fill: parent
-        enabled: root.enabledRow
+        enabled: root.effectiveEnabled
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onPressed: function(mouse) { ripple.press(mouse.x, mouse.y) }
@@ -85,12 +87,35 @@ Rectangle {
             Layout.alignment: Qt.AlignVCenter
             spacing: 1
 
-            Text {
+            RowLayout {
                 Layout.fillWidth: true
-                text: root.title
-                color: root.styleValue("cTextOnSurface", "#1B1B21")
-                font.pixelSize: 13
-                elide: Text.ElideRight
+                spacing: 7
+
+                Text {
+                    Layout.fillWidth: true
+                    text: root.title
+                    color: root.styleValue("cTextOnSurface", "#1B1B21")
+                    font.pixelSize: 13
+                    elide: Text.ElideRight
+                }
+
+                Rectangle {
+                    visible: root.developmentPending
+                    Layout.preferredWidth: radioPendingLabel.implicitWidth + 10
+                    Layout.preferredHeight: 18
+                    radius: 9
+                    color: root.styleValue("cSurfaceContainerHigh", "#ECE9F1")
+                    border.width: 1
+                    border.color: root.styleValue("cBorder", "#D9D7E2")
+
+                    Text {
+                        id: radioPendingLabel
+                        anchors.centerIn: parent
+                        text: "待开发"
+                        color: root.styleValue("cTextOnSurfaceVariant", "#454651")
+                        font.pixelSize: 10
+                    }
+                }
             }
 
             Text {

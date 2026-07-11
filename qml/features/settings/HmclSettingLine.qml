@@ -10,6 +10,8 @@ Rectangle {
     property string subtitle: ""
     property bool enabledRow: true
     property bool clickable: false
+    property bool developmentPending: false
+    readonly property bool effectiveEnabled: root.enabledRow && !root.developmentPending
     signal clicked()
     default property alias trailing: trailingBox.children
 
@@ -17,12 +19,12 @@ Rectangle {
     implicitHeight: Math.max(48, titleColumn.implicitHeight + 20)
     height: implicitHeight
     color: root.styleValue("cSurface", "#FFFBFE")
-    opacity: enabledRow ? 1.0 : 0.42
+    opacity: root.developmentPending ? 0.72 : (root.enabledRow ? 1.0 : 0.42)
 
 
     HoverHandler {
         id: hover
-        enabled: root.enabledRow
+        enabled: root.effectiveEnabled
     }
 
     Behavior on color {
@@ -48,7 +50,7 @@ Rectangle {
     HmclRipple {
         id: ripple
         anchors.fill: parent
-        hovered: hover.hovered && root.enabledRow
+        hovered: hover.hovered && root.effectiveEnabled
         hoverColor: root.styleValue("cTextOnSurface", "#1B1B21")
         rippleColor: root.styleValue("cTextOnSurface", "#1B1B21")
         animationsEnabled: !!root.styleValue("animationsEnabled", true)
@@ -65,13 +67,36 @@ Rectangle {
             Layout.fillWidth: true
             spacing: 2
 
-            Text {
+            RowLayout {
                 Layout.fillWidth: true
-                text: root.title
-                color: root.styleValue("cTextOnSurface", "#1B1B21")
-                font.pixelSize: 13
-                elide: Text.ElideRight
-                verticalAlignment: Text.AlignVCenter
+                spacing: 7
+
+                Text {
+                    Layout.fillWidth: true
+                    text: root.title
+                    color: root.styleValue("cTextOnSurface", "#1B1B21")
+                    font.pixelSize: 13
+                    elide: Text.ElideRight
+                    verticalAlignment: Text.AlignVCenter
+                }
+
+                Rectangle {
+                    visible: root.developmentPending
+                    Layout.preferredWidth: pendingLabel.implicitWidth + 10
+                    Layout.preferredHeight: 20
+                    radius: 10
+                    color: root.styleValue("cSurfaceContainerHigh", "#ECE9F1")
+                    border.width: 1
+                    border.color: root.styleValue("cBorder", "#D9D7E2")
+
+                    Text {
+                        id: pendingLabel
+                        anchors.centerIn: parent
+                        text: "待开发"
+                        color: root.styleValue("cTextOnSurfaceVariant", "#454651")
+                        font.pixelSize: 10
+                    }
+                }
             }
 
             Text {
@@ -95,7 +120,7 @@ Rectangle {
     MouseArea {
         objectName: "SettingsLineMouse:" + root.title
         anchors.fill: parent
-        enabled: root.clickable && root.enabledRow
+        enabled: root.clickable && root.effectiveEnabled
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onPressed: function(mouse) { ripple.press(mouse.x, mouse.y) }

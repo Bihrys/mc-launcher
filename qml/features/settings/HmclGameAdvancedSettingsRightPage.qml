@@ -29,10 +29,10 @@ Column {
         width: parent.width
         style: root.style
 
-        HmclTextLine { style: root.style; title: "游戏参数"; placeholderText: "默认"; valueText: root.st("gameArguments", ""); onAccepted: function(v) { root.set("gameArguments", v) } }
-        HmclTextLine { style: root.style; title: "游戏启动前执行命令"; placeholderText: "将在游戏启动前调用"; valueText: root.st("preLaunchCommand", ""); onAccepted: function(v) { root.set("preLaunchCommand", v) } }
-        HmclTextLine { style: root.style; title: "包装命令"; placeholderText: "如填写“optirun”后，启动命令将从“java ...”变为“optirun java ...”"; valueText: root.st("commandWrapper", ""); onAccepted: function(v) { root.set("commandWrapper", v) } }
-        HmclTextLine { style: root.style; title: "游戏结束后执行命令"; placeholderText: "将在游戏结束后调用"; valueText: root.st("postExitCommand", ""); onAccepted: function(v) { root.set("postExitCommand", v) } }
+        HmclTextLine { style: root.style; developmentPending: true; title: "游戏参数"; placeholderText: "默认"; valueText: root.st("gameArguments", ""); onAccepted: function(v) { root.set("gameArguments", v) } }
+        HmclTextLine { style: root.style; developmentPending: true; title: "游戏启动前执行命令"; placeholderText: "将在游戏启动前调用"; valueText: root.st("preLaunchCommand", ""); onAccepted: function(v) { root.set("preLaunchCommand", v) } }
+        HmclTextLine { style: root.style; developmentPending: true; title: "包装命令"; placeholderText: "如填写“optirun”后，启动命令将从“java ...”变为“optirun java ...”"; valueText: root.st("commandWrapper", ""); onAccepted: function(v) { root.set("commandWrapper", v) } }
+        HmclTextLine { style: root.style; developmentPending: true; title: "游戏结束后执行命令"; placeholderText: "将在游戏结束后调用"; valueText: root.st("postExitCommand", ""); onAccepted: function(v) { root.set("postExitCommand", v) } }
 
         Rectangle {
             width: parent.width
@@ -66,12 +66,12 @@ Column {
     Hmcl.ComponentList {
         width: parent.width
         style: root.style
-        HmclTextLine { style: root.style; title: "Java 虚拟机参数"; valueText: root.st("jvmArgs", ""); onAccepted: function(v) { root.set("jvmArgs", v) } }
-        HmclTextLine { style: root.style; title: "内存永久保存区域"; placeholderText: "单位 MiB"; valueText: root.st("permSize", ""); onAccepted: function(v) { root.set("permSize", v) } }
-        HmclTextLine { style: root.style; title: "环境变量"; valueText: root.st("environmentVariables", ""); onAccepted: function(v) { root.set("environmentVariables", v) } }
-        HmclToggleLine { style: root.style; title: "不添加默认 JVM 参数"; checkedValue: root.sb("noJVMOptions", false); onChangedValue: function(v) { root.setb("noJVMOptions", v) } }
-        HmclToggleLine { style: root.style; title: "不添加默认 JVM 优化参数"; enabledRow: !root.sb("noJVMOptions", false); checkedValue: root.sb("noOptimizingJVMOptions", false); onChangedValue: function(v) { root.setb("noOptimizingJVMOptions", v) } }
-        HmclToggleLine { style: root.style; title: "不检查 JVM 有效性"; checkedValue: root.sb("notCheckJVM", false); onChangedValue: function(v) { root.setb("notCheckJVM", v) } }
+        HmclTextLine { style: root.style; developmentPending: true; title: "Java 虚拟机参数"; valueText: root.st("jvmArgs", ""); onAccepted: function(v) { root.set("jvmArgs", v) } }
+        HmclTextLine { style: root.style; developmentPending: true; title: "内存永久保存区域"; placeholderText: "单位 MiB"; valueText: root.st("permSize", ""); onAccepted: function(v) { root.set("permSize", v) } }
+        HmclTextLine { style: root.style; developmentPending: true; title: "环境变量"; valueText: root.st("environmentVariables", ""); onAccepted: function(v) { root.set("environmentVariables", v) } }
+        HmclToggleLine { style: root.style; developmentPending: true; title: "不添加默认 JVM 参数"; checkedValue: root.sb("noJVMOptions", false); onChangedValue: function(v) { root.setb("noJVMOptions", v) } }
+        HmclToggleLine { style: root.style; developmentPending: true; title: "不添加默认 JVM 优化参数"; enabledRow: !root.sb("noJVMOptions", false); checkedValue: root.sb("noOptimizingJVMOptions", false); onChangedValue: function(v) { root.setb("noOptimizingJVMOptions", v) } }
+        HmclToggleLine { style: root.style; developmentPending: true; title: "不检查 JVM 有效性"; checkedValue: root.sb("notCheckJVM", false); onChangedValue: function(v) { root.setb("notCheckJVM", v) } }
 
         Rectangle {
             width: parent.width
@@ -100,7 +100,7 @@ Column {
     Hmcl.ComponentList {
         width: parent.width
         style: root.style
-        HmclSelectLine { style: root.style; title: "图形 API"; value: root.st("graphicsBackend", "default"); options: [{"text":"默认","value":"default"},{"text":"OpenGL","value":"opengl"},{"text":"Vulkan","value":"vulkan"}]; onSelected: function(v) { root.set("graphicsBackend", v) } }
-        HmclSelectLine { style: root.style; title: "OpenGL 渲染器"; value: root.st("openGLRenderer", "default"); options: [{"text":"默认","value":"default"},{"text":"系统默认","value":"system"},{"text":"软件渲染","value":"software"}]; onSelected: function(v) { root.set("openGLRenderer", v) } }
+        HmclSelectLine { style: root.style; developmentPending: true; title: "图形 API"; value: root.st("graphicsBackend", "default"); options: [{"text":"默认","value":"default"},{"text":"OpenGL","value":"opengl"},{"text":"Vulkan","value":"vulkan"}]; onSelected: function(v) { root.set("graphicsBackend", v) } }
+        HmclSelectLine { style: root.style; developmentPending: true; title: "OpenGL 渲染器"; value: root.st("openGLRenderer", "default"); options: [{"text":"默认","value":"default"},{"text":"系统默认","value":"system"},{"text":"软件渲染","value":"software"}]; onSelected: function(v) { root.set("openGLRenderer", v) } }
     }
 }

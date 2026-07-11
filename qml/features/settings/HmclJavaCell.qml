@@ -59,6 +59,8 @@ Item {
         Hmcl.ToolbarButton {
             style: root.style
             iconKind: root.managed ? "DELETE_FOREVER" : "DELETE"
+            text: "待开发"
+            enabledButton: false
             onClicked: root.remove(root.path)
         }
     }

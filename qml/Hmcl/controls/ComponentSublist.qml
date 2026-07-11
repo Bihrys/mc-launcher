@@ -18,6 +18,7 @@ Item {
     property bool expanded: false
     property bool componentPadding: true
     property bool animationsEnabled: styleValue("animationsEnabled", true)
+    property bool developmentPending: false
     property alias titleRight: titleRightBox.children
     default property alias content: contentColumn.children
 
@@ -77,13 +78,35 @@ Item {
                 Layout.fillWidth: true
                 spacing: 3
 
-                Text {
+                RowLayout {
                     Layout.fillWidth: true
-                    text: root.title
-                    color: root.styleValue("cTextOnSurface", "#1B1B21")
-                    font.pixelSize: 13
-                    elide: Text.ElideRight
-                    verticalAlignment: Text.AlignVCenter
+                    spacing: 7
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: root.title
+                        color: root.styleValue("cTextOnSurface", "#1B1B21")
+                        font.pixelSize: 13
+                        elide: Text.ElideRight
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    Rectangle {
+                        visible: root.developmentPending
+                        Layout.preferredWidth: sublistPendingLabel.implicitWidth + 10
+                        Layout.preferredHeight: 20
+                        radius: 10
+                        color: root.styleValue("cSurfaceContainerHigh", "#ECE9F1")
+                        border.width: 1
+                        border.color: root.styleValue("cBorder", "#D9D7E2")
+                        Text {
+                            id: sublistPendingLabel
+                            anchors.centerIn: parent
+                            text: "待开发"
+                            color: root.styleValue("cTextOnSurfaceVariant", "#454651")
+                            font.pixelSize: 10
+                        }
+                    }
                 }
 
                 Text {
@@ -161,6 +184,8 @@ Item {
             id: contentColumn
             width: parent.width
             spacing: 0
+            enabled: !root.developmentPending
+            opacity: root.developmentPending ? 0.42 : 1.0
         }
     }
 }

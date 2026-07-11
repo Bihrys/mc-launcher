@@ -131,6 +131,7 @@ Column {
             width: parent.width
             style: root.style
             title: "游戏 Java"
+            developmentPending: true
             hasSubtitle: true
             subtitle: "自动选择合适的 Java"
             trailingText: root.javaDescription()
@@ -209,6 +210,7 @@ Column {
             width: parent.width
             style: root.style
             title: "版本隔离（建议使用模组时选择“各实例独立”。改后需移动世界、模组等相关游戏文件）"
+            developmentPending: true
             trailingText: root.isolationDescription()
 
             HmclRadioOptionLine {
@@ -245,6 +247,7 @@ Column {
         HmclMemorySettingsBlock {
             width: parent.width
             style: root.style
+            developmentPending: true
             autoMemory: root.sb("autoMemory", true)
             maxMemoryMb: root.sb("autoMemory", true) ? 7936 : Number(root.st("maxMemoryMb", "7936"))
             minMemoryMb: Number(root.st("minMemoryMb", "256"))
@@ -270,6 +273,7 @@ Column {
         HmclResolutionLine {
             style: root.style
             title: "游戏窗口分辨率"
+            developmentPending: true
             resolution: root.st("gameResolution", root.st("gameWidth", "854") + "x" + root.st("gameHeight", "480"))
             fullscreen: root.sb("fullscreen", false)
             onResolutionSelected: function(v) {
@@ -286,12 +290,13 @@ Column {
             }
         }
 
-        HmclToggleLine { style: root.style; title: "查看日志"; checkedValue: root.sb("showLogs", false); onChangedValue: function(v) { root.setb("showLogs", v) } }
-        HmclToggleLine { style: root.style; title: "输出调试日志"; checkedValue: root.sb("enableDebugLogOutput", false); onChangedValue: function(v) { root.setb("enableDebugLogOutput", v) } }
+        HmclToggleLine { style: root.style; title: "查看日志"; developmentPending: true; checkedValue: root.sb("showLogs", false); onChangedValue: function(v) { root.setb("showLogs", v) } }
+        HmclToggleLine { style: root.style; title: "输出调试日志"; developmentPending: true; checkedValue: root.sb("enableDebugLogOutput", false); onChangedValue: function(v) { root.setb("enableDebugLogOutput", v) } }
 
         HmclSelectLine {
             style: root.style
             title: "进程优先级"
+            developmentPending: true
             value: root.st("processPriority", "normal")
             options: [
                 {"text":"低","value":"low"},
@@ -303,7 +308,7 @@ Column {
             onSelected: function(v) { root.set("processPriority", v) }
         }
 
-        HmclTextLine { style: root.style; title: "服务器地址"; placeholderText: "默认，启动游戏后可以直接进入对应服务器"; valueText: root.st("quickPlayServer", ""); onAccepted: function(v) { root.set("quickPlayServer", v); root.set("quickPlayType", v.length > 0 ? "multiplayer" : "none") } }
+        HmclTextLine { style: root.style; title: "服务器地址"; developmentPending: true; placeholderText: "默认，启动游戏后可以直接进入对应服务器"; valueText: root.st("quickPlayServer", ""); onAccepted: function(v) { root.set("quickPlayServer", v); root.set("quickPlayType", v.length > 0 ? "multiplayer" : "none") } }
 
         HmclSettingLine {
             width: parent.width

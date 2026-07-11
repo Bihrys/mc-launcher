@@ -7,6 +7,7 @@ HmclSettingLine {
     signal selected(string value)
 
     Row {
+        enabled: root.effectiveEnabled
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         spacing: 8

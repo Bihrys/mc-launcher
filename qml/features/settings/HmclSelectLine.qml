@@ -53,12 +53,12 @@ HmclSettingLine {
         height: 36
         radius: 3
         color: mouse.containsMouse || popup.opened ? root.styleValue("cSurfaceContainerHigh", "#ECE9F1") : root.styleValue("cSurfaceContainer", "#F5F2FA")
-        opacity: root.enabledRow ? 1.0 : 0.45
+        opacity: root.effectiveEnabled ? 1.0 : 0.45
 
         HmclRipple {
             id: buttonRipple
             anchors.fill: parent
-            hovered: mouse.containsMouse && root.enabledRow
+            hovered: mouse.containsMouse && root.effectiveEnabled
             hoverColor: root.styleValue("cTextOnSurface", "#1B1B21")
             rippleColor: root.styleValue("cTextOnSurface", "#1B1B21")
             animationsEnabled: !!root.styleValue("animationsEnabled", true)
@@ -97,7 +97,7 @@ HmclSettingLine {
         MouseArea {
             id: mouse
             anchors.fill: parent
-            enabled: root.enabledRow
+            enabled: root.effectiveEnabled
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onPressed: function(mouse) { buttonRipple.press(mouse.x, mouse.y) }

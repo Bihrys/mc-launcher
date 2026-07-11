@@ -13,7 +13,7 @@ HmclSettingLine {
         anchors.verticalCenter: parent.verticalCenter
         style: root.style
         checked: root.checkedValue
-        enabledControl: root.enabledRow
+        enabledControl: root.effectiveEnabled
         interactive: false
     }
 }

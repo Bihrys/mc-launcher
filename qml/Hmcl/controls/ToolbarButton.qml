@@ -9,6 +9,7 @@ Rectangle {
     property string iconKind: ""
     property string text: ""
     property color iconColor: styleValue("cTextOnSurfaceVariant", "#666666")
+    property bool enabledButton: true
 
     signal clicked()
 
@@ -17,11 +18,12 @@ Rectangle {
     radius: 15
     color: "transparent"
     clip: true
+    opacity: root.enabledButton ? 1.0 : 0.45
 
     HmclRipple {
         id: ripple
         anchors.fill: parent
-        hovered: mouse.containsMouse
+        hovered: mouse.containsMouse && root.enabledButton
         hoverColor: root.styleValue("cTextOnSurface", "#1B1B21")
         rippleColor: root.styleValue("cTextOnSurface", "#1B1B21")
         animationsEnabled: !!root.styleValue("animationsEnabled", true)
@@ -61,8 +63,9 @@ Rectangle {
     MouseArea {
         id: mouse
         anchors.fill: parent
+        enabled: root.enabledButton
         hoverEnabled: true
-        cursorShape: Qt.PointingHandCursor
+        cursorShape: root.enabledButton ? Qt.PointingHandCursor : Qt.ArrowCursor
         onPressed: function(mouse) { ripple.press(mouse.x, mouse.y) }
         onReleased: ripple.release()
         onCanceled: ripple.cancel()

@@ -12,7 +12,9 @@ Item {
     required property var backend
 
     property string currentTab: "game"
-    property string downloadSource: "auto"
+    // HMCL keeps independent preferences for metadata/version lists and files.
+    property string versionListSource: "balanced"
+    property string fileDownloadSource: "balanced"
     property string selectedGameVersion: ""
     property string selectedGameReleaseTime: ""
     property string selectedLoaderKind: "vanilla"
@@ -97,8 +99,39 @@ Item {
         root.backend.logUiAction("ui.download", action, JSON.stringify(details || {}))
     }
 
+    function normalizeDownloadSource(value) {
+        var source = String(value || "").toLowerCase()
+        if (source === "official" || source === "mojang")
+            return "official"
+        if (source === "bmclapi" || source === "mirror")
+            return "bmclapi"
+        return "balanced"
+    }
+
+    function applyLauncherSettings(raw) {
+        if (!raw || raw.length === 0)
+            return
+        try {
+            var settings = JSON.parse(raw)
+            root.versionListSource = root.normalizeDownloadSource(settings.versionListSource)
+            root.fileDownloadSource = root.normalizeDownloadSource(settings.fileDownloadSource !== undefined
+                                                                   ? settings.fileDownloadSource
+                                                                   : settings.downloadSource)
+            root.logAction("download_settings_applied", {
+                "versionListSource": root.versionListSource,
+                "fileDownloadSource": root.fileDownloadSource
+            })
+        } catch (e) {
+            root.logAction("download_settings_parse_failed", {
+                "error": String(e),
+                "rawLength": raw ? raw.length : 0
+            })
+        }
+    }
+
     onCurrentTabChanged: root.logAction("tab_changed", {"tab": root.currentTab})
-    onDownloadSourceChanged: root.logAction("source_changed", {"source": root.downloadSource})
+    onVersionListSourceChanged: root.logAction("version_list_source_changed", {"source": root.versionListSource})
+    onFileDownloadSourceChanged: root.logAction("file_download_source_changed", {"source": root.fileDownloadSource})
     onSelectedGameVersionChanged: root.logAction("game_version_selected", {
         "version": root.selectedGameVersion
     })
@@ -133,10 +166,18 @@ Item {
         function onDownloadCatalogJsonChanged() {
             root.consumeCatalogPayload(root.backend.downloadCatalogJson, "backend_signal")
         }
+
+        function onLauncherSettingsJsonChanged() {
+            root.applyLauncherSettings(root.backend.launcherSettingsJson)
+        }
     }
 
     Component.onCompleted: {
         root.logAction("page_completed", {})
+        var settingsRaw = root.backend.launcherSettingsJson
+        if (!settingsRaw || settingsRaw.length === 0)
+            settingsRaw = root.backend.refreshLauncherSettings()
+        root.applyLauncherSettings(settingsRaw)
         root.startRefreshCatalog()
     }
 
@@ -219,11 +260,11 @@ Item {
         }
 
         root.logAction("catalog_refresh_requested", {
-            "source": root.downloadSource,
+            "source": root.versionListSource,
             "existingAllCount": allVersionsModel.count,
             "existingVisibleCount": visibleVersionModel.count
         })
-        root.backend.startRefreshDownloadCatalog(root.downloadSource)
+        root.backend.startRefreshDownloadCatalog(root.versionListSource)
         catalogTaskPoller.restart()
         root.pollDownloadCatalogTask()
     }
@@ -278,7 +319,7 @@ Item {
             "metadataJson": ""
         }
 
-        root.backend.startFetchInstallerMetadata(root.downloadSource, root.selectedGameVersion)
+        root.backend.startFetchInstallerMetadata(root.versionListSource, root.selectedGameVersion)
         installerMetadataPoller.restart()
     }
 
@@ -322,7 +363,7 @@ Item {
             "metadataJson": ""
         }
 
-        root.backend.startFetchLoaderMetadata(root.downloadSource, root.selectedGameVersion, kind)
+        root.backend.startFetchLoaderMetadata(root.versionListSource, root.selectedGameVersion, kind)
         installerMetadataPoller.restart()
     }
 
@@ -632,6 +673,17 @@ Item {
     }
 
     function selectInstaller(kind) {
+        var conflict = root.installerIncompatibleWith(kind)
+        if (conflict.length > 0) {
+            root.logAction("installer_selection_blocked", {
+                "requested": kind,
+                "conflict": conflict,
+                "conflictVersion": root.installerVersion(conflict)
+            })
+            root.backend.output = root.loaderTitle(kind) + " 与已选择的 " + root.loaderTitle(conflict) + " 不兼容。"
+            return
+        }
+
         if (kind === "vanilla") {
             root.selectedLoaderKind = "vanilla"
             root.selectedFabricVersion = ""
@@ -863,7 +915,63 @@ Item {
         return 180
     }
 
+    function installerVersion(kind) {
+        switch (kind) {
+        case "fabric": return root.selectedFabricVersion
+        case "quilt": return root.selectedQuiltVersion
+        case "forge": return root.selectedForgeVersion
+        case "neoforge": return root.selectedNeoForgeVersion
+        default: return ""
+        }
+    }
+
+    function installedInstallerKinds() {
+        var out = []
+        if (root.selectedForgeVersion.length > 0) out.push("forge")
+        if (root.selectedNeoForgeVersion.length > 0) out.push("neoforge")
+        if (root.selectedFabricVersion.length > 0) out.push("fabric")
+        if (root.selectedQuiltVersion.length > 0) out.push("quilt")
+        return out
+    }
+
+    function installerConflicts(kind, other) {
+        if (!kind || !other || kind === other || kind === "vanilla" || other === "vanilla")
+            return false
+
+        // Port of HMCL InstallerItem.InstallerItemGroup.
+        var coreLoaders = ["forge", "fabric", "quilt", "neoforge", "cleanroom", "legacyfabric"]
+        if (coreLoaders.indexOf(kind) >= 0 && coreLoaders.indexOf(other) >= 0)
+            return true
+
+        var matrix = {
+            "liteloader": ["fabric", "quilt", "neoforge", "cleanroom", "legacyfabric"],
+            "optifine": ["fabric", "quilt", "neoforge", "cleanroom", "liteloader", "legacyfabric"],
+            "fabric-api": ["forge", "quilt-api", "neoforge", "liteloader", "optifine", "cleanroom", "legacyfabric", "legacyfabric-api"],
+            "quilt-api": ["forge", "fabric", "fabric-api", "neoforge", "liteloader", "optifine", "cleanroom", "legacyfabric", "legacyfabric-api"],
+            "legacyfabric-api": ["forge", "fabric", "fabric-api", "neoforge", "liteloader", "optifine", "cleanroom", "quilt", "quilt-api"]
+        }
+        var direct = matrix[kind] || []
+        var reverse = matrix[other] || []
+        return direct.indexOf(other) >= 0 || reverse.indexOf(kind) >= 0
+    }
+
+    function installerIncompatibleWith(kind) {
+        var installed = root.installedInstallerKinds()
+        for (var i = 0; i < installed.length; ++i) {
+            if (root.installerConflicts(kind, installed[i]))
+                return installed[i]
+        }
+        return ""
+    }
+
+    function installerCanOpen(kind) {
+        return root.installerIncompatibleWith(kind).length === 0
+    }
+
     function installerStatus(kind) {
+        var conflict = root.installerIncompatibleWith(kind)
+        if (conflict.length > 0)
+            return "与 " + root.loaderTitle(conflict) + " 不兼容"
         if (kind === "vanilla") {
             return "版本 " + root.selectedGameVersion
         }
@@ -885,7 +993,7 @@ Item {
         }
 
         if (kind === "fabric-api" || kind === "quilt-api" || kind === "optifine") {
-            return "后续安装器扩展"
+            return "待开发"
         }
 
         return "不安装"
@@ -981,7 +1089,7 @@ Item {
         root.downloadDialogOpen = true
 
         root.backend.installGameVersion(
-            root.downloadSource,
+            root.fileDownloadSource,
             root.selectedGameVersion,
             instanceName,
             root.selectedLoaderKind,

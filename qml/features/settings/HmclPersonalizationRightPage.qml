@@ -31,7 +31,12 @@ Column {
         if (!root.backend || root.backend.refreshAppearanceOptions === undefined)
             return
         try {
-            root.appearanceOptions = JSON.parse(root.backend.refreshAppearanceOptions() || "{}")
+            var parsed = JSON.parse(root.backend.refreshAppearanceOptions() || "{}")
+            root.appearanceOptions = {
+                "builtinBackgrounds": parsed.builtinBackgrounds || [],
+                "fonts": parsed.fonts || parsed.fontFamilies || [],
+                "standardThemeColors": parsed.standardThemeColors || parsed.themeColors || []
+            }
         } catch (e) {
             root.logAction("appearance_options_parse_failed", {"error": String(e)})
             root.appearanceOptions = {"fonts": [], "builtinBackgrounds": [], "standardThemeColors": []}
@@ -304,6 +309,7 @@ Column {
         HmclSelectLine {
             style: root.style
             title: "日志字体"
+            developmentPending: true
             value: root.st("logFontFamily", root.st("logFont", "monospace"))
             options: root.fontOptions(false)
             onSelected: function(v) { root.set("logFontFamily", v); root.set("logFont", v) }
@@ -312,6 +318,7 @@ Column {
         HmclTextLine {
             style: root.style
             title: "日志字号"
+            developmentPending: true
             valueText: root.st("logFontSize", "12")
             onAccepted: function(v) { root.set("logFontSize", v) }
         }
@@ -332,6 +339,7 @@ Column {
         HmclSelectLine {
             style: root.style
             title: "字体"
+            developmentPending: true
             value: root.st("launcherFontFamily", root.st("globalFontFamily", ""))
             options: root.fontOptions(true)
             onSelected: function(v) { root.set("launcherFontFamily", v); root.set("globalFontFamily", v) }
@@ -347,6 +355,7 @@ Column {
         HmclSelectLine {
             style: root.style
             title: "抗锯齿"
+            developmentPending: true
             subtitle: "重启后生效"
             value: root.st("fontAntiAliasing", "auto")
             options: [
@@ -368,9 +377,9 @@ Column {
         signal selected(string value)
 
         Layout.preferredWidth: 160
-        Layout.preferredHeight: 32
+        Layout.preferredHeight: 30
         width: 160
-        height: 32
+        height: 30
         radius: 3
         color: mouse.containsMouse || popup.opened ? styleValue("cSurfaceContainerHigh", "#ECE9F1") : styleValue("cSurfaceContainer", "#F5F2FA")
         opacity: enabledBox ? 1.0 : 0.45
@@ -521,9 +530,9 @@ Column {
         signal accepted(string value)
 
         Layout.preferredWidth: 160
-        Layout.preferredHeight: 32
+        Layout.preferredHeight: 30
         width: 160
-        height: 32
+        height: 30
         opacity: enabledBox ? 1.0 : 0.45
 
         function styleValue(name, fallback) {
@@ -572,9 +581,9 @@ Column {
         signal browse()
 
         Layout.preferredWidth: 176
-        Layout.preferredHeight: 32
+        Layout.preferredHeight: 30
         width: 176
-        height: 32
+        height: 30
         radius: 3
         color: styleValue("cSurfaceContainerHigh", "#ECE9F1")
         opacity: enabledBox ? 1.0 : 0.45

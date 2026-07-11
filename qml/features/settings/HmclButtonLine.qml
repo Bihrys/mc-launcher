@@ -10,7 +10,7 @@ HmclSettingLine {
         anchors.verticalCenter: parent.verticalCenter
         style: root.style
         text: root.buttonText
-        enabledButton: root.enabledRow
+        enabledButton: root.effectiveEnabled
         onClicked: root.action()
     }
 }

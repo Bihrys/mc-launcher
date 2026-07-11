@@ -21,7 +21,7 @@ HmclSettingLine {
             id: slider
             Layout.fillWidth: true
             style: root.style
-            enabledControl: root.enabledRow
+            enabledControl: root.effectiveEnabled
             from: root.fromValue
             to: root.toValue
             value: root.valueNumber

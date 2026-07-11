@@ -120,6 +120,7 @@ Item {
                         iconSource: page.controller.loaderIcon("forge")
                         selected: page.controller.installerSelected("forge")
                         removable: page.controller.installerSelected("forge")
+                        incompatibleCard: page.controller.installerIncompatibleWith("forge").length > 0
                         onInstallClicked: page.controller.selectInstaller("forge")
                         onRemoveClicked: page.controller.removeInstaller("forge")
                     }
@@ -133,6 +134,7 @@ Item {
                         iconSource: page.controller.loaderIcon("neoforge")
                         selected: page.controller.installerSelected("neoforge")
                         removable: page.controller.installerSelected("neoforge")
+                        incompatibleCard: page.controller.installerIncompatibleWith("neoforge").length > 0
                         onInstallClicked: page.controller.selectInstaller("neoforge")
                         onRemoveClicked: page.controller.removeInstaller("neoforge")
                     }
@@ -144,7 +146,7 @@ Item {
                         title: "OptiFine"
                         statusText: page.controller.installerStatus("optifine")
                         iconSource: page.controller.loaderIcon("optifine")
-                        disabledCard: true
+                        pendingCard: true
                     }
 
                     DownloadInstallerCard {
@@ -156,6 +158,7 @@ Item {
                         iconSource: page.controller.loaderIcon("fabric")
                         selected: page.controller.installerSelected("fabric")
                         removable: page.controller.installerSelected("fabric")
+                        incompatibleCard: page.controller.installerIncompatibleWith("fabric").length > 0
                         onInstallClicked: page.controller.selectInstaller("fabric")
                         onRemoveClicked: page.controller.removeInstaller("fabric")
                     }
@@ -167,7 +170,7 @@ Item {
                         title: "Fabric API"
                         statusText: page.controller.installerStatus("fabric-api")
                         iconSource: page.controller.loaderIcon("fabric-api")
-                        disabledCard: true
+                        pendingCard: true
                     }
 
                     DownloadInstallerCard {
@@ -179,6 +182,7 @@ Item {
                         iconSource: page.controller.loaderIcon("quilt")
                         selected: page.controller.installerSelected("quilt")
                         removable: page.controller.installerSelected("quilt")
+                        incompatibleCard: page.controller.installerIncompatibleWith("quilt").length > 0
                         onInstallClicked: page.controller.selectInstaller("quilt")
                         onRemoveClicked: page.controller.removeInstaller("quilt")
                     }
@@ -190,7 +194,7 @@ Item {
                         title: "Quilt API"
                         statusText: page.controller.installerStatus("quilt-api")
                         iconSource: page.controller.loaderIcon("quilt-api")
-                        disabledCard: true
+                        pendingCard: true
                     }
 
 

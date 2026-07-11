@@ -1,5 +1,6 @@
 #include "download/hmcl/DownloadProvider.h"
 
+#include <QLocale>
 #include <QPair>
 #include <QThread>
 
@@ -45,6 +46,11 @@ QList<Replacement> fallbackReplacements() {
     };
 }
 
+bool autoPrefersMirror() {
+    // HMCL DEFAULT: mirror first in Mainland China, official first elsewhere.
+    return QLocale::system().territory() == QLocale::China;
+}
+
 QString applyReplacement(const QString &baseUrl, const QList<Replacement> &table) {
     for (const Replacement &r : table) {
         if (baseUrl.startsWith(r.first)) {
@@ -63,11 +69,16 @@ HmclDownloadProvider::HmclDownloadProvider(Kind kind, QString apiRoot)
     : m_kind(kind), m_apiRoot(std::move(apiRoot)) {}
 
 HmclDownloadProvider HmclDownloadProvider::fromSource(const QString &source) {
+    // HMCL DownloadSource: DEFAULT / OFFICIAL / MIRROR.
+    // The QML settings serialize them as balanced / official / bmclapi.
     const QString s = source.trimmed().toLower();
-    if (s.isEmpty() || s == "auto") return HmclDownloadProvider(Kind::Auto);
-    if (s.contains("bmcl") || s.contains("mirror") || s.contains("china"))
+    if (s.isEmpty() || s == "auto" || s == "balanced" || s == "default")
+        return HmclDownloadProvider(Kind::Auto);
+    if (s == "official" || s == "mojang")
+        return HmclDownloadProvider(Kind::Mojang);
+    if (s == "bmclapi" || s == "mirror" || s.contains("bmcl") || s.contains("china"))
         return HmclDownloadProvider(Kind::BMCLAPI);
-    return HmclDownloadProvider(Kind::Mojang);
+    return HmclDownloadProvider(Kind::Auto);
 }
 
 QString HmclDownloadProvider::id() const {
@@ -91,7 +102,11 @@ QList<QUrl> HmclDownloadProvider::versionListUrls() const {
     const QUrl mirrorV2(m_apiRoot + "/mc/game/version_manifest_v2.json");
     const QUrl mirrorV1(m_apiRoot + "/mc/game/version_manifest.json");
     if (m_kind == Kind::BMCLAPI) return {mirrorV2, mirrorV1, officialV2, officialV1};
-    if (m_kind == Kind::Auto) return {officialV2, mirrorV2, officialV1, mirrorV1};
+    if (m_kind == Kind::Auto) {
+        return autoPrefersMirror()
+                ? QList<QUrl>{mirrorV2, officialV2, mirrorV1, officialV1}
+                : QList<QUrl>{officialV2, mirrorV2, officialV1, mirrorV1};
+    }
     return {officialV2, officialV1};
 }
 
@@ -99,7 +114,7 @@ QList<QUrl> HmclDownloadProvider::assetObjectCandidates(const QString &assetLoca
     const QUrl official("https://resources.download.minecraft.net/" + assetLocation);
     const QUrl mirror(m_apiRoot + "/assets/" + assetLocation);
     if (m_kind == Kind::BMCLAPI) return {mirror, official};
-    if (m_kind == Kind::Auto) return {official, mirror};
+    if (m_kind == Kind::Auto) return autoPrefersMirror() ? QList<QUrl>{mirror, official} : QList<QUrl>{official, mirror};
     return {official};
 }
 
@@ -126,6 +141,10 @@ QList<QUrl> HmclDownloadProvider::candidatesFor(const QString &baseUrl) const {
     };
 
     if (m_kind == Kind::BMCLAPI) {
+        appendUnique(primary);
+        appendUnique(baseUrl);
+        appendUnique(fallback);
+    } else if (m_kind == Kind::Auto && autoPrefersMirror()) {
         appendUnique(primary);
         appendUnique(baseUrl);
         appendUnique(fallback);

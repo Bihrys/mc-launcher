@@ -90,6 +90,7 @@ QJsonObject LauncherSettings::defaults() const {
         "autoChooseDownloadSource": true,
         "versionListSource": "balanced",
         "downloadSource": "balanced",
+        "fileDownloadSource": "balanced",
         "defaultAddonSource": "modrinth",
         "commonDirType": "default",
         "commonDirectory": "",
@@ -108,8 +109,14 @@ QJsonObject LauncherSettings::defaults() const {
 }
 
 QJsonObject LauncherSettings::load() {
+    const QJsonObject stored = JsonUtil::readObjectFile(LauncherPaths::settingsFile(), {});
     QJsonObject out = defaults();
-    merge(out, JsonUtil::readObjectFile(LauncherPaths::settingsFile(), {}));
+    merge(out, stored);
+
+    // Migration from the earlier Qt port key to HMCL's independent file source key.
+    if (!stored.contains("fileDownloadSource") && stored.contains("downloadSource"))
+        out.insert("fileDownloadSource", stored.value("downloadSource"));
+
     save(out);
     return out;
 }

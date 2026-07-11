@@ -9,7 +9,7 @@
 #include <atomic>
 
 
-class FpsMonitor final : public QObject {
+class FpsMonitor : public QObject {
     Q_OBJECT
     Q_PROPERTY(QQuickWindow *window READ window WRITE setWindow NOTIFY windowChanged)
     Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY enabledChanged)

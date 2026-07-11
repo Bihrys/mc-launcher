@@ -37,6 +37,7 @@ Item {
     property string launcherBuiltinBackgroundId: "2021-08-26"
     property real launcherBackgroundOpacity: 1.0
     property bool titleBarTransparent: false
+    property bool externalBackgroundFailed: false
 
     property var launchTaskStatus: ({
         "id": "",
@@ -136,6 +137,23 @@ Item {
         }
     }
 
+    function localBackgroundUrl(path) {
+        var value = String(path || "")
+        if (value.length === 0)
+            return ""
+        if (value.indexOf("file:") === 0)
+            return value
+        return encodeURI("file://" + value)
+    }
+
+    function externalBackgroundSource() {
+        if (root.launcherBackgroundType === "custom")
+            return root.localBackgroundUrl(root.launcherBackgroundImage)
+        if (root.launcherBackgroundType === "network")
+            return root.launcherBackgroundImageUrl
+        return ""
+    }
+
     function effectiveThemeColorFromSettings(data) {
         var type = data.themeColorType !== undefined && data.themeColorType !== null ? String(data.themeColorType) : "default"
         if (type === "custom") {
@@ -176,12 +194,17 @@ Item {
         "open": root.launchDialogOpen,
         "status": root.launchTaskStatus.status || ""
     })
-    onLauncherBackgroundTypeChanged: root.logAction("ui.settings", "background_type_changed", {
-        "value": root.launcherBackgroundType
-    })
+    onLauncherBackgroundTypeChanged: {
+        root.externalBackgroundFailed = false
+        root.logAction("ui.settings", "background_type_changed", {
+            "value": root.launcherBackgroundType
+        })
+    }
     onLauncherBuiltinBackgroundIdChanged: root.logAction("ui.settings", "builtin_background_changed", {
         "value": root.launcherBuiltinBackgroundId
     })
+    onLauncherBackgroundImageChanged: root.externalBackgroundFailed = false
+    onLauncherBackgroundImageUrlChanged: root.externalBackgroundFailed = false
     onLauncherBackgroundOpacityChanged: root.logAction("ui.settings", "background_opacity_changed", {
         "value": root.launcherBackgroundOpacity
     })
@@ -233,13 +256,24 @@ Item {
         anchors.fill: parent
         visible: root.launcherBackgroundType === "paint" && root.launcherBackgroundPaint.length > 0
         color: root.launcherBackgroundPaint.length > 0 ? root.launcherBackgroundPaint : style.cBgStart
+        opacity: Math.max(0.0, Math.min(1.0, root.launcherBackgroundOpacity))
     }
 
     Image {
         id: builtinBackgroundImage
         anchors.fill: parent
-        visible: root.launcherBackgroundType === "default" || root.launcherBackgroundType === "builtin"
-        source: root.builtinBackgroundSource(root.launcherBuiltinBackgroundId)
+        // DEFAULT uses the theme background. Theme packs are not implemented yet,
+        // so this is HMCL's built-in fallback. CUSTOM/NETWORK keep the fallback
+        // behind the image while it is loading or if loading fails.
+        visible: root.launcherBackgroundType === "default"
+                 || root.launcherBackgroundType === "builtin"
+                 || ((root.launcherBackgroundType === "custom" || root.launcherBackgroundType === "network")
+                     && (root.externalBackgroundSource().length === 0
+                         || root.externalBackgroundFailed
+                         || externalBackgroundImage.status !== Image.Ready))
+        source: root.launcherBackgroundType === "builtin"
+                ? root.builtinBackgroundSource(root.launcherBuiltinBackgroundId)
+                : root.builtinBackgroundSource("2021-08-26")
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
         cache: true
@@ -256,15 +290,30 @@ Item {
     Image {
         id: externalBackgroundImage
         anchors.fill: parent
-        readonly property string resolvedSource: root.launcherBackgroundType === "custom" && root.launcherBackgroundImage.length > 0
-                ? (root.launcherBackgroundImage.indexOf("file:") === 0 ? root.launcherBackgroundImage : "file://" + root.launcherBackgroundImage)
-                : (root.launcherBackgroundType === "network" && root.launcherBackgroundImageUrl.length > 0 ? root.launcherBackgroundImageUrl : "")
-        visible: resolvedSource.length > 0
-        source: resolvedSource.length > 0 ? resolvedSource : "qrc:/qt/qml/com/bihrys/launcher/qml/assets/img/wallpapers/2021-08-26.jpg"
+        readonly property string resolvedSource: root.externalBackgroundSource()
+        visible: resolvedSource.length > 0 && !root.externalBackgroundFailed
+        source: resolvedSource
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
         cache: true
         opacity: Math.max(0.0, Math.min(1.0, root.launcherBackgroundOpacity))
+        onStatusChanged: {
+            if (status === Image.Error) {
+                root.externalBackgroundFailed = true
+                root.logAction("ui.settings", "background_image_load_failed", {
+                    "type": root.launcherBackgroundType,
+                    "sourceLength": resolvedSource.length
+                })
+            } else if (status === Image.Ready) {
+                root.externalBackgroundFailed = false
+                root.logAction("ui.settings", "background_image_ready", {
+                    "type": root.launcherBackgroundType,
+                    "sourceLength": resolvedSource.length,
+                    "sourceWidth": sourceSize.width,
+                    "sourceHeight": sourceSize.height
+                })
+            }
+        }
     }
 
     Rectangle {
