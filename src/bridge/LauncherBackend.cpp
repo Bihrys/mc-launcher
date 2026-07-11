@@ -185,35 +185,200 @@ void LauncherBackend::setAccountsPayload(const QJsonObject &payload) {
     setCurrentAccountFromPayload(payload);
 }
 
+void LauncherBackend::finishJavaOperation(const QJsonObject &result,
+                                          const QString &fallbackTitle) {
+    const bool success = result.value("success").toBool(false);
+    const QString message = result.value("message").toString(
+        success ? fallbackTitle : QStringLiteral("Java 操作失败。"));
+
+    if (result.value("runtimes").isArray()) {
+        setString(m_detectedJavaJson, stringify(result),
+                  &LauncherBackend::detectedJavaJsonChanged);
+    }
+
+    m_javaTaskJson = stringify(QJsonObject{
+        {"active", false},
+        {"success", success},
+        {"percent", success ? 100 : 0},
+        {"title", success ? fallbackTitle : QStringLiteral("Java 操作失败")},
+        {"message", message},
+        {"runtimes", result.value("runtimes").toArray()},
+        {"disabled", result.value("disabled").toArray()},
+        {"result", result}
+    });
+    setOutput(message);
+    AppLogger::info("backend.state", "java_task_changed", QString(), {
+        {"success", success},
+        {"runtimeCount", result.value("runtimes").toArray().size()},
+        {"disabledCount", result.value("disabled").toArray().size()},
+        {"summary", AppLogger::summarizeJson(m_javaTaskJson)}
+    });
+}
+
+void LauncherBackend::startJavaOperation(const QString &title,
+                                         const QString &message,
+                                         std::function<QJsonObject()> operation) {
+    const quint64 requestSerial = ++m_javaRequestSerial;
+    m_javaTaskJson = stringify(QJsonObject{
+        {"active", true}, {"success", false}, {"percent", 5},
+        {"title", title}, {"message", message}
+    });
+    AppLogger::info("backend.state", "java_task_changed", QString(), {
+        {"requestSerial", static_cast<double>(requestSerial)},
+        {"summary", AppLogger::summarizeJson(m_javaTaskJson)}
+    });
+
+    auto *watcher = new QFutureWatcher<QJsonObject>(this);
+    connect(watcher, &QFutureWatcher<QJsonObject>::finished, this,
+            [this, watcher, requestSerial, title]() {
+        const QJsonObject result = watcher->result();
+        watcher->deleteLater();
+        if (requestSerial != m_javaRequestSerial) {
+            AppLogger::info("backend.java", "java_result_ignored", QString(), {
+                {"requestSerial", static_cast<double>(requestSerial)},
+                {"currentSerial", static_cast<double>(m_javaRequestSerial)}
+            });
+            return;
+        }
+        finishJavaOperation(result, title);
+    });
+    watcher->setFuture(QtConcurrent::run(std::move(operation)));
+}
+
 void LauncherBackend::detectJava() {
-    AppLogScope scope("backend", "detectJava");
-    QJsonObject data = m_java.detect();
-    setString(m_detectedJavaJson, stringify(data), &LauncherBackend::detectedJavaJsonChanged);
-    setOutput("Java 检测完成。检测到 " + QString::number(data.value("count").toInt()) + " 个运行时。");
+    startDetectJava();
 }
 
 void LauncherBackend::startDetectJava() {
     AppLogScope scope("backend", "startDetectJava");
-    QJsonObject status{{"active", false}, {"percent", 100}, {"title", "Java 检测完成"},
-                       {"message", "本机 Java 检测完成。"},
-                       {"runtimes", m_java.detect().value("runtimes").toArray()}};
-    m_javaTaskJson = stringify(status);
-    AppLogger::info("backend.state", "java_task_changed", QString(), {
-        {"summary", AppLogger::summarizeJson(m_javaTaskJson)}
+    startJavaOperation(QStringLiteral("Java 检测完成"),
+                       QStringLiteral("正在搜索本机 Java 运行时。"),
+                       []() {
+        JavaService service;
+        QJsonObject result = service.detect(true);
+        result.insert("message", QStringLiteral("本机 Java 检测完成。"));
+        return result;
     });
-    setString(m_detectedJavaJson,
-              stringify(QJsonObject{{"runtimes", status.value("runtimes").toArray()}}),
-              &LauncherBackend::detectedJavaJsonChanged);
 }
 
 QString LauncherBackend::pollJavaTask() { return m_javaTaskJson; }
 
-void LauncherBackend::downloadJava(const QString &distribution, const QString &major,
+void LauncherBackend::downloadJava(const QString &distribution,
+                                   const QString &major,
                                    const QString &packageType) {
     AppLogScope scope("backend", "downloadJava", {
         {"distribution", distribution}, {"major", major}, {"packageType", packageType}
     });
-    setOutput(m_java.downloadPlaceholder(distribution, major, packageType));
+    bool ok = false;
+    const int javaMajor = major.trimmed().toInt(&ok);
+    if (!ok || javaMajor <= 0) {
+        finishJavaOperation(QJsonObject{{"success", false},
+                                        {"message", QStringLiteral("Java 主版本无效。")}},
+                            QStringLiteral("Java 下载完成"));
+        return;
+    }
+    const QString dist = distribution;
+    const QString package = packageType;
+    startJavaOperation(QStringLiteral("Java 下载完成"),
+                       QStringLiteral("正在获取并安装 Java。"),
+                       [dist, javaMajor, package]() {
+        JavaService service;
+        return service.downloadJava(dist, javaMajor, package);
+    });
+}
+
+void LauncherBackend::addJavaPath(const QString &path) {
+    AppLogScope scope("backend", "addJavaPath", {{"path", path}});
+    const QString value = path;
+    startJavaOperation(QStringLiteral("Java 已添加"),
+                       QStringLiteral("正在检查所选 Java。"),
+                       [value]() {
+        JavaService service;
+        return service.addJavaPath(value);
+    });
+}
+
+void LauncherBackend::installJavaArchive(const QString &archivePath) {
+    AppLogScope scope("backend", "installJavaArchive", {{"archive", archivePath}});
+    const QString value = archivePath;
+    startJavaOperation(QStringLiteral("Java 安装完成"),
+                       QStringLiteral("正在解压并验证 Java 压缩包。"),
+                       [value]() {
+        JavaService service;
+        return service.installJavaArchive(value);
+    });
+}
+
+void LauncherBackend::disableJava(const QString &path) {
+    AppLogScope scope("backend", "disableJava", {{"path", path}});
+    const QString value = path;
+    startJavaOperation(QStringLiteral("Java 已禁用"),
+                       QStringLiteral("正在更新 Java 禁用列表。"),
+                       [value]() {
+        JavaService service;
+        return service.disableJava(value);
+    });
+}
+
+void LauncherBackend::restoreJava(const QString &path) {
+    AppLogScope scope("backend", "restoreJava", {{"path", path}});
+    const QString value = path;
+    startJavaOperation(QStringLiteral("Java 已恢复"),
+                       QStringLiteral("正在恢复 Java。"),
+                       [value]() {
+        JavaService service;
+        return service.restoreJava(value);
+    });
+}
+
+void LauncherBackend::removeDisabledJava(const QString &path) {
+    AppLogScope scope("backend", "removeDisabledJava", {{"path", path}});
+    const QString value = path;
+    startJavaOperation(QStringLiteral("禁用记录已移除"),
+                       QStringLiteral("正在移除无效 Java 记录。"),
+                       [value]() {
+        JavaService service;
+        return service.removeDisabledJava(value);
+    });
+}
+
+void LauncherBackend::uninstallManagedJava(const QString &path) {
+    AppLogScope scope("backend", "uninstallManagedJava", {{"path", path}});
+    const QString value = path;
+    startJavaOperation(QStringLiteral("Java 已卸载"),
+                       QStringLiteral("正在删除由启动器管理的 Java。"),
+                       [value]() {
+        JavaService service;
+        return service.uninstallManagedJava(value);
+    });
+}
+
+void LauncherBackend::revealJava(const QString &path) {
+    AppLogScope scope("backend", "revealJava", {{"path", path}});
+    QString localPath = path.trimmed();
+    if (localPath.startsWith("file:")) localPath = QUrl(localPath).toLocalFile();
+    QFileInfo info(localPath);
+    QString target = info.absoluteFilePath();
+    if (info.isFile()) {
+        QDir parent = info.dir();
+        if (parent.dirName() == QStringLiteral("bin")) {
+            parent.cdUp();
+            if (QFileInfo::exists(parent.filePath("release")))
+                target = parent.absolutePath();
+            else
+                target = info.absolutePath();
+        } else {
+            target = info.absolutePath();
+        }
+    }
+    if (target.isEmpty() || !QFileInfo::exists(target)) {
+        AppLogger::warning("backend.java", "reveal_missing", QString(), {{"path", localPath}});
+        return;
+    }
+    const bool opened = QDesktopServices::openUrl(QUrl::fromLocalFile(target));
+    AppLogger::info("backend.java", "reveal_result", QString(), {
+        {"target", target}, {"opened", opened}
+    });
 }
 
 void LauncherBackend::loginOffline(const QString &username) {
@@ -384,13 +549,30 @@ void LauncherBackend::startRefreshDownloadCatalog(const QString &source) {
     AppLogScope scope("backend", "startRefreshDownloadCatalog", {{"source", source}});
 
     const quint64 requestSerial = ++m_catalogRequestSerial;
+
+    // HMCL's GetTask reads its ETag-backed disk cache before completing a
+    // network revalidation. Publish the cached catalog immediately so opening
+    // the download page does not wait for DNS/TLS/HTTP on every visit.
+    const QJsonObject cachedCatalog = m_downloads.cachedCatalog(source);
+    QString cachedJson;
+    if (!cachedCatalog.isEmpty()) {
+        cachedJson = stringify(cachedCatalog);
+        setString(m_downloadCatalogJson, cachedJson,
+                  &LauncherBackend::downloadCatalogJsonChanged);
+    }
+
     m_catalogTaskJson = stringify(QJsonObject{
-        {"active", true}, {"percent", 5}, {"title", "正在获取版本列表"},
-        {"message", "正在连接 Minecraft 版本源。"},
-        {"catalogReady", false}, {"catalogJson", QString()}
+        {"active", true}, {"percent", cachedJson.isEmpty() ? 5 : 65},
+        {"title", cachedJson.isEmpty() ? "正在获取版本列表" : "正在刷新版本列表"},
+        {"message", cachedJson.isEmpty()
+            ? "正在连接 Minecraft 版本源。"
+            : "已显示缓存版本列表，正在后台校验更新。"},
+        {"catalogReady", !cachedJson.isEmpty()}, {"catalogJson", cachedJson},
+        {"usingCache", !cachedJson.isEmpty()}
     });
     AppLogger::info("backend.state", "catalog_task_changed", QString(), {
         {"requestSerial", static_cast<double>(requestSerial)},
+        {"cacheReady", !cachedJson.isEmpty()},
         {"summary", AppLogger::summarizeJson(m_catalogTaskJson)}
     });
 
@@ -412,7 +594,7 @@ void LauncherBackend::startRefreshDownloadCatalog(const QString &source) {
             m_catalogTaskJson = stringify(QJsonObject{
                 {"active", false}, {"percent", 0}, {"title", "版本列表加载失败"},
                 {"message", "无法连接版本源。请检查网络、下载源或日志后重试。"},
-                {"catalogReady", false}, {"catalogJson", QString()}
+                {"catalogReady", false}, {"catalogJson", QString()}, {"usingCache", false}
             });
             AppLogger::warning("backend.download", "catalog_refresh_failed", QString(), {
                 {"source", source}, {"requestSerial", static_cast<double>(requestSerial)}
@@ -426,7 +608,7 @@ void LauncherBackend::startRefreshDownloadCatalog(const QString &source) {
         m_catalogTaskJson = stringify(QJsonObject{
             {"active", false}, {"percent", 100}, {"title", "版本列表已刷新"},
             {"message", "Minecraft 版本列表加载完成。"},
-            {"catalogReady", true}, {"catalogJson", catalogJson}
+            {"catalogReady", true}, {"catalogJson", catalogJson}, {"usingCache", false}
         });
         AppLogger::info("backend.state", "catalog_task_changed", QString(), {
             {"requestSerial", static_cast<double>(requestSerial)},

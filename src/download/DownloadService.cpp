@@ -3,6 +3,11 @@
 #include "download/hmcl/DownloadProvider.h"
 #include "download/hmcl/VersionListService.h"
 
+QJsonObject DownloadService::cachedCatalog(const QString &source) {
+    HmclVersionListService service(HmclDownloadProvider::fromSource(source));
+    return service.cachedCatalog();
+}
+
 QJsonObject DownloadService::refreshCatalog(const QString &source) {
     HmclVersionListService service(HmclDownloadProvider::fromSource(source));
     return service.refreshCatalog();

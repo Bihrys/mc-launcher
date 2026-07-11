@@ -9,11 +9,14 @@
 #include <QUrl>
 
 // C++ port of HMCL VersionList implementations used by the download page.
-// It keeps the same output shape already consumed by HmclDownloadPage.qml.
+// Metadata responses use an HMCL-style disk cache with ETag/Last-Modified
+// revalidation. The cached game catalog can be displayed immediately while a
+// network refresh continues in the background.
 class HmclVersionListService {
 public:
     explicit HmclVersionListService(HmclDownloadProvider provider);
 
+    QJsonObject cachedCatalog() const;
     QJsonObject refreshCatalog() const;
     QJsonObject loaderMetadata(const QString &gameVersion, const QString &loaderKind) const;
 
@@ -26,6 +29,7 @@ public:
 
 private:
     QByteArray httpGetFirst(const QList<QUrl> &urls, int timeoutMs = 15000) const;
+    QByteArray cachedBytesFor(const QUrl &url) const;
     QJsonObject getObject(const QList<QUrl> &urls, bool *requestOk = nullptr) const;
     QJsonArray getArray(const QList<QUrl> &urls, bool *requestOk = nullptr) const;
 

@@ -10,6 +10,7 @@
 // enter FAILED state; no fabricated versions are injected.
 class DownloadService {
 public:
+    QJsonObject cachedCatalog(const QString &source);
     QJsonObject refreshCatalog(const QString &source);
     QJsonObject loaderMetadata(const QString &source,
                                const QString &gameVersion,

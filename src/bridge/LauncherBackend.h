@@ -3,6 +3,8 @@
 #include <QObject>
 #include <QString>
 
+#include <functional>
+
 #include "account/AccountService.h"
 #include "download/DownloadService.h"
 #include "game/InstanceService.h"
@@ -90,6 +92,13 @@ public:
   Q_INVOKABLE void downloadJava(const QString &distribution,
                                 const QString &major,
                                 const QString &packageType);
+  Q_INVOKABLE void addJavaPath(const QString &path);
+  Q_INVOKABLE void installJavaArchive(const QString &archivePath);
+  Q_INVOKABLE void disableJava(const QString &path);
+  Q_INVOKABLE void restoreJava(const QString &path);
+  Q_INVOKABLE void removeDisabledJava(const QString &path);
+  Q_INVOKABLE void uninstallManagedJava(const QString &path);
+  Q_INVOKABLE void revealJava(const QString &path);
 
   Q_INVOKABLE void loginOffline(const QString &username);
   Q_INVOKABLE void loginYggdrasil(const QString &serverUrl,
@@ -224,6 +233,11 @@ private:
   QString stringify(const QJsonObject &object) const;
   QString fieldName(const QString *field) const;
   QString summarizeFieldValue(const QString *field, const QString &value) const;
+  void startJavaOperation(const QString &title,
+                          const QString &message,
+                          std::function<QJsonObject()> operation);
+  void finishJavaOperation(const QJsonObject &result,
+                           const QString &fallbackTitle);
 
   LauncherSettings m_settings;
   AccountService m_accounts;
@@ -262,4 +276,5 @@ private:
   // serial prevents an older network response from overwriting a newer refresh.
   quint64 m_catalogRequestSerial = 0;
   quint64 m_installerRequestSerial = 0;
+  quint64 m_javaRequestSerial = 0;
 };

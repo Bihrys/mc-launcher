@@ -15,7 +15,9 @@ Item {
     // Keep all three panes alive and only fade their opacity. This avoids
     // destroying/recreating the ListView and losing the ListModel presentation
     // during Loader/TransitionPane switches.
-    readonly property int catalogState: page.controller.catalogTaskStatus.active ? 0
+    readonly property int catalogState: (page.controller.catalogTaskStatus.active
+                                             && !page.controller.catalogTaskStatus.usingCache
+                                             && page.controller.visibleVersions.length === 0) ? 0
                                       : page.controller.catalogLoadFailed ? 2 : 1
 
     onCatalogStateChanged: {
@@ -23,8 +25,8 @@ Item {
             "state": page.catalogState,
             "active": !!page.controller.catalogTaskStatus.active,
             "failed": !!page.controller.catalogLoadFailed,
-            "allCount": page.controller.allVersions.count,
-            "visibleCount": page.controller.visibleVersions.count
+            "allCount": page.controller.allVersions.length,
+            "visibleCount": page.controller.visibleVersions.length
         })
     }
 
@@ -147,7 +149,7 @@ Item {
                     onCountChanged: {
                         page.controller.logAction("versions_list_count_changed", {
                             "count": count,
-                            "modelCount": page.controller.visibleVersions.count,
+                            "modelCount": page.controller.visibleVersions.length,
                             "width": width,
                             "height": height,
                             "state": page.catalogState
@@ -160,10 +162,7 @@ Item {
                         id: versionDelegate
 
                         required property int index
-                        required property string versionId
-                        required property string releaseTime
-                        required property string tagText
-                        required property string iconSource
+                        required property var modelData
 
                         width: versionList.width
                         height: 64
@@ -171,11 +170,11 @@ Item {
                         DownloadVersionCell {
                             anchors.fill: parent
                             style: page.style
-                            versionId: versionDelegate.versionId
-                            subtitle: versionDelegate.releaseTime
-                            tagText: versionDelegate.tagText
-                            iconSource: versionDelegate.iconSource
-                            selected: page.controller.selectedGameVersion === versionDelegate.versionId
+                            versionId: String(versionDelegate.modelData.versionId || "")
+                            subtitle: String(versionDelegate.modelData.releaseTime || "")
+                            tagText: String(versionDelegate.modelData.tagText || "")
+                            iconSource: String(versionDelegate.modelData.iconSource || "")
+                            selected: page.controller.selectedGameVersion === versionId
                             onClicked: page.controller.openInstallerForVersion(versionDelegate.index)
                         }
                     }
@@ -187,7 +186,7 @@ Item {
 
                 Text {
                     anchors.centerIn: parent
-                    visible: page.controller.visibleVersions.count === 0
+                    visible: page.controller.visibleVersions.length === 0
                     text: "没有匹配的版本"
                     color: page.style.cTextOnSurfaceVariant
                     font.pixelSize: 13
@@ -279,8 +278,8 @@ Item {
     Component.onCompleted: {
         page.controller.logAction("versions_page_completed", {
             "state": page.catalogState,
-            "allCount": page.controller.allVersions.count,
-            "visibleCount": page.controller.visibleVersions.count,
+            "allCount": page.controller.allVersions.length,
+            "visibleCount": page.controller.visibleVersions.length,
             "width": page.width,
             "height": page.height
         })

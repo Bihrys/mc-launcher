@@ -16,7 +16,7 @@ cmake --build build
 
 下载向导的版本页、安装器选择页和加载器版本页改为持久页面实例，不再通过下载模块内部的动态 Loader 销毁重建。标题栏新增基于 `QQuickWindow::frameSwapped` 的实时 FPS 显示。详见 `docs/DOWNLOAD_INSTALLER_PAGE_AND_FPS_FIX.md`。
 
-## 本次修复
+## 本次 HMCL 对齐修复
 
 - 移植 Forge / NeoForge / Fabric / Quilt 安装器冲突矩阵；不兼容卡片保持可见但不可点击。
 - 版本列表来源与文件下载来源分开设置，并实际传入元数据请求和安装下载任务。

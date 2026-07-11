@@ -42,7 +42,7 @@ Item {
     property bool catalogLoadFailed: false
     property string catalogFailedMessage: ""
     property int catalogRevision: 0
-    readonly property int visibleVersionCount: visibleVersionModel.count
+    readonly property int visibleVersionCount: root.visibleVersions.length
 
     property var downloadTaskStatus: ({
         "active": false,
@@ -77,16 +77,14 @@ Item {
         "catalogJson": ""
     })
 
-    ListModel { id: allVersionsModel }
-    ListModel { id: visibleVersionModel }
     ListModel { id: fabricLoaderModel }
     ListModel { id: quiltLoaderModel }
     ListModel { id: forgeInstallerModel }
     ListModel { id: neoforgeInstallerModel }
     ListModel { id: visibleLoaderVersionModel }
 
-    readonly property var allVersions: allVersionsModel
-    readonly property var visibleVersions: visibleVersionModel
+    property var allVersions: []
+    property var visibleVersions: []
     readonly property var fabricLoaders: fabricLoaderModel
     readonly property var quiltLoaders: quiltLoaderModel
     readonly property var forgeInstallers: forgeInstallerModel
@@ -255,14 +253,15 @@ Item {
             "percent": 5,
             "title": "正在获取版本列表",
             "message": "正在连接 Minecraft 版本源。",
-            "catalogReady": false,
-            "catalogJson": ""
+            "catalogReady": root.visibleVersions.length > 0,
+            "catalogJson": "",
+            "usingCache": root.visibleVersions.length > 0
         }
 
         root.logAction("catalog_refresh_requested", {
             "source": root.versionListSource,
-            "existingAllCount": allVersionsModel.count,
-            "existingVisibleCount": visibleVersionModel.count
+            "existingAllCount": root.allVersions.length,
+            "existingVisibleCount": root.visibleVersions.length
         })
         root.backend.startRefreshDownloadCatalog(root.versionListSource)
         catalogTaskPoller.restart()
@@ -510,18 +509,12 @@ Item {
             var data = JSON.parse(raw)
             root.catalog = data
 
-            allVersionsModel.clear()
-            fabricLoaderModel.clear()
-            quiltLoaderModel.clear()
-            forgeInstallerModel.clear()
-            neoforgeInstallerModel.clear()
-            visibleLoaderVersionModel.clear()
-
+            var nextVersions = []
             var versions = data.gameVersions || []
             for (var i = 0; i < versions.length; i++) {
                 var item = versions[i]
                 var group = root.groupForVersion(item.id || "", item.versionType || "")
-                allVersionsModel.append({
+                nextVersions.push({
                     "versionId": item.id || "",
                     "versionType": item.versionType || "",
                     "releaseTime": item.releaseTime || "",
@@ -530,6 +523,16 @@ Item {
                     "tagText": root.tagForVersionGroup(group)
                 })
             }
+            // One assignment mirrors HMCL's ObservableList.setAll(items). It
+            // avoids 300 ListModel count changes, delegate relayouts and disk
+            // log writes during every catalog refresh.
+            root.allVersions = nextVersions
+
+            fabricLoaderModel.clear()
+            quiltLoaderModel.clear()
+            forgeInstallerModel.clear()
+            neoforgeInstallerModel.clear()
+            visibleLoaderVersionModel.clear()
 
             var fabric = data.fabricLoaders || []
             for (var f = 0; f < fabric.length; f++) {
@@ -555,13 +558,13 @@ Item {
 
             root.logAction("catalog_models_rebuilt", {
                 "revision": root.catalogRevision,
-                "allCount": allVersionsModel.count,
-                "visibleCount": visibleVersionModel.count,
+                "allCount": root.allVersions.length,
+                "visibleCount": root.visibleVersions.length,
                 "filter": root.versionFilter,
                 "searchLength": root.searchText.length
             })
 
-            if (visibleVersionModel.count > 0) {
+            if (root.visibleVersions.length > 0) {
                 root.selectVersion(0)
             }
 
@@ -580,8 +583,6 @@ Item {
     }
 
     function rebuildVisibleVersions() {
-        visibleVersionModel.clear()
-
         var rawQuery = root.searchText || ""
         var lowerQuery = rawQuery.toLowerCase()
         var regex = null
@@ -589,30 +590,27 @@ Item {
             try {
                 regex = new RegExp(rawQuery.substring(6))
             } catch (e) {
-                // HMCL keeps the category-filtered list when the expression is illegal.
                 root.logAction("version_search_regex_invalid", {"error": String(e)})
                 regex = null
                 lowerQuery = ""
             }
         }
 
-        for (var i = 0; i < allVersionsModel.count; i++) {
-            var item = allVersionsModel.get(i)
+        var nextVisible = []
+        for (var i = 0; i < root.allVersions.length; i++) {
+            var item = root.allVersions[i]
 
-            if (root.versionFilter !== "all" && item.group !== root.versionFilter) {
+            if (root.versionFilter !== "all" && item.group !== root.versionFilter)
                 continue
-            }
 
             var versionText = String(item.versionId)
-            if (regex && !regex.test(versionText)) {
+            if (regex && !regex.test(versionText))
                 continue
-            }
             if (!regex && lowerQuery.length > 0
-                    && versionText.toLowerCase().indexOf(lowerQuery) < 0) {
+                    && versionText.toLowerCase().indexOf(lowerQuery) < 0)
                 continue
-            }
 
-            visibleVersionModel.append({
+            nextVisible.push({
                 "sourceIndex": i,
                 "versionId": item.versionId,
                 "versionType": item.versionType,
@@ -622,10 +620,11 @@ Item {
                 "tagText": item.tagText
             })
         }
+        root.visibleVersions = nextVisible
 
         root.logAction("visible_versions_rebuilt", {
-            "allCount": allVersionsModel.count,
-            "visibleCount": visibleVersionModel.count,
+            "allCount": root.allVersions.length,
+            "visibleCount": root.visibleVersions.length,
             "filter": root.versionFilter,
             "searchLength": rawQuery.length,
             "regex": regex !== null
@@ -638,7 +637,7 @@ Item {
         if (root.selectedGameVersion.length === 0) {
             root.logAction("installer_page_open_rejected", {
                 "visibleIndex": visibleIndex,
-                "visibleCount": visibleVersionModel.count
+                "visibleCount": root.visibleVersions.length
             })
             return
         }
@@ -1020,11 +1019,11 @@ Item {
     }
 
     function selectVersion(visibleIndex) {
-        if (visibleIndex < 0 || visibleIndex >= visibleVersionModel.count) {
+        if (visibleIndex < 0 || visibleIndex >= root.visibleVersions.length) {
             return
         }
 
-        var item = visibleVersionModel.get(visibleIndex)
+        var item = root.visibleVersions[visibleIndex]
         root.selectedGameVersion = item.versionId
         root.selectedGameReleaseTime = item.releaseTime
         root.rebuildLoaderModels()

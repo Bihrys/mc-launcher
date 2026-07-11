@@ -197,22 +197,14 @@ Column {
             }
 
             HmclRadioOptionLine {
-                id: builtinBackgroundRow
                 width: parent.width
                 style: root.style
                 title: "经典"
                 checked: root.st("backgroundType", "default") === "builtin"
-                onClicked: root.set("backgroundType", "builtin")
-
-                InlineComboBox {
-                    style: root.style
-                    value: root.st("builtinBackgroundId", "2021-08-26")
-                    options: root.builtinOptions()
-                    enabledBox: builtinBackgroundRow.checked
-                    onSelected: function(v) {
-                        root.set("builtinBackgroundId", v)
-                        root.set("backgroundType", "builtin")
-                    }
+                onClicked: {
+                    // “经典”是直接选项，不显示额外年份选择器。
+                    root.set("builtinBackgroundId", "2016-02-25")
+                    root.set("backgroundType", "builtin")
                 }
             }
 

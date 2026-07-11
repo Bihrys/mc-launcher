@@ -1,14 +1,20 @@
 #include "download/hmcl/VersionListService.h"
 
-#include "core/JsonUtil.h"
+#include "core/LauncherPaths.h"
 #include "logging/AppLogger.h"
 
+#include <QCryptographicHash>
+#include <QDateTime>
+#include <QDir>
 #include <QEventLoop>
+#include <QFile>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QRegularExpression>
+#include <QSaveFile>
 #include <QTimer>
 
 #include <utility>
@@ -16,9 +22,6 @@
 namespace {
 
 QString neoGameVersionFromArtifactVersion(const QString &version) {
-    // Port of HMCL NeoForgeOfficialVersionList version inference, simplified to
-    // the public version scheme used by current NeoForge metadata.
-    // Examples: 20.4.237 -> 1.20.4, 21.1.200 -> 1.21.1, 1.20.1-47.1.106 -> 1.20.1.
     if (version.startsWith("1.")) return version.section('-', 0, 0);
     const QStringList parts = version.split(QRegularExpression("[.+-]"), Qt::SkipEmptyParts);
     if (parts.size() < 2) return QString();
@@ -34,21 +37,110 @@ QString neoGameVersionFromArtifactVersion(const QString &version) {
 
 QJsonArray emptyArray() { return QJsonArray{}; }
 
+QString metadataCacheRoot() {
+    const QString root = LauncherPaths::cacheDir() + "/metadata";
+    LauncherPaths::ensureDir(root);
+    return root;
+}
+
+QString cacheKeyForUrl(const QUrl &url) {
+    const QByteArray encoded = url.toEncoded(QUrl::FullyEncoded);
+    return QString::fromLatin1(QCryptographicHash::hash(encoded, QCryptographicHash::Sha1).toHex());
+}
+
+QString dataPathForUrl(const QUrl &url) {
+    return metadataCacheRoot() + "/" + cacheKeyForUrl(url) + ".json";
+}
+
+QString metaPathForUrl(const QUrl &url) {
+    return metadataCacheRoot() + "/" + cacheKeyForUrl(url) + ".meta.json";
+}
+
+QJsonObject readMeta(const QUrl &url) {
+    QFile file(metaPathForUrl(url));
+    if (!file.open(QIODevice::ReadOnly)) return {};
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll());
+    return document.isObject() ? document.object() : QJsonObject{};
+}
+
+void writeCache(const QUrl &url, const QByteArray &data, QNetworkReply *reply) {
+    QSaveFile dataFile(dataPathForUrl(url));
+    if (dataFile.open(QIODevice::WriteOnly)) {
+        dataFile.write(data);
+        dataFile.commit();
+    }
+
+    QJsonObject meta{
+        {"url", url.toString(QUrl::FullyEncoded)},
+        {"savedAt", QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs)},
+        {"etag", QString::fromLatin1(reply->rawHeader("ETag"))},
+        {"lastModified", QString::fromLatin1(reply->rawHeader("Last-Modified"))}
+    };
+    QSaveFile metaFile(metaPathForUrl(url));
+    if (metaFile.open(QIODevice::WriteOnly)) {
+        metaFile.write(QJsonDocument(meta).toJson(QJsonDocument::Compact));
+        metaFile.commit();
+    }
+}
+
+QJsonObject catalogFromManifest(const QJsonObject &manifest) {
+    if (manifest.isEmpty()) return {};
+
+    QJsonArray versions;
+    const QJsonArray input = manifest.value("versions").toArray();
+    for (int i = 0; i < input.size() && i < 300; ++i) {
+        const QJsonObject item = input.at(i).toObject();
+        const QString id = item.value("id").toString();
+        if (id.isEmpty()) continue;
+        versions.append(QJsonObject{{"id", id},
+                                    {"versionType", item.value("type").toString()},
+                                    {"releaseTime", item.value("releaseTime").toString()}});
+    }
+    if (versions.isEmpty()) return {};
+
+    const QJsonObject latest = manifest.value("latest").toObject();
+    return QJsonObject{{"latestRelease", latest.value("release").toString()},
+                       {"latestSnapshot", latest.value("snapshot").toString()},
+                       {"gameVersions", versions},
+                       {"fabricLoaders", QJsonArray{}},
+                       {"quiltLoaders", QJsonArray{}},
+                       {"forgeInstallers", QJsonArray{}},
+                       {"neoforgeInstallers", QJsonArray{}},
+                       {"optifineInstallers", QJsonArray{}},
+                       {"liteloaderInstallers", QJsonArray{}}};
+}
+
 } // namespace
 
 HmclVersionListService::HmclVersionListService(HmclDownloadProvider provider)
     : m_provider(std::move(provider)) {}
+
+QByteArray HmclVersionListService::cachedBytesFor(const QUrl &url) const {
+    QFile file(dataPathForUrl(url));
+    if (!file.open(QIODevice::ReadOnly)) return {};
+    return file.readAll();
+}
 
 QByteArray HmclVersionListService::httpGetFirst(const QList<QUrl> &urls, int timeoutMs) const {
     QNetworkAccessManager manager;
     for (const QUrl &url : urls) {
         if (!url.isValid()) continue;
         const QString safeUrl = url.toString(QUrl::RemoveQuery | QUrl::RemoveFragment);
-        AppLogger::info("download.metadata", "request_started", QString(), {{"url", safeUrl}});
+        const QJsonObject cacheMeta = readMeta(url);
+
+        AppLogger::info("download.metadata", "request_started", QString(), {
+            {"url", safeUrl}, {"hasCache", QFileInfo::exists(dataPathForUrl(url))}
+        });
+
         QNetworkRequest req(url);
         req.setRawHeader("User-Agent", "mc-launcher-qt-cpp/0.1 HMCL-download-port");
+        const QString etag = cacheMeta.value("etag").toString();
+        const QString lastModified = cacheMeta.value("lastModified").toString();
+        if (!etag.isEmpty()) req.setRawHeader("If-None-Match", etag.toLatin1());
+        if (!lastModified.isEmpty()) req.setRawHeader("If-Modified-Since", lastModified.toLatin1());
         req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                          QNetworkRequest::NoLessSafeRedirectPolicy);
+
         QNetworkReply *reply = manager.get(req);
         QEventLoop loop;
         QTimer timer;
@@ -57,27 +149,57 @@ QByteArray HmclVersionListService::httpGetFirst(const QList<QUrl> &urls, int tim
         QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
         timer.start(timeoutMs);
         loop.exec();
+
         const bool timedOut = !timer.isActive();
         const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
         const QString errorText = reply->errorString();
-        if (!timedOut && reply->error() == QNetworkReply::NoError && reply->isReadable()) {
-            QByteArray data = reply->readAll();
+
+        if (!timedOut && httpStatus == 304) {
+            const QByteArray cached = cachedBytesFor(url);
             reply->deleteLater();
+            if (!cached.isEmpty()) {
+                AppLogger::info("download.metadata", "cache_revalidated", QString(), {
+                    {"url", safeUrl}, {"httpStatus", httpStatus},
+                    {"bytes", static_cast<double>(cached.size())}
+                });
+                return cached;
+            }
+        }
+
+        if (!timedOut && reply->error() == QNetworkReply::NoError && reply->isReadable()) {
+            const QByteArray data = reply->readAll();
             if (!data.isEmpty()) {
+                writeCache(url, data, reply);
+                reply->deleteLater();
                 AppLogger::info("download.metadata", "request_finished", QString(), {
-                    {"url", safeUrl}, {"httpStatus", httpStatus}, {"bytes", static_cast<double>(data.size())}
+                    {"url", safeUrl}, {"httpStatus", httpStatus},
+                    {"bytes", static_cast<double>(data.size())}, {"cached", true}
                 });
                 return data;
             }
         } else if (timedOut && !reply->isFinished()) {
             reply->abort();
         }
+
         AppLogger::warning("download.metadata",
                            timedOut ? "request_timed_out" : "request_failed",
                            errorText,
                            {{"url", safeUrl}, {"httpStatus", httpStatus},
                             {"timeoutMs", timeoutMs}});
         reply->deleteLater();
+    }
+
+    // HMCL falls back to cached metadata when every provider fails. Do the same
+    // instead of turning a transient network failure into an empty page.
+    for (const QUrl &url : urls) {
+        const QByteArray cached = cachedBytesFor(url);
+        if (!cached.isEmpty()) {
+            AppLogger::warning("download.metadata", "stale_cache_used", QString(), {
+                {"url", url.toString(QUrl::RemoveQuery | QUrl::RemoveFragment)},
+                {"bytes", static_cast<double>(cached.size())}
+            });
+            return cached;
+        }
     }
     return {};
 }
@@ -114,6 +236,26 @@ QJsonArray HmclVersionListService::getArray(const QList<QUrl> &urls, bool *reque
     return document.array();
 }
 
+QJsonObject HmclVersionListService::cachedCatalog() const {
+    for (const QUrl &url : m_provider.versionListUrls()) {
+        const QByteArray data = cachedBytesFor(url);
+        if (data.isEmpty()) continue;
+        QJsonParseError error{};
+        const QJsonDocument document = QJsonDocument::fromJson(data, &error);
+        if (error.error != QJsonParseError::NoError || !document.isObject()) continue;
+        const QJsonObject catalog = catalogFromManifest(document.object());
+        if (!catalog.isEmpty()) {
+            AppLogger::info("download.metadata", "catalog_cache_loaded", QString(), {
+                {"url", url.toString(QUrl::RemoveQuery | QUrl::RemoveFragment)},
+                {"versions", catalog.value("gameVersions").toArray().size()},
+                {"bytes", static_cast<double>(data.size())}
+            });
+            return catalog;
+        }
+    }
+    return {};
+}
+
 QJsonArray HmclVersionListService::fabricLoaders(bool *requestOk) const {
     const QJsonArray raw = getArray(m_provider.candidatesFor("https://meta.fabricmc.net/v2/versions/loader"), requestOk);
     QJsonArray out;
@@ -139,9 +281,6 @@ QJsonArray HmclVersionListService::quiltLoaders(bool *requestOk) const {
 }
 
 QJsonArray HmclVersionListService::forgeInstallers(const QString &gameVersion, bool *requestOk) const {
-    // HMCL has two Forge lists: hmcl.glavo.site metadata and BMCLAPI. The BMCLAPI
-    // endpoint is compact and already returns installer artifacts for one MC
-    // version, so this C++ port uses it for the page-level per-version query.
     const QJsonArray raw = getArray({QUrl(QString("https://bmclapi2.bangbang93.com/forge/minecraft/%1").arg(gameVersion))}, requestOk);
     QJsonArray out;
     for (const QJsonValue &v : raw) {
@@ -186,7 +325,6 @@ QJsonArray HmclVersionListService::neoForgeInstallers(const QString &gameVersion
                                {"releaseTime", QStringLiteral("NeoForge")}});
     }
 
-    // NeoForge 1.20.1 used the old net.neoforged:forge coordinate.
     bool legacyOk = false;
     if (gameVersion == "1.20.1") {
         const QJsonObject oldObj = getObject(
@@ -209,8 +347,6 @@ QJsonArray HmclVersionListService::neoForgeInstallers(const QString &gameVersion
 
 QJsonArray HmclVersionListService::optiFineInstallers(const QString &gameVersion) const {
     Q_UNUSED(gameVersion)
-    // HMCL only obtains OptiFine through BMCLAPI metadata. The current QML page
-    // marks OptiFine as disabled, so keep the shape ready for later UI enabling.
     return emptyArray();
 }
 
@@ -222,29 +358,7 @@ QJsonArray HmclVersionListService::liteLoaderInstallers(const QString &gameVersi
 QJsonObject HmclVersionListService::refreshCatalog() const {
     bool manifestOk = false;
     const QJsonObject manifest = getObject(m_provider.versionListUrls(), &manifestOk);
-    if (!manifestOk || manifest.isEmpty()) return {};
-
-    QJsonArray versions;
-    const QJsonArray input = manifest.value("versions").toArray();
-    for (int i = 0; i < input.size() && i < 300; ++i) {
-        const QJsonObject item = input.at(i).toObject();
-        versions.append(QJsonObject{{"id", item.value("id").toString()},
-                                    {"versionType", item.value("type").toString()},
-                                    {"releaseTime", item.value("releaseTime").toString()}});
-    }
-
-    const QJsonObject latest = manifest.value("latest").toObject();
-    // Match HMCL's page hierarchy: VersionsPage only obtains the Minecraft
-    // manifest. Loader metadata is requested after entering its VersionsPage.
-    return QJsonObject{{"latestRelease", latest.value("release").toString()},
-                       {"latestSnapshot", latest.value("snapshot").toString()},
-                       {"gameVersions", versions},
-                       {"fabricLoaders", QJsonArray{}},
-                       {"quiltLoaders", QJsonArray{}},
-                       {"forgeInstallers", QJsonArray{}},
-                       {"neoforgeInstallers", QJsonArray{}},
-                       {"optifineInstallers", QJsonArray{}},
-                       {"liteloaderInstallers", QJsonArray{}}};
+    return manifestOk ? catalogFromManifest(manifest) : QJsonObject{};
 }
 
 QJsonObject HmclVersionListService::loaderMetadata(const QString &gameVersion,
@@ -283,4 +397,3 @@ QJsonObject HmclVersionListService::loaderMetadata(const QString &gameVersion,
 
     return ok ? out : QJsonObject{};
 }
-
