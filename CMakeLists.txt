@@ -8,7 +8,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network Concurrent)
 
 qt_standard_project_setup(REQUIRES 6.5)
 
@@ -63,6 +63,7 @@ target_link_libraries(mc-launcher-qt-cpp PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::Network
+    Qt6::Concurrent
 )
 
 install(TARGETS mc-launcher-qt-cpp

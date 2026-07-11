@@ -133,6 +133,7 @@ public:
   Q_INVOKABLE QString pollInstallerMetadataTask();
   Q_INVOKABLE void installGameVersion(const QString &source,
                                       const QString &gameVersion,
+                                      const QString &instanceName,
                                       const QString &loaderKind,
                                       const QString &loaderVersion);
   Q_INVOKABLE QString pollDownloadTask();
@@ -256,4 +257,9 @@ private:
   QString m_javaTaskJson;
   QString m_accountTaskJson;
   QString m_yggdrasilTaskJson;
+
+  // HMCL-style asynchronous version-list tasks. A monotonically increasing
+  // serial prevents an older network response from overwriting a newer refresh.
+  quint64 m_catalogRequestSerial = 0;
+  quint64 m_installerRequestSerial = 0;
 };

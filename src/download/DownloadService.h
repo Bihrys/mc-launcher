@@ -5,14 +5,21 @@
 
 #include "download/GameInstaller.h"
 
+// UI-facing facade corresponding to HMCL's DownloadProvider + VersionList
+// orchestration. Network failures are returned as empty payloads so the view can
+// enter FAILED state; no fabricated versions are injected.
 class DownloadService {
 public:
     QJsonObject refreshCatalog(const QString &source);
-    QJsonObject loaderMetadata(const QString &source, const QString &gameVersion, const QString &loaderKind);
+    QJsonObject loaderMetadata(const QString &source,
+                               const QString &gameVersion,
+                               const QString &loaderKind);
 
-    // Async vanilla install pipeline (ported from HMCL GameInstallTask). Kicks
-    // off a background worker; poll pollTask() until status is terminal.
-    void startInstall(const QString &source, const QString &gameVersion, const QString &loaderKind, const QString &loaderVersion);
+    void startInstall(const QString &source,
+                      const QString &gameVersion,
+                      const QString &instanceName,
+                      const QString &loaderKind,
+                      const QString &loaderVersion);
     QJsonObject pollTask();
     void cancel();
 
@@ -20,11 +27,5 @@ public:
     QJsonObject finishedDownloadTask(const QString &message) const;
 
 private:
-    QByteArray httpGet(const QUrl &url, int timeoutMs = 12000) const;
-    QJsonObject fallbackCatalog() const;
-    QJsonArray fallbackFabricLoaders() const;
-    QJsonArray fallbackQuiltLoaders() const;
-    QJsonArray fallbackForgeInstallers(const QString &gameVersion) const;
-
     GameInstaller m_installer;
 };

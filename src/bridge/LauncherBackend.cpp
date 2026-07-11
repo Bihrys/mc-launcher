@@ -9,16 +9,57 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QFile>
+#include <QFutureWatcher>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonParseError>
+#include <QRegularExpression>
 #include <QSysInfo>
 #include <QStringConverter>
 #include <QTextStream>
 #include <QStringList>
 #include <QUrl>
+#include <QtConcurrent/QtConcurrentRun>
 
 namespace {
+bool isValidVersionName(const QString &name) {
+    if (name.isEmpty() || name == QStringLiteral(".")
+            || name == QStringLiteral("..") || name == QStringLiteral("~")) {
+        return false;
+    }
+
+    for (qsizetype i = 0; i < name.size(); ++i) {
+        const QChar ch = name.at(i);
+        const ushort value = ch.unicode();
+        const bool highSurrogate = value >= 0xd800 && value <= 0xdbff;
+        const bool lowSurrogate = value >= 0xdc00 && value <= 0xdfff;
+        if (highSurrogate) {
+            if (i + 1 >= name.size()) return false;
+            const ushort next = name.at(i + 1).unicode();
+            if (next < 0xdc00 || next > 0xdfff) return false;
+            ++i;
+            continue;
+        }
+        if (lowSurrogate || value == 0
+                || value < 0x20 || (value >= 0x7f && value <= 0x9f)
+                || ch == u'/' || ch == u':' || ch == u'!'
+                || value == 0xfffd || value == 0xfffe || value == 0xffff) {
+            return false;
+        }
+#ifdef Q_OS_WIN
+        if (ch == u'<' || ch == u'>' || ch == u'"' || ch == u'\\'
+                || ch == u'|' || ch == u'?' || ch == u'*') {
+            return false;
+        }
+#endif
+    }
+
+#ifdef Q_OS_WIN
+    if (name.endsWith(u'.') || name.back().isSpace()) return false;
+#endif
+    return true;
+}
+
 QByteArray tailOfFile(const QString &path, qint64 maxBytes = 512 * 1024) {
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly)) return {};
@@ -341,14 +382,62 @@ QString LauncherBackend::refreshDownloadCatalog(const QString &source) {
 
 void LauncherBackend::startRefreshDownloadCatalog(const QString &source) {
     AppLogScope scope("backend", "startRefreshDownloadCatalog", {{"source", source}});
-    QString catalog = refreshDownloadCatalog(source);
-    QJsonObject status{{"active", false}, {"percent", 100}, {"title", "版本列表已刷新"},
-                       {"message", "Minecraft 版本列表加载完成。"},
-                       {"catalogReady", true}, {"catalogJson", catalog}};
-    m_catalogTaskJson = stringify(status);
+
+    const quint64 requestSerial = ++m_catalogRequestSerial;
+    m_catalogTaskJson = stringify(QJsonObject{
+        {"active", true}, {"percent", 5}, {"title", "正在获取版本列表"},
+        {"message", "正在连接 Minecraft 版本源。"},
+        {"catalogReady", false}, {"catalogJson", QString()}
+    });
     AppLogger::info("backend.state", "catalog_task_changed", QString(), {
+        {"requestSerial", static_cast<double>(requestSerial)},
         {"summary", AppLogger::summarizeJson(m_catalogTaskJson)}
     });
+
+    auto *watcher = new QFutureWatcher<QJsonObject>(this);
+    connect(watcher, &QFutureWatcher<QJsonObject>::finished, this,
+            [this, watcher, requestSerial, source]() {
+        const QJsonObject catalog = watcher->result();
+        watcher->deleteLater();
+
+        if (requestSerial != m_catalogRequestSerial) {
+            AppLogger::info("backend.download", "catalog_result_ignored", QString(), {
+                {"requestSerial", static_cast<double>(requestSerial)},
+                {"currentSerial", static_cast<double>(m_catalogRequestSerial)}
+            });
+            return;
+        }
+
+        if (catalog.isEmpty()) {
+            m_catalogTaskJson = stringify(QJsonObject{
+                {"active", false}, {"percent", 0}, {"title", "版本列表加载失败"},
+                {"message", "无法连接版本源。请检查网络、下载源或日志后重试。"},
+                {"catalogReady", false}, {"catalogJson", QString()}
+            });
+            AppLogger::warning("backend.download", "catalog_refresh_failed", QString(), {
+                {"source", source}, {"requestSerial", static_cast<double>(requestSerial)}
+            });
+            return;
+        }
+
+        const QString catalogJson = stringify(catalog);
+        setString(m_downloadCatalogJson, catalogJson,
+                  &LauncherBackend::downloadCatalogJsonChanged);
+        m_catalogTaskJson = stringify(QJsonObject{
+            {"active", false}, {"percent", 100}, {"title", "版本列表已刷新"},
+            {"message", "Minecraft 版本列表加载完成。"},
+            {"catalogReady", true}, {"catalogJson", catalogJson}
+        });
+        AppLogger::info("backend.state", "catalog_task_changed", QString(), {
+            {"requestSerial", static_cast<double>(requestSerial)},
+            {"summary", AppLogger::summarizeJson(m_catalogTaskJson)}
+        });
+    });
+
+    watcher->setFuture(QtConcurrent::run([source]() {
+        DownloadService service;
+        return service.refreshCatalog(source);
+    }));
 }
 
 QString LauncherBackend::pollDownloadCatalogTask() { return m_catalogTaskJson; }
@@ -358,14 +447,46 @@ void LauncherBackend::startFetchInstallerMetadata(const QString &source,
     AppLogScope scope("backend", "startFetchInstallerMetadata", {
         {"source", source}, {"gameVersion", gameVersion}
     });
-    QJsonObject meta = m_downloads.loaderMetadata(source, gameVersion, QString());
+
+    const quint64 requestSerial = ++m_installerRequestSerial;
     m_installerMetadataTaskJson = stringify(QJsonObject{
-        {"active", false}, {"percent", 100}, {"title", "安装器列表已加载"},
-        {"message", gameVersion}, {"metadataReady", true}, {"metadataJson", stringify(meta)}
+        {"active", true}, {"percent", 5}, {"title", "正在加载安装器列表"},
+        {"message", gameVersion}, {"metadataReady", false}, {"metadataJson", QString()}
     });
-    AppLogger::info("backend.state", "installer_metadata_task_changed", QString(), {
-        {"summary", AppLogger::summarizeJson(m_installerMetadataTaskJson)}
+
+    auto *watcher = new QFutureWatcher<QJsonObject>(this);
+    connect(watcher, &QFutureWatcher<QJsonObject>::finished, this,
+            [this, watcher, requestSerial, gameVersion]() {
+        const QJsonObject metadata = watcher->result();
+        watcher->deleteLater();
+        if (requestSerial != m_installerRequestSerial) return;
+
+        if (metadata.isEmpty()) {
+            m_installerMetadataTaskJson = stringify(QJsonObject{
+                {"active", false}, {"percent", 0}, {"title", "安装器列表加载失败"},
+                {"message", gameVersion}, {"metadataReady", false}, {"metadataJson", QString()}
+            });
+            AppLogger::warning("backend.download", "installer_metadata_failed", QString(), {
+                {"gameVersion", gameVersion}
+            });
+            return;
+        }
+
+        m_installerMetadataTaskJson = stringify(QJsonObject{
+            {"active", false}, {"percent", 100}, {"title", "安装器列表已加载"},
+            {"message", gameVersion}, {"metadataReady", true},
+            {"metadataJson", stringify(metadata)}
+        });
+        AppLogger::info("backend.state", "installer_metadata_task_changed", QString(), {
+            {"requestSerial", static_cast<double>(requestSerial)},
+            {"summary", AppLogger::summarizeJson(m_installerMetadataTaskJson)}
+        });
     });
+
+    watcher->setFuture(QtConcurrent::run([source, gameVersion]() {
+        DownloadService service;
+        return service.loaderMetadata(source, gameVersion, QString());
+    }));
 }
 
 void LauncherBackend::startFetchLoaderMetadata(const QString &source,
@@ -374,29 +495,80 @@ void LauncherBackend::startFetchLoaderMetadata(const QString &source,
     AppLogScope scope("backend", "startFetchLoaderMetadata", {
         {"source", source}, {"gameVersion", gameVersion}, {"loaderKind", loaderKind}
     });
-    QJsonObject meta = m_downloads.loaderMetadata(source, gameVersion, loaderKind);
+
+    const quint64 requestSerial = ++m_installerRequestSerial;
     m_installerMetadataTaskJson = stringify(QJsonObject{
-        {"active", false}, {"percent", 100}, {"title", "加载器版本已加载"},
-        {"message", gameVersion}, {"metadataReady", true}, {"metadataJson", stringify(meta)}
+        {"active", true}, {"percent", 5},
+        {"title", QString("正在加载 %1 版本").arg(loaderKind)},
+        {"message", gameVersion}, {"metadataReady", false}, {"metadataJson", QString()}
     });
-    AppLogger::info("backend.state", "installer_metadata_task_changed", QString(), {
-        {"summary", AppLogger::summarizeJson(m_installerMetadataTaskJson)}
+
+    auto *watcher = new QFutureWatcher<QJsonObject>(this);
+    connect(watcher, &QFutureWatcher<QJsonObject>::finished, this,
+            [this, watcher, requestSerial, gameVersion, loaderKind]() {
+        const QJsonObject metadata = watcher->result();
+        watcher->deleteLater();
+        if (requestSerial != m_installerRequestSerial) return;
+
+        if (metadata.isEmpty()) {
+            m_installerMetadataTaskJson = stringify(QJsonObject{
+                {"active", false}, {"percent", 0}, {"title", "加载器版本加载失败"},
+                {"message", QString("%1 / %2").arg(gameVersion, loaderKind)},
+                {"metadataReady", false}, {"metadataJson", QString()}
+            });
+            AppLogger::warning("backend.download", "loader_metadata_failed", QString(), {
+                {"gameVersion", gameVersion}, {"loaderKind", loaderKind}
+            });
+            return;
+        }
+
+        m_installerMetadataTaskJson = stringify(QJsonObject{
+            {"active", false}, {"percent", 100}, {"title", "加载器版本已加载"},
+            {"message", gameVersion}, {"metadataReady", true},
+            {"metadataJson", stringify(metadata)}
+        });
+        AppLogger::info("backend.state", "installer_metadata_task_changed", QString(), {
+            {"requestSerial", static_cast<double>(requestSerial)},
+            {"loaderKind", loaderKind},
+            {"summary", AppLogger::summarizeJson(m_installerMetadataTaskJson)}
+        });
     });
+
+    watcher->setFuture(QtConcurrent::run([source, gameVersion, loaderKind]() {
+        DownloadService service;
+        return service.loaderMetadata(source, gameVersion, loaderKind);
+    }));
 }
 
 QString LauncherBackend::pollInstallerMetadataTask() { return m_installerMetadataTaskJson; }
 
 void LauncherBackend::installGameVersion(const QString &source,
                                          const QString &gameVersion,
+                                         const QString &instanceName,
                                          const QString &loaderKind,
                                          const QString &loaderVersion) {
     AppLogScope scope("backend", "installGameVersion", {
         {"source", source}, {"gameVersion", gameVersion},
-        {"loaderKind", loaderKind}, {"loaderVersion", loaderVersion}
+        {"instanceName", instanceName}, {"loaderKind", loaderKind},
+        {"loaderVersion", loaderVersion}
     });
-    m_downloads.startInstall(source, gameVersion, loaderKind, loaderVersion);
+
+    const QString normalizedName = instanceName;
+    if (!isValidVersionName(normalizedName)) {
+        const QJsonObject failed{{"active", false}, {"cancelled", false}, {"percent", 0},
+                                 {"title", "安装失败"},
+                                 {"message", "版本名称无效：不能为空，不能是 .、..、~，并且不能包含 !、/、: 或控制字符。"},
+                                 {"status", "failed"}};
+        setString(m_downloadTaskJson, stringify(failed),
+                  &LauncherBackend::downloadTaskJsonChanged);
+        setOutput(failed.value("message").toString());
+        return;
+    }
+
+    m_downloads.startInstall(source, gameVersion, normalizedName,
+                             loaderKind, loaderVersion);
     m_downloadFinishRefreshed = false;
-    setOutput(QString("开始安装：") + gameVersion);
+    setOutput(QString("开始安装：") + normalizedName);
     setString(m_downloadTaskJson, stringify(m_downloads.pollTask()),
               &LauncherBackend::downloadTaskJsonChanged);
 }

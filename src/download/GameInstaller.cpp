@@ -8,6 +8,7 @@
 #include "game/VersionRules.h"
 
 #include <QDir>
+#include <QDirIterator>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
@@ -24,6 +25,70 @@ QString formatSpeed(qint64 bytesPerSec) {
     if (v >= 1024.0 * 1024.0) { v /= 1024.0 * 1024.0; unit = "MB/s"; }
     else if (v >= 1024.0) { v /= 1024.0; unit = "KB/s"; }
     return QString::number(v, 'f', 1) + " " + unit;
+}
+
+bool materializeVersionId(const QString &sourceId, const QString &targetId,
+                          QString *errorMessage) {
+    if (sourceId == targetId) return true;
+
+    const QString sourceDirPath = LauncherPaths::versionsDir() + "/" + sourceId;
+    const QString targetDirPath = LauncherPaths::versionsDir() + "/" + targetId;
+    if (!QDir(sourceDirPath).exists()) {
+        if (errorMessage) *errorMessage = QString("安装器没有生成版本目录：%1").arg(sourceDirPath);
+        return false;
+    }
+    if (QDir(targetDirPath).exists()) {
+        if (errorMessage) *errorMessage = QString("版本名称已存在：%1").arg(targetId);
+        return false;
+    }
+    if (!QDir().mkpath(targetDirPath)) {
+        if (errorMessage) *errorMessage = QString("无法创建版本目录：%1").arg(targetDirPath);
+        return false;
+    }
+
+    QDir sourceDir(sourceDirPath);
+    QDirIterator iterator(sourceDirPath,
+                          QDir::NoDotAndDotDot | QDir::AllEntries,
+                          QDirIterator::Subdirectories);
+    while (iterator.hasNext()) {
+        const QString sourcePath = iterator.next();
+        const QFileInfo info(sourcePath);
+        QString relative = sourceDir.relativeFilePath(sourcePath);
+        if (relative == sourceId + ".json") relative = targetId + ".json";
+        if (relative == sourceId + ".jar") relative = targetId + ".jar";
+        const QString targetPath = targetDirPath + "/" + relative;
+
+        if (info.isDir()) {
+            if (!QDir().mkpath(targetPath)) {
+                if (errorMessage) *errorMessage = QString("无法创建目录：%1").arg(targetPath);
+                QDir(targetDirPath).removeRecursively();
+                return false;
+            }
+            continue;
+        }
+
+        QDir().mkpath(QFileInfo(targetPath).absolutePath());
+        if (!QFile::copy(sourcePath, targetPath)) {
+            if (errorMessage) *errorMessage = QString("无法复制版本文件：%1 -> %2").arg(sourcePath, targetPath);
+            QDir(targetDirPath).removeRecursively();
+            return false;
+        }
+    }
+
+    const QString targetJsonPath = targetDirPath + "/" + targetId + ".json";
+    QJsonObject json = JsonUtil::readObjectFile(targetJsonPath, {});
+    if (json.isEmpty()) {
+        if (errorMessage) *errorMessage = QString("复制后的版本 JSON 无法解析：%1").arg(targetJsonPath);
+        QDir(targetDirPath).removeRecursively();
+        return false;
+    }
+    json.insert("id", targetId);
+    if (!JsonUtil::writeObjectFile(targetJsonPath, json)) {
+        if (errorMessage) *errorMessage = QString("无法写入版本 JSON：%1").arg(targetJsonPath);
+        QDir(targetDirPath).removeRecursively();
+        return false;
+    }
+    return true;
 }
 
 } // namespace
@@ -125,7 +190,8 @@ void GameInstaller::cancel() {
 }
 
 void GameInstaller::start(const QString &source, const QString &gameVersion,
-                          const QString &loaderKind, const QString &loaderVersion) {
+                          const QString &instanceName, const QString &loaderKind,
+                          const QString &loaderVersion) {
     if (m_running.load()) return;
     m_running.store(true);
     m_cancelled.store(false);
@@ -137,15 +203,17 @@ void GameInstaller::start(const QString &source, const QString &gameVersion,
 
     setTask(buildTask("preparing", "准备安装", "正在获取版本信息…", 0));
 
-    m_thread = QThread::create([this, source, gameVersion, loaderKind, loaderVersion]() {
-        runPipeline(source, gameVersion, loaderKind, loaderVersion);
+    m_thread = QThread::create([this, source, gameVersion, instanceName,
+                                loaderKind, loaderVersion]() {
+        runPipeline(source, gameVersion, instanceName, loaderKind, loaderVersion);
     });
     connect(m_thread, &QThread::finished, this, [this]() { m_running.store(false); });
     m_thread->start();
 }
 
 void GameInstaller::runPipeline(const QString &source, const QString &gameVersion,
-                                const QString &loaderKind, const QString &loaderVersion) {
+                                const QString &instanceName, const QString &loaderKind,
+                                const QString &loaderVersion) {
     const HmclDownloadProvider provider = HmclDownloadProvider::fromSource(source);
     const bool installingLoader = !loaderKind.isEmpty() && loaderKind != "vanilla";
 
@@ -159,6 +227,14 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
     const QString clientJarPath = versionDir + "/" + id + ".jar";
     const QString librariesRoot = mcDir + "/libraries";
     const QString assetsRoot = mcDir + "/assets";
+    const QString requestedVersionId = instanceName.trimmed().isEmpty() ? gameVersion : instanceName.trimmed();
+    const QString requestedVersionDir = LauncherPaths::versionsDir() + "/" + requestedVersionId;
+
+    if (requestedVersionId != gameVersion && QDir(requestedVersionDir).exists()) {
+        setTask(buildTask("failed", "安装失败",
+                          QString("版本名称已存在：%1").arg(requestedVersionId), 0));
+        return;
+    }
 
     QDir().mkpath(versionDir);
 
@@ -418,9 +494,19 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
             });
         if (m_cancelled.load()) { cancelledExit(); return; }
         if (loaderOk) {
+            QString namingError;
+            if (!materializeVersionId(finalId, requestedVersionId, &namingError)) {
+                failStage(loaderStage);
+                QJsonObject fail = buildTask("failed", "安装失败", namingError, 0);
+                { QMutexLocker lock(&m_mutex); fail.insert("stages", stagesJson()); }
+                setTask(fail);
+                teardown();
+                return;
+            }
             succeedStage(loaderStage);
             QJsonObject done{{"active", false}, {"cancelled", false}, {"percent", 100},
-                             {"title", "安装完成"}, {"message", QString("%1 安装完成，可以启动了。").arg(finalId)},
+                             {"title", "安装完成"}, {"message", QString("%1 安装完成，可以启动了。").arg(requestedVersionId)},
+                             {"installedVersionId", requestedVersionId},
                              {"totalFiles", totalFiles}, {"finishedFiles", totalFiles},
                              {"totalBytes", static_cast<double>(totalBytes)},
                              {"downloadedBytes", static_cast<double>(totalBytes)},
@@ -434,8 +520,17 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
             setTask(fail);
         }
     } else {
+        QString namingError;
+        if (!materializeVersionId(id, requestedVersionId, &namingError)) {
+            QJsonObject fail = buildTask("failed", "安装失败", namingError, 0);
+            { QMutexLocker lock(&m_mutex); fail.insert("stages", stagesJson()); }
+            setTask(fail);
+            teardown();
+            return;
+        }
         QJsonObject done{{"active", false}, {"cancelled", false}, {"percent", 100},
-                         {"title", "安装完成"}, {"message", QString("%1 安装完成，可以启动了。").arg(id)},
+                         {"title", "安装完成"}, {"message", QString("%1 安装完成，可以启动了。").arg(requestedVersionId)},
+                         {"installedVersionId", requestedVersionId},
                          {"totalFiles", totalFiles}, {"finishedFiles", totalFiles},
                          {"totalBytes", static_cast<double>(totalBytes)},
                          {"downloadedBytes", static_cast<double>(totalBytes)},

@@ -1,5 +1,7 @@
 #include "download/Downloader.h"
 
+#include "logging/AppLogger.h"
+
 #include <QCryptographicHash>
 #include <QDir>
 #include <QEventLoop>
@@ -59,6 +61,9 @@ bool Downloader::downloadSync(const QList<QUrl> &urls, const QString &destPath,
 bool Downloader::run(const QList<DownloadItem> &items) {
     if (m_cancelled.load()) return false;
 
+    AppLogger::info("download.files", "batch_started", QString(), {
+        {"files", static_cast<double>(items.size())}, {"concurrency", m_concurrency}
+    });
     m_queue = items;
     m_totalFiles = items.size();
     m_finishedFiles = 0;
@@ -81,7 +86,12 @@ bool Downloader::run(const QList<DownloadItem> &items) {
     }
     m_queue = pending;
 
-    if (m_queue.isEmpty()) return !m_failed;
+    if (m_queue.isEmpty()) {
+        AppLogger::info("download.files", "batch_finished_from_cache", QString(), {
+            {"files", m_totalFiles}, {"bytes", static_cast<double>(m_downloadedBytes)}
+        });
+        return !m_failed;
+    }
 
     QEventLoop loop;
     m_loop = &loop;
@@ -91,7 +101,13 @@ bool Downloader::run(const QList<DownloadItem> &items) {
     loop.exec();
     m_loop = nullptr;
 
-    return !m_failed && !m_cancelled.load();
+    const bool succeeded = !m_failed && !m_cancelled.load();
+    AppLogger::info("download.files", "batch_finished", m_error, {
+        {"succeeded", succeeded}, {"cancelled", m_cancelled.load()},
+        {"finishedFiles", m_finishedFiles}, {"totalFiles", m_totalFiles},
+        {"bytes", static_cast<double>(m_downloadedBytes)}
+    });
+    return succeeded;
 }
 
 void Downloader::dispatchNext() {
@@ -173,6 +189,9 @@ void Downloader::onReplyFinished(QNetworkReply *reply) {
 
     const QString partPath = active.item.destPath + ".part";
     const bool netOk = reply->error() == QNetworkReply::NoError;
+    const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    const QString networkError = reply->errorString();
+    const QString safeUrl = reply->url().toString(QUrl::RemoveQuery | QUrl::RemoveFragment);
     reply->deleteLater();
 
     if (m_cancelled.load()) {
@@ -204,13 +223,30 @@ void Downloader::onReplyFinished(QNetworkReply *reply) {
     QFile::remove(partPath);
 
     if (active.retriesLeft > 0) {
+        AppLogger::warning("download.files", "file_retry", networkError, {
+            {"url", safeUrl}, {"httpStatus", httpStatus},
+            {"destination", active.item.destPath},
+            {"retriesRemaining", active.retriesLeft - 1},
+            {"candidateIndex", active.urlIndex}
+        });
         startItem(active.item, active.retriesLeft - 1, active.urlIndex);
     } else if (active.urlIndex + 1 < active.item.urls.size()) {
+        AppLogger::warning("download.files", "file_fallback_provider", networkError, {
+            {"url", safeUrl}, {"httpStatus", httpStatus},
+            {"destination", active.item.destPath},
+            {"fromCandidate", active.urlIndex},
+            {"toCandidate", active.urlIndex + 1}
+        });
         startItem(active.item, kRetriesPerFile, active.urlIndex + 1);
     } else {
         m_failed = true;
         if (m_error.isEmpty())
             m_error = "Failed to download " + active.item.destPath;
+        AppLogger::error("download.files", "file_failed", networkError, {
+            {"url", safeUrl}, {"httpStatus", httpStatus},
+            {"destination", active.item.destPath},
+            {"candidateCount", static_cast<double>(active.item.urls.size())}
+        });
         finishOne();
     }
 }

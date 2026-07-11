@@ -64,13 +64,19 @@ HmclDownloadProvider::HmclDownloadProvider(Kind kind, QString apiRoot)
 
 HmclDownloadProvider HmclDownloadProvider::fromSource(const QString &source) {
     const QString s = source.trimmed().toLower();
-    if (s.contains("bmcl") || s.contains("mirror") || s.contains("china") || s == "bmclapi") {
+    if (s.isEmpty() || s == "auto") return HmclDownloadProvider(Kind::Auto);
+    if (s.contains("bmcl") || s.contains("mirror") || s.contains("china"))
         return HmclDownloadProvider(Kind::BMCLAPI);
-    }
-    // HMCL also has an AutoDownloadProvider. For this C++ port, "auto" keeps
-    // Mojang as the canonical source and every injected URL can still be tried
-    // by selecting BMCLAPI from settings/front-end later.
     return HmclDownloadProvider(Kind::Mojang);
+}
+
+QString HmclDownloadProvider::id() const {
+    switch (m_kind) {
+    case Kind::Auto: return QStringLiteral("auto");
+    case Kind::BMCLAPI: return QStringLiteral("bmclapi");
+    case Kind::Mojang: return QStringLiteral("mojang");
+    }
+    return QStringLiteral("auto");
 }
 
 int HmclDownloadProvider::concurrency() const {
@@ -80,18 +86,21 @@ int HmclDownloadProvider::concurrency() const {
 }
 
 QList<QUrl> HmclDownloadProvider::versionListUrls() const {
-    if (m_kind == Kind::BMCLAPI)
-        return {QUrl(m_apiRoot + "/mc/game/version_manifest_v2.json"),
-                QUrl(m_apiRoot + "/mc/game/version_manifest.json")};
-    return {QUrl("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"),
-            QUrl("https://piston-meta.mojang.com/mc/game/version_manifest.json")};
+    const QUrl officialV2("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json");
+    const QUrl officialV1("https://piston-meta.mojang.com/mc/game/version_manifest.json");
+    const QUrl mirrorV2(m_apiRoot + "/mc/game/version_manifest_v2.json");
+    const QUrl mirrorV1(m_apiRoot + "/mc/game/version_manifest.json");
+    if (m_kind == Kind::BMCLAPI) return {mirrorV2, mirrorV1, officialV2, officialV1};
+    if (m_kind == Kind::Auto) return {officialV2, mirrorV2, officialV1, mirrorV1};
+    return {officialV2, officialV1};
 }
 
 QList<QUrl> HmclDownloadProvider::assetObjectCandidates(const QString &assetLocation) const {
-    if (m_kind == Kind::BMCLAPI)
-        return {QUrl(m_apiRoot + "/assets/" + assetLocation),
-                QUrl("https://resources.download.minecraft.net/" + assetLocation)};
-    return {QUrl("https://resources.download.minecraft.net/" + assetLocation)};
+    const QUrl official("https://resources.download.minecraft.net/" + assetLocation);
+    const QUrl mirror(m_apiRoot + "/assets/" + assetLocation);
+    if (m_kind == Kind::BMCLAPI) return {mirror, official};
+    if (m_kind == Kind::Auto) return {official, mirror};
+    return {official};
 }
 
 QString HmclDownloadProvider::replaceByTable(const QString &baseUrl, bool fallbackTable) const {
@@ -99,20 +108,33 @@ QString HmclDownloadProvider::replaceByTable(const QString &baseUrl, bool fallba
 }
 
 QString HmclDownloadProvider::injectUrl(const QString &baseUrl) const {
-    if (m_kind == Kind::Mojang) return baseUrl;
+    if (m_kind != Kind::BMCLAPI) return baseUrl;
     const QString replaced = replaceByTable(baseUrl, false);
     return replaced.isEmpty() ? baseUrl : replaced;
 }
 
 QList<QUrl> HmclDownloadProvider::candidatesFor(const QString &baseUrl) const {
     if (baseUrl.trimmed().isEmpty()) return {};
-    if (m_kind == Kind::Mojang) return {QUrl(baseUrl)};
 
     const QString primary = replaceByTable(baseUrl, false);
-    if (!primary.isEmpty()) return {QUrl(primary), QUrl(baseUrl)};
-
     const QString fallback = replaceByTable(baseUrl, true);
-    if (!fallback.isEmpty()) return {QUrl(baseUrl), QUrl(fallback)};
+    QList<QUrl> urls;
+    auto appendUnique = [&urls](const QString &value) {
+        if (value.isEmpty()) return;
+        const QUrl url(value);
+        if (url.isValid() && !urls.contains(url)) urls.append(url);
+    };
 
-    return {QUrl(baseUrl)};
+    if (m_kind == Kind::BMCLAPI) {
+        appendUnique(primary);
+        appendUnique(baseUrl);
+        appendUnique(fallback);
+    } else {
+        appendUnique(baseUrl);
+        if (m_kind == Kind::Auto) {
+            appendUnique(primary);
+            appendUnique(fallback);
+        }
+    }
+    return urls;
 }

@@ -9,15 +9,16 @@
 // worker-thread install code can copy it freely.
 class HmclDownloadProvider {
 public:
-    enum class Kind { Mojang, BMCLAPI };
+    enum class Kind { Auto, Mojang, BMCLAPI };
 
-    explicit HmclDownloadProvider(Kind kind = Kind::Mojang,
+    explicit HmclDownloadProvider(Kind kind = Kind::Auto,
                                   QString apiRoot = QStringLiteral("https://bmclapi2.bangbang93.com"));
 
     static HmclDownloadProvider fromSource(const QString &source);
 
     Kind kind() const { return m_kind; }
     QString apiRoot() const { return m_apiRoot; }
+    QString id() const;
     int concurrency() const;
 
     QList<QUrl> versionListUrls() const;

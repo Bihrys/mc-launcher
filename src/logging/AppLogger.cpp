@@ -328,8 +328,8 @@ void AppLogger::installCrashHandlers() {
     Q_UNUSED(::backtrace(warmupFrames, 1));
 #endif
 #ifdef Q_OS_UNIX
-    const int signals[] = {SIGSEGV, SIGABRT, SIGBUS, SIGFPE, SIGILL};
-    for (const int signalNumber : signals) {
+    const int fatalSignals[] = {SIGSEGV, SIGABRT, SIGBUS, SIGFPE, SIGILL};
+    for (const int signalNumber : fatalSignals) {
         std::signal(signalNumber, crashSignalHandler);
     }
 #endif

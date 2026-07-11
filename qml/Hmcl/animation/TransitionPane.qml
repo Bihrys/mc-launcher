@@ -9,16 +9,17 @@ Item {
     property bool animationsEnabled: true
 
     clip: true
+    enabled: !d.animating
 
     Component.onDestruction: {
-        exitAnim.stop()
-        enterAnim.stop()
+        exitAnimation.stop()
+        enterAnimation.stop()
         cleanupTimer.stop()
     }
 
     onSourceComponentChanged: {
-        if (!d.initialized) return
-        d.switchTo(root.sourceComponent)
+        if (d.initialized)
+            d.switchTo(root.sourceComponent)
     }
 
     Component.onCompleted: {
@@ -26,10 +27,7 @@ Item {
         if (root.sourceComponent) {
             d.currentLoader = loaderA
             loaderA.sourceComponent = root.sourceComponent
-            loaderA.opacity = 1
-            loaderA.x = 0
-            loaderA.y = 0
-            loaderA.visible = true
+            d.resetLoader(loaderA, true)
         }
     }
 
@@ -37,119 +35,87 @@ Item {
         id: d
         property bool initialized: false
         property Loader currentLoader: null
+        property Loader outgoingLoader: null
         property bool animating: false
-        property Item pendingCleanup: null
 
-        function switchTo(comp) {
+        function resetLoader(loader, shown) {
+            if (!loader) return
+            loader.x = 0
+            loader.y = 0
+            loader.opacity = shown ? 1 : 0
+            loader.visible = shown
+        }
+
+        function switchTo(component) {
+            if (!component) return
             if (animating) {
-                exitAnim.stop()
-                enterAnim.stop()
-                cleanupOutgoing()
+                exitAnimation.stop()
+                enterAnimation.stop()
+                finishOutgoing()
             }
 
             var outgoing = currentLoader
-            var incoming = (outgoing === loaderA) ? loaderB : loaderA
-
-            if (!outgoing) {
-                currentLoader = incoming
-                incoming.sourceComponent = comp
-                incoming.opacity = 1
-                incoming.x = 0
-                incoming.y = 0
-                incoming.visible = true
-                return
-            }
-
+            var incoming = outgoing === loaderA ? loaderB : loaderA
             currentLoader = incoming
-            incoming.sourceComponent = comp
+            outgoingLoader = outgoing
+            incoming.sourceComponent = component
             incoming.visible = true
 
-            if (!root.animationsEnabled || root.duration <= 0) {
+            if (!outgoing || !root.animationsEnabled || root.duration <= 0
+                    || root.animationType === ContainerAnimations.none) {
+                resetLoader(incoming, true)
+                if (outgoing) {
+                    resetLoader(outgoing, false)
+                    deferCleanup(outgoing)
+                }
+                outgoingLoader = null
+                animating = false
+                return
+            }
+
+            var type = root.animationType
+            var widthOffset = root.width > 0 ? root.width * 0.2 : 50
+            var heightOffset = root.height > 0 ? root.height * 0.2 : 50
+
+            resetLoader(outgoing, true)
+            resetLoader(incoming, false)
+
+            if (type === ContainerAnimations.forward) {
+                incoming.x = widthOffset
+            } else if (type === ContainerAnimations.backward) {
+                incoming.x = -widthOffset
+            } else if (type === ContainerAnimations.swipeLeft) {
+                incoming.x = root.width
                 incoming.opacity = 1
+            } else if (type === ContainerAnimations.swipeRight) {
+                incoming.x = -root.width
+                incoming.opacity = 1
+            } else if (type === ContainerAnimations.slideUpFadeIn) {
+                incoming.y = heightOffset
+            } else {
                 incoming.x = 0
                 incoming.y = 0
-                outgoing.opacity = 0
-                outgoing.visible = false
-                outgoing.x = 0
-                outgoing.y = 0
-                deferCleanup(outgoing)
-                return
             }
 
-            d.animating = true
-            d.pendingCleanup = outgoing
-            var type = root.animationType
-            var w = root.width
-            var h = root.height
-            var offset
-
-            switch (type) {
-            case ContainerAnimations.fade:
-                incoming.x = 0; incoming.y = 0
-                incoming.opacity = 0
-                outgoing.x = 0; outgoing.y = 0
-                break
-            case ContainerAnimations.forward:
-                offset = w > 0 ? w * 0.2 : 50
-                incoming.x = offset; incoming.y = 0; incoming.opacity = 0
-                outgoing.y = 0
-                break
-            case ContainerAnimations.backward:
-                offset = w > 0 ? w * 0.2 : 50
-                incoming.x = -offset; incoming.y = 0; incoming.opacity = 0
-                outgoing.y = 0
-                break
-            case ContainerAnimations.swipeLeft:
-                incoming.x = w; incoming.y = 0; incoming.opacity = 1
-                outgoing.y = 0
-                break
-            case ContainerAnimations.swipeRight:
-                incoming.x = -w; incoming.y = 0; incoming.opacity = 1
-                outgoing.y = 0
-                break
-            case ContainerAnimations.slideUpFadeIn:
-                offset = h > 0 ? h * 0.2 : 50
-                incoming.x = 0; incoming.y = offset; incoming.opacity = 0
-                outgoing.x = 0
-                break
-            case ContainerAnimations.navigation:
-                incoming.x = 0; incoming.y = 0; incoming.opacity = 0
-                outgoing.y = 0
-                break
-            default:
-                incoming.opacity = 1; incoming.x = 0; incoming.y = 0
-                outgoing.opacity = 0; outgoing.visible = false
-                deferCleanup(outgoing)
-                d.animating = false
-                return
-            }
-
-            exitAnim.target = outgoing
-            exitAnim.type = type
-            exitAnim.containerW = w
-            exitAnim.containerH = h
-            enterAnim.target = incoming
-            enterAnim.type = type
-            enterAnim.containerW = w
-            enterAnim.containerH = h
-            exitAnim.start()
-            enterAnim.start()
+            animating = true
+            exitAnimation.targetLoader = outgoing
+            exitAnimation.transitionType = type
+            enterAnimation.targetLoader = incoming
+            enterAnimation.transitionType = type
+            exitAnimation.restart()
+            enterAnimation.restart()
         }
 
-        function cleanupOutgoing() {
-            if (pendingCleanup) {
-                pendingCleanup.visible = false
-                pendingCleanup.opacity = 0
-                pendingCleanup.x = 0
-                pendingCleanup.y = 0
-                deferCleanup(pendingCleanup)
-                pendingCleanup = null
-            }
+        function finishOutgoing() {
+            if (!outgoingLoader) return
+            resetLoader(outgoingLoader, false)
+            deferCleanup(outgoingLoader)
+            outgoingLoader = null
         }
 
         function deferCleanup(loader) {
             cleanupTimer.targetLoader = loader
-            cleanupTimer.start()
+            cleanupTimer.restart()
         }
     }
 
@@ -159,9 +125,8 @@ Item {
         interval: 0
         repeat: false
         onTriggered: {
-            if (targetLoader && targetLoader !== d.currentLoader) {
+            if (targetLoader && targetLoader !== d.currentLoader)
                 targetLoader.sourceComponent = undefined
-            }
             targetLoader = null
         }
     }
@@ -183,84 +148,77 @@ Item {
     }
 
     ParallelAnimation {
-        id: exitAnim
-        property Item target
-        property int type
-        property real containerW
-        property real containerH
-
-        NumberAnimation {
-            target: exitAnim.target
-            property: "opacity"
-            to: 0
-            duration: {
-                if (!exitAnim.target) return 0
-                var t = exitAnim.type
-                if (t === ContainerAnimations.swipeLeft || t === ContainerAnimations.swipeRight)
-                    return root.duration
+        id: exitAnimation
+        property Loader targetLoader: null
+        property int transitionType: ContainerAnimations.none
+        property int phaseDuration: {
+            if (transitionType === ContainerAnimations.forward
+                    || transitionType === ContainerAnimations.backward
+                    || transitionType === ContainerAnimations.slideUpFadeIn)
                 return root.duration * 0.5
-            }
-            easing.type: Easing.InCubic
+            return root.duration
         }
 
         NumberAnimation {
-            target: exitAnim.target
+            target: exitAnimation.targetLoader
+            property: "opacity"
+            to: exitAnimation.transitionType === ContainerAnimations.swipeLeft
+                || exitAnimation.transitionType === ContainerAnimations.swipeRight ? 1 : 0
+            duration: exitAnimation.phaseDuration
+            easing.type: Easing.InOutCubic
+        }
+
+        NumberAnimation {
+            target: exitAnimation.targetLoader
             property: "x"
             to: {
-                if (!exitAnim.target) return 0
-                var t = exitAnim.type
-                var offset = exitAnim.containerW > 0 ? exitAnim.containerW * 0.2 : 50
-                if (t === ContainerAnimations.forward) return -offset
-                if (t === ContainerAnimations.backward) return offset
-                if (t === ContainerAnimations.swipeLeft) return -exitAnim.containerW
-                if (t === ContainerAnimations.swipeRight) return exitAnim.containerW
+                var type = exitAnimation.transitionType
+                var offset = root.width > 0 ? root.width * 0.2 : 50
+                if (type === ContainerAnimations.forward) return -offset
+                if (type === ContainerAnimations.backward) return offset
+                if (type === ContainerAnimations.swipeLeft) return -root.width
+                if (type === ContainerAnimations.swipeRight) return root.width
                 return 0
             }
-            duration: root.duration
-            easing.type: Easing.OutCubic
+            duration: exitAnimation.phaseDuration
+            easing.type: Easing.InOutCubic
         }
 
-        onStopped: {
-            if (d.pendingCleanup) {
-                d.pendingCleanup.visible = false
-                d.pendingCleanup.opacity = 0
-                d.pendingCleanup.x = 0
-                d.pendingCleanup.y = 0
-                d.deferCleanup(d.pendingCleanup)
-                d.pendingCleanup = null
-            }
-        }
+        onStopped: d.finishOutgoing()
     }
 
-    ParallelAnimation {
-        id: enterAnim
-        property Item target
-        property int type
-        property real containerW
-        property real containerH
+    SequentialAnimation {
+        id: enterAnimation
+        property Loader targetLoader: null
+        property int transitionType: ContainerAnimations.none
+        property bool delayed: transitionType === ContainerAnimations.forward
+                               || transitionType === ContainerAnimations.backward
+        property int enterDuration: delayed ? root.duration * 0.5 : root.duration
 
-        NumberAnimation {
-            target: enterAnim.target
-            property: "opacity"
-            to: 1
-            duration: root.duration
-            easing.type: Easing.OutCubic
-        }
+        PauseAnimation { duration: enterAnimation.delayed ? root.duration * 0.5 : 0 }
 
-        NumberAnimation {
-            target: enterAnim.target
-            property: "x"
-            to: 0
-            duration: root.duration
-            easing.type: Easing.OutCubic
-        }
-
-        NumberAnimation {
-            target: enterAnim.target
-            property: "y"
-            to: 0
-            duration: root.duration
-            easing.type: Easing.OutCubic
+        ParallelAnimation {
+            NumberAnimation {
+                target: enterAnimation.targetLoader
+                property: "opacity"
+                to: 1
+                duration: enterAnimation.enterDuration
+                easing.type: Easing.InOutCubic
+            }
+            NumberAnimation {
+                target: enterAnimation.targetLoader
+                property: "x"
+                to: 0
+                duration: enterAnimation.enterDuration
+                easing.type: Easing.InOutCubic
+            }
+            NumberAnimation {
+                target: enterAnimation.targetLoader
+                property: "y"
+                to: 0
+                duration: enterAnimation.enterDuration
+                easing.type: Easing.InOutCubic
+            }
         }
 
         onStopped: d.animating = false

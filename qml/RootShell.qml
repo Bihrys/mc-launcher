@@ -792,8 +792,9 @@ Item {
         root.logAction("ui.navigation", "refresh_current_page", {"page": root.currentPage})
         switch (root.currentPage) {
         case "download":
-            if (root.backend.refreshDownloadCatalog !== undefined) {
-                root.backend.refreshDownloadCatalog()
+            if (root.activeDownloadPage
+                    && typeof root.activeDownloadPage.refreshCurrentPage === "function") {
+                root.activeDownloadPage.refreshCurrentPage()
             }
             break
         case "versions":

@@ -436,7 +436,7 @@ bool HmclLoaderInstaller::installFabricLike(Downloader *downloader,
     hmclQt.insert("libraryId", loaderKind);
     hmclQt.insert("gameVersion", gameVersion);
     hmclQt.insert("loaderVersion", loaderVersion);
-    hmclQt.insert("source", provider.kind() == HmclDownloadProvider::Kind::BMCLAPI ? "BMCLAPI" : "Mojang");
+    hmclQt.insert("source", provider.id());
     child.insert("hmclQt", hmclQt);
 
     const QString jsonPath = LauncherPaths::versionsDir() + "/" + finalId + "/" + finalId + ".json";

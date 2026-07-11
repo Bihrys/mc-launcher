@@ -51,7 +51,8 @@ public:
     // Fire-and-forget. Kicks off a worker thread and returns immediately; the
     // caller polls task() until status is a terminal value.
     void start(const QString &source, const QString &gameVersion,
-               const QString &loaderKind, const QString &loaderVersion);
+               const QString &instanceName, const QString &loaderKind,
+               const QString &loaderVersion);
 
     // Thread-safe snapshot of the current status object.
     QJsonObject task() const;
@@ -63,7 +64,8 @@ public:
 
 private:
     void runPipeline(const QString &source, const QString &gameVersion,
-                     const QString &loaderKind, const QString &loaderVersion);
+                     const QString &instanceName, const QString &loaderKind,
+                     const QString &loaderVersion);
 
     void setTask(const QJsonObject &task);
     void mergeTask(const QJsonObject &patch);
