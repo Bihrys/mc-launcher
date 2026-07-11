@@ -4,7 +4,7 @@ import QtQuick.Window
 import com.bihrys.launcher
 
 ApplicationWindow {
-    id: window
+    id: appWindow
     objectName: "mainApplicationWindow"
 
     width: 960
@@ -20,15 +20,22 @@ ApplicationWindow {
         objectName: "launcherBackendQmlInstance"
     }
 
+    FpsMonitor {
+        id: fpsMonitor
+        objectName: "qtQuickFpsMonitor"
+        window: appWindow
+        enabled: true
+    }
+
     function logWindow(action, details) {
         backend.logUiAction("ui.window.semantic", action, JSON.stringify(details || {}))
     }
 
     Component.onCompleted: {
-        window.logWindow("application_window_completed", {
-            "width": window.width,
-            "height": window.height,
-            "visibility": window.visibility,
+        appWindow.logWindow("application_window_completed", {
+            "width": appWindow.width,
+            "height": appWindow.height,
+            "visibility": appWindow.visibility,
             "logFile": backend.logFilePath,
             "sessionLogFile": backend.sessionLogFilePath,
             "crashLogFile": backend.crashLogFilePath
@@ -36,21 +43,22 @@ ApplicationWindow {
     }
 
     onClosing: function(close) {
-        window.logWindow("closing", {
+        appWindow.logWindow("closing", {
             "accepted": close.accepted,
-            "visibility": window.visibility,
-            "active": window.active
+            "visibility": appWindow.visibility,
+            "active": appWindow.active
         })
         backend.flushLogs()
     }
 
-    onVisibleChanged: window.logWindow("visible_changed", {"visible": window.visible})
-    onVisibilityChanged: window.logWindow("visibility_changed", {"visibility": window.visibility})
-    onActiveChanged: window.logWindow("active_changed", {"active": window.active})
+    onVisibleChanged: appWindow.logWindow("visible_changed", {"visible": appWindow.visible})
+    onVisibilityChanged: appWindow.logWindow("visibility_changed", {"visibility": appWindow.visibility})
+    onActiveChanged: appWindow.logWindow("active_changed", {"active": appWindow.active})
 
     RootShell {
         anchors.fill: parent
-        appWindow: window
+        appWindow: appWindow
         backend: backend
+        fpsMonitor: fpsMonitor
     }
 }

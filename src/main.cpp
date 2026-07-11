@@ -9,6 +9,7 @@
 #include <exception>
 
 #include "bridge/LauncherBackend.h"
+#include "diagnostics/FpsMonitor.h"
 #include "logging/AppLogger.h"
 #include "logging/InteractionEventFilter.h"
 #include "models/GameListModel.h"
@@ -112,6 +113,7 @@ int main(int argc, char *argv[]) {
     AppLogger::info("qml", "quick_style_selected", QString(), {{"style", "Basic"}});
 
     qmlRegisterType<LauncherBackend>("com.bihrys.launcher", 1, 0, "LauncherBackend");
+    qmlRegisterType<FpsMonitor>("com.bihrys.launcher", 1, 0, "FpsMonitor");
     qmlRegisterType<GameListModel>("com.bihrys.launcher", 1, 0, "GameListModel");
     qmlRegisterType<ProfileListModel>("com.bihrys.launcher", 1, 0, "ProfileListModel");
     AppLogger::info("qml", "types_registered");

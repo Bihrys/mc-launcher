@@ -36,6 +36,7 @@ qt_add_executable(mc-launcher-qt-cpp
     src/core/JsonUtil.cpp
     src/logging/AppLogger.cpp
     src/logging/InteractionEventFilter.cpp
+    src/diagnostics/FpsMonitor.cpp
     src/settings/LauncherSettings.cpp
     src/account/AccountService.cpp
     src/game/InstanceService.cpp

@@ -39,6 +39,8 @@ Item {
     property string loadedLoaderMetadataJson: ""
     property bool catalogLoadFailed: false
     property string catalogFailedMessage: ""
+    property int catalogRevision: 0
+    readonly property int visibleVersionCount: visibleVersionModel.count
 
     property var downloadTaskStatus: ({
         "active": false,
@@ -120,6 +122,19 @@ Item {
     onSearchTextChanged: root.logAction("search_changed", {"length": root.searchText.length})
     onLoaderSearchTextChanged: root.logAction("loader_search_changed", {"length": root.loaderSearchText.length})
 
+    // HMCL completes refresh tasks on the JavaFX application thread and then
+    // updates the observable list directly. Mirror that event-driven path by
+    // consuming the backend property change signal. The 250 ms poller remains
+    // only as a compatibility/failure-state fallback.
+    Connections {
+        target: root.backend
+        ignoreUnknownSignals: true
+
+        function onDownloadCatalogJsonChanged() {
+            root.consumeCatalogPayload(root.backend.downloadCatalogJson, "backend_signal")
+        }
+    }
+
     Component.onCompleted: {
         root.logAction("page_completed", {})
         root.startRefreshCatalog()
@@ -135,7 +150,7 @@ Item {
         id: catalogTaskPoller
         interval: 250
         repeat: true
-        running: true
+        running: false
         onTriggered: root.pollDownloadCatalogTask()
     }
 
@@ -183,21 +198,12 @@ Item {
     }
 
     function startRefreshCatalog() {
-        allVersionsModel.clear()
-        visibleVersionModel.clear()
-        fabricLoaderModel.clear()
-        quiltLoaderModel.clear()
-        forgeInstallerModel.clear()
-        neoforgeInstallerModel.clear()
-        visibleLoaderVersionModel.clear()
-
-        root.selectedGameVersion = ""
-        root.selectedGameReleaseTime = ""
+        // HMCL does not destruct the JFXListView while refreshAsync is running.
+        // Keep the current model intact until a complete new payload is ready.
+        // This also prevents a failed refresh from leaving a permanently empty
+        // UI after the backend had already supplied a valid catalog.
         root.loadedCatalogJson = ""
         root.loadedLoaderMetadataJson = ""
-        root.catalog = null
-        root.allForgeInstallers = []
-        root.allNeoForgeInstallers = []
         root.loaderVersionPaneOpen = false
         root.loaderVersionKind = ""
         root.catalogLoadFailed = false
@@ -212,7 +218,13 @@ Item {
             "catalogJson": ""
         }
 
+        root.logAction("catalog_refresh_requested", {
+            "source": root.downloadSource,
+            "existingAllCount": allVersionsModel.count,
+            "existingVisibleCount": visibleVersionModel.count
+        })
         root.backend.startRefreshDownloadCatalog(root.downloadSource)
+        catalogTaskPoller.restart()
         root.pollDownloadCatalogTask()
     }
 
@@ -227,14 +239,13 @@ Item {
             var status = JSON.parse(raw)
             root.catalogTaskStatus = status
 
+            if (!status.active)
+                catalogTaskPoller.stop()
+
             if (status.catalogReady
                     && status.catalogJson
-                    && status.catalogJson.length > 0
-                    && status.catalogJson !== root.loadedCatalogJson) {
-                root.loadedCatalogJson = status.catalogJson
-                root.catalogLoadFailed = false
-                root.catalogFailedMessage = ""
-                root.parseCatalog(status.catalogJson)
+                    && status.catalogJson.length > 0) {
+                root.consumeCatalogPayload(status.catalogJson, "task_poller")
             } else if (!status.active && !status.catalogReady) {
                 root.catalogLoadFailed = true
                 root.catalogFailedMessage = status.message || "获取版本列表失败，点击重试"
@@ -296,6 +307,11 @@ Item {
         root.loadedLoaderMetadataJson = ""
         root.loaderVersionKind = kind
         root.loaderVersionPaneOpen = true
+
+        root.logAction("loader_versions_page_open_requested", {
+            "gameVersion": root.selectedGameVersion,
+            "loaderKind": kind
+        })
 
         root.installerMetadataTaskStatus = {
             "active": true,
@@ -391,6 +407,14 @@ Item {
             }
 
             root.rebuildVisibleLoaderVersions()
+            root.logAction("installer_metadata_models_rebuilt", {
+                "loaderKind": kind || "all",
+                "fabricCount": fabricLoaderModel.count,
+                "quiltCount": quiltLoaderModel.count,
+                "forgeCount": forgeInstallerModel.count,
+                "neoForgeCount": neoforgeInstallerModel.count,
+                "visibleCount": visibleLoaderVersionModel.count
+            })
         } catch (e) {
             root.logAction("installer_metadata_parse_failed", {"error": String(e), "rawLength": raw ? raw.length : 0}); console.log("Failed to parse installer metadata", e)
         }
@@ -424,6 +448,20 @@ Item {
         } catch (e) {
             root.logAction("download_task_parse_failed", {"error": String(e), "rawLength": raw ? raw.length : 0}); console.log("Failed to parse download task status", e)
         }
+    }
+
+    function consumeCatalogPayload(raw, origin) {
+        if (!raw || raw.length === 0 || raw === root.loadedCatalogJson)
+            return
+
+        root.loadedCatalogJson = raw
+        root.catalogLoadFailed = false
+        root.catalogFailedMessage = ""
+        root.logAction("catalog_payload_received", {
+            "origin": origin || "unknown",
+            "rawLength": raw.length
+        })
+        root.parseCatalog(raw)
     }
 
     function parseCatalog(raw) {
@@ -472,6 +510,15 @@ Item {
             root.allNeoForgeInstallers = data.neoforgeInstallers || []
 
             root.rebuildVisibleVersions()
+            root.catalogRevision += 1
+
+            root.logAction("catalog_models_rebuilt", {
+                "revision": root.catalogRevision,
+                "allCount": allVersionsModel.count,
+                "visibleCount": visibleVersionModel.count,
+                "filter": root.versionFilter,
+                "searchLength": root.searchText.length
+            })
 
             if (visibleVersionModel.count > 0) {
                 root.selectVersion(0)
@@ -481,7 +528,13 @@ Item {
             root.loaderVersionPaneOpen = false
             root.loaderVersionKind = ""
         } catch (e) {
-            root.logAction("catalog_parse_failed", {"error": String(e), "rawLength": raw ? raw.length : 0}); console.log("Failed to parse download catalog", e)
+            root.catalogLoadFailed = true
+            root.catalogFailedMessage = "解析版本数据失败，点击重试"
+            root.logAction("catalog_parse_failed", {
+                "error": String(e),
+                "rawLength": raw ? raw.length : 0
+            })
+            console.log("Failed to parse download catalog", e)
         }
     }
 
@@ -528,12 +581,27 @@ Item {
                 "tagText": item.tagText
             })
         }
+
+        root.logAction("visible_versions_rebuilt", {
+            "allCount": allVersionsModel.count,
+            "visibleCount": visibleVersionModel.count,
+            "filter": root.versionFilter,
+            "searchLength": rawQuery.length,
+            "regex": regex !== null
+        })
     }
 
     function openInstallerForVersion(visibleIndex) {
         root.selectVersion(visibleIndex)
 
-        root.installerPaneOpen = true
+        if (root.selectedGameVersion.length === 0) {
+            root.logAction("installer_page_open_rejected", {
+                "visibleIndex": visibleIndex,
+                "visibleCount": visibleVersionModel.count
+            })
+            return
+        }
+
         root.loaderVersionPaneOpen = false
         root.loaderVersionKind = ""
         root.installVersionName = root.selectedGameVersion
@@ -543,7 +611,13 @@ Item {
         root.selectedQuiltVersion = ""
         root.selectedForgeVersion = ""
         root.selectedNeoForgeVersion = ""
+        root.installerPaneOpen = true
 
+        root.logAction("installer_page_open_requested", {
+            "visibleIndex": visibleIndex,
+            "gameVersion": root.selectedGameVersion,
+            "releaseTime": root.selectedGameReleaseTime
+        })
     }
 
     function closeInstallerPane() {

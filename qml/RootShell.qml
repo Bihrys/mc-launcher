@@ -16,6 +16,7 @@ Item {
 
     required property var appWindow
     required property var backend
+    required property var fpsMonitor
 
     readonly property string currentPage: decoratorNavigator.currentPageKey
     property string requestedSettingsSection: "global"
@@ -375,6 +376,7 @@ Item {
             Layout.preferredHeight: style.titleBarHeightValue
             appWindow: root.appWindow
             style: style
+            fpsMonitor: root.fpsMonitor
             pageState: decoratorNavigator.currentState
             stateSerial: decoratorNavigator.stateSerial
             navigationDirection: decoratorNavigator.navigationDirection

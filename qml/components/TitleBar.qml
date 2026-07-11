@@ -8,6 +8,7 @@ Rectangle {
 
     required property var appWindow
     required property var style
+    property var fpsMonitor: null
 
     property var pageState: null
     property int stateSerial: 0
@@ -184,7 +185,7 @@ Rectangle {
         id: navArea
 
         anchors.left: parent.left
-        anchors.right: windowButtons.left
+        anchors.right: fpsBadge.left
         anchors.top: parent.top
         anchors.bottom: parent.bottom
         clip: true
@@ -223,6 +224,37 @@ Rectangle {
             onCloseRequested: root.closeRequested()
             onHomeRequested: root.homeRequested()
             onRefreshRequested: root.refreshRequested()
+        }
+    }
+
+    Rectangle {
+        id: fpsBadge
+        objectName: "titleBarFpsBadge"
+
+        anchors.right: windowButtons.left
+        anchors.rightMargin: 8
+        anchors.verticalCenter: parent.verticalCenter
+        width: 72
+        height: 24
+        radius: 12
+        color: root.titleTransparent
+               ? Qt.rgba(0, 0, 0, root.style.darkMode ? 0.28 : 0.10)
+               : Qt.rgba(root.titleForeground.r,
+                         root.titleForeground.g,
+                         root.titleForeground.b,
+                         0.10)
+        border.width: 1
+        border.color: Qt.rgba(root.titleForeground.r,
+                              root.titleForeground.g,
+                              root.titleForeground.b,
+                              0.16)
+
+        Text {
+            anchors.centerIn: parent
+            text: (root.fpsMonitor ? root.fpsMonitor.fps : 0) + " FPS"
+            color: root.titleForeground
+            font.pixelSize: 11
+            font.bold: true
         }
     }
 

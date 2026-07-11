@@ -2,13 +2,30 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../../components"
-import "../../Hmcl/animation" as HmclAnimation
 import "components"
 
 Item {
     id: page
+    objectName: "downloadInstallersPage"
     required property var style
     required property var controller
+
+    function logPageState(action) {
+        if (!page.controller)
+            return
+        page.controller.logAction(action, {
+            "gameVersion": page.controller.selectedGameVersion,
+            "loaderKind": page.controller.loaderVersionKind,
+            "visible": page.visible,
+            "enabled": page.enabled,
+            "opacity": page.opacity,
+            "width": page.width,
+            "height": page.height
+        })
+    }
+
+    Component.onCompleted: page.logPageState("installers_page_completed")
+    onVisibleChanged: page.logPageState("installers_page_visible_changed")
 
         ColumnLayout {
             anchors.fill: parent

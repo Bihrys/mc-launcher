@@ -46,7 +46,9 @@ Item {
             hoverEnabled: true
             enabled: button.buttonEnabled
             cursorShape: button.buttonEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-            onPressed: buttonRipple.press(mouse.x, mouse.y)
+            onPressed: function(pointer) {
+                buttonRipple.press(pointer.x, pointer.y)
+            }
             onReleased: buttonRipple.release()
             onCanceled: buttonRipple.cancel()
             onClicked: button.clicked()
