@@ -8,6 +8,7 @@
 class AccountService {
 public:
     QJsonObject list();
+    QJsonObject selectedAccountForLaunch() const;
     QJsonObject authServers();
     QJsonObject probeAuthServer(const QString &url) const;
     QJsonObject addAuthServer(const QString &name, const QString &url);

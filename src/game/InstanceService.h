@@ -4,6 +4,8 @@
 #include <QJsonObject>
 #include <QString>
 
+#include "launch/LaunchOptions.h"
+
 class InstanceService {
 public:
     QJsonObject list();
@@ -16,6 +18,9 @@ public:
     QJsonObject remove(const QString &versionId);
     QString openFolder(const QString &versionId, const QString &subFolder = QString());
     QString generateLaunchCommand(const QString &versionId);
+    LaunchOptions createLaunchOptions(const QString &versionId,
+                                      const QJsonObject &account,
+                                      const QJsonObject &launcherSettings);
     QString clean(const QString &versionId, const QString &what);
     QJsonObject saveSettings(const QString &versionId, const QString &settingsJson);
 

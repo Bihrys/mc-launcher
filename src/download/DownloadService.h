@@ -20,7 +20,8 @@ public:
                       const QString &gameVersion,
                       const QString &instanceName,
                       const QString &loaderKind,
-                      const QString &loaderVersion);
+                      const QString &loaderVersion,
+                      const QString &addonsJson);
     QJsonObject pollTask();
     void cancel();
 

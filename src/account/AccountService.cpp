@@ -187,7 +187,7 @@ QString AccountService::avatarFromSkinUrl(const QString &uuid, const QString &sk
     const QString key = QString::fromLatin1(QCryptographicHash::hash(skinUrl.toUtf8(), QCryptographicHash::Sha1).toHex());
     const QString skinPath = root + "/" + key + ".png";
     if (!QFileInfo::exists(skinPath)) {
-        QNetworkRequest request(QUrl(skinUrl));
+        QNetworkRequest request{QUrl(skinUrl)};
         request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
         request.setRawHeader("User-Agent", "mc-launcher-qt-cpp HMCL-avatar");
         QString error;
@@ -268,6 +268,40 @@ QJsonObject AccountService::publicPayload(const QJsonArray &accounts) const {
 }
 
 QJsonObject AccountService::list() { return publicPayload(loadAccounts()); }
+
+QJsonObject AccountService::selectedAccountForLaunch() const {
+    QJsonArray accounts = loadAccounts();
+    QJsonObject account = selectedOrFirst(accounts);
+    if (account.isEmpty()) return {};
+
+    const QString kind = account.value("kind").toString(QStringLiteral("offline"));
+    const QString username = account.value("username").toString(QStringLiteral("Steve"));
+    QString uuid = account.value("uuid").toString();
+    if (uuid.isEmpty()) uuid = offlineUuid(username);
+
+    QJsonObject out{
+        {"kind", kind},
+        {"username", username},
+        {"uuid", uuid},
+        {"accessToken", account.value("accessToken").toString(kind == QStringLiteral("offline") ? QStringLiteral("0") : QString())},
+        {"clientToken", account.value("clientToken").toString()},
+        {"serverUrl", account.value("serverUrl").toString()},
+        {"loginName", account.value("loginName").toString()},
+        {"selected", true}
+    };
+
+    if (kind == QStringLiteral("microsoft")) {
+        out.insert("userType", QStringLiteral("msa"));
+        out.insert("xuid", account.value("xuid").toString());
+        out.insert("clientId", account.value("clientId").toString());
+    } else if (kind == QStringLiteral("yggdrasil")) {
+        out.insert("userType", QStringLiteral("mojang"));
+    } else {
+        out.insert("userType", QStringLiteral("legacy"));
+    }
+    return out;
+}
+
 
 QJsonObject AccountService::authServers() {
     QJsonArray fallback;

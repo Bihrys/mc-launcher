@@ -500,7 +500,7 @@ Item {
 
         Behavior on opacity {
             NumberAnimation {
-                duration: root.style.animationsEnabled ? 160 : 0
+                duration: root.appStyle.animationsEnabled ? 160 : 0
                 easing.type: Easing.OutCubic
             }
         }
@@ -523,10 +523,10 @@ Item {
             scale: root.transferDialogOpen ? 1 : 0.97
 
             Behavior on opacity {
-                NumberAnimation { duration: root.style.animationsEnabled ? 160 : 0; easing.type: Easing.OutCubic }
+                NumberAnimation { duration: root.appStyle.animationsEnabled ? 160 : 0; easing.type: Easing.OutCubic }
             }
             Behavior on scale {
-                NumberAnimation { duration: root.style.animationsEnabled ? 180 : 0; easing.type: Easing.OutCubic }
+                NumberAnimation { duration: root.appStyle.animationsEnabled ? 180 : 0; easing.type: Easing.OutCubic }
             }
 
             Rectangle {
@@ -536,12 +536,12 @@ Item {
                 anchors.topMargin: 3
                 anchors.bottomMargin: -3
                 radius: 4
-                color: Qt.rgba(0, 0, 0, root.style.darkMode ? 0.42 : 0.28)
+                color: Qt.rgba(0, 0, 0, root.appStyle.darkMode ? 0.42 : 0.28)
             }
 
             TaskExecutorDialogPane {
                 anchors.fill: parent
-                style: root.style
+                style: root.appStyle
                 status: root.transferTaskStatus
                 onCancelRequested: root.cancelTransferTask()
                 onCloseRequested: root.transferDialogOpen = false
@@ -553,27 +553,69 @@ Item {
         id: launchDialogOverlay
 
         anchors.fill: parent
-        z: 1100
-        visible: root.launchDialogOpen
-        color: "#80000000"
+        z: 1300
+        visible: opacity > 0
+        opacity: root.launchDialogOpen ? 1 : 0
+        color: "#28000000"
 
-        MouseArea {
-            anchors.fill: parent
-            onClicked: {
-                if (!root.launchTaskStatus.active) {
-                    root.launchDialogOpen = false
-                }
+        Behavior on opacity {
+            NumberAnimation {
+                duration: root.appStyle.animationsEnabled ? 160 : 0
+                easing.type: Easing.OutCubic
             }
         }
 
-        LaunchDialogCard {
+        MouseArea {
+            anchors.fill: parent
+            enabled: root.launchDialogOpen
+            onClicked: {
+                if (!root.launchTaskStatus.active)
+                    root.launchDialogOpen = false
+            }
+        }
+
+        Item {
+            id: launchDialogCard
             anchors.centerIn: parent
             width: Math.min(root.width - 64, 500)
             height: Math.min(root.height - 64, 300)
-            style: style
-            status: root.launchTaskStatus
-            onCloseRequested: root.launchDialogOpen = false
-            onCancelRequested: root.backend.cancelLaunchTask()
+            opacity: root.launchDialogOpen ? 1 : 0
+            scale: root.launchDialogOpen ? 1 : 0.97
+
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: root.appStyle.animationsEnabled ? 160 : 0
+                    easing.type: Easing.OutCubic
+                }
+            }
+            Behavior on scale {
+                NumberAnimation {
+                    duration: root.appStyle.animationsEnabled ? 180 : 0
+                    easing.type: Easing.OutCubic
+                }
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                anchors.leftMargin: 2
+                anchors.rightMargin: -2
+                anchors.topMargin: 3
+                anchors.bottomMargin: -3
+                radius: 4
+                color: Qt.rgba(0, 0, 0,
+                               root.appStyle.darkMode ? 0.42 : 0.28)
+            }
+
+            TaskExecutorDialogPane {
+                anchors.fill: parent
+                style: root.appStyle
+                status: root.launchTaskStatus
+                onCancelRequested: {
+                    root.backend.cancelLaunchTask()
+                    root.pollLaunchTask()
+                }
+                onCloseRequested: root.launchDialogOpen = false
+            }
         }
     }
 
@@ -1122,13 +1164,9 @@ Item {
             }
 
             if (status.shouldHide) {
-                if (status.visibility === "hide") {
-                    root.launchActionArmed = false
-                    root.appWindow.close()
-                    Qt.quit()
-                    return
-                }
-
+                // HMCL LauncherVisibility.HIDE keeps the launcher process alive
+                // and only hides the stage. Closing the application here
+                // destroys the monitored QProcess and terminates the game.
                 root.appWindow.hide()
                 return
             }
@@ -1273,122 +1311,4 @@ Item {
         }
     }
 
-    component LaunchDialogCard: Rectangle {
-        id: card
-
-        required property var style
-        property var status: ({})
-        signal closeRequested()
-        signal cancelRequested()
-
-        radius: 4
-        color: style.cSurfaceContainerHigh
-        border.width: 0
-        clip: true
-
-        MouseArea {
-            anchors.fill: parent
-            acceptedButtons: Qt.NoButton
-        }
-
-        ColumnLayout {
-            anchors.fill: parent
-            spacing: 0
-
-            Item {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-
-                Text {
-                    anchors.centerIn: parent
-                    width: parent.width - 32
-                    text: card.status.title || "启动游戏"
-                    color: card.style.cTextOnSurface
-                    font.pixelSize: 14
-                    font.bold: true
-                    horizontalAlignment: Text.AlignHCenter
-                    elide: Text.ElideRight
-                }
-            }
-
-            Item {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 42
-
-                Text {
-                    anchors.left: parent.left
-                    anchors.leftMargin: 8
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - actionButton.width - 28
-                    text: card.bottomText()
-                    color: card.style.cTextOnSurfaceVariant
-                    font.pixelSize: 12
-                    elide: Text.ElideRight
-                }
-
-                Item {
-                    id: actionButton
-
-                    width: Math.max(64, actionLabel.implicitWidth + 25)
-                    height: 32
-                    anchors.right: parent.right
-                    anchors.rightMargin: 8
-                    anchors.verticalCenter: parent.verticalCenter
-                    opacity: card.actionEnabled() ? 1.0 : 0.45
-
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: 2
-                        color: actionMouse.containsMouse && card.actionEnabled()
-                               ? card.style.cButtonHover
-                               : card.style.cButtonSurface
-                    }
-
-                    Text {
-                        id: actionLabel
-                        anchors.centerIn: parent
-                        text: card.actionText()
-                        color: card.style.cTextOnSurface
-                        font.pixelSize: 12
-                    }
-
-                    MouseArea {
-                        id: actionMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        enabled: card.actionEnabled()
-                        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
-                        onClicked: {
-                            if (card.status.canCancel === true && card.status.active === true) {
-                                card.cancelRequested()
-                            } else {
-                                card.closeRequested()
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        function actionText() {
-            if (status.canCancel === true && status.active === true) {
-                return "取消"
-            }
-            return "确定"
-        }
-
-        function actionEnabled() {
-            return true
-        }
-
-        function bottomText() {
-            if (status.speedText && status.speedText.length > 0) {
-                return status.speedText
-            }
-            if (status.message && status.message.length > 0) {
-                return status.message
-            }
-            return "请耐心等待"
-        }
-    }
 }

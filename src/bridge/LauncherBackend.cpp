@@ -73,6 +73,22 @@ LauncherBackend::LauncherBackend(QObject *parent) : QObject(parent) {
     AppLogScope scope("backend", "LauncherBackend.constructor");
     setObjectName("launcherBackend");
 
+    connect(&m_launch, &LaunchService::statusChanged, this,
+            [this](const QJsonObject &status) {
+        setString(m_launchTaskJson, stringify(status),
+                  &LauncherBackend::launchTaskJsonChanged);
+        const QString state = status.value("status").toString();
+        if (state == QStringLiteral("failed")) {
+            setOutput(status.value("message").toString(QStringLiteral("游戏启动失败。")));
+        } else if (state == QStringLiteral("gameRunning")) {
+            setOutput(QString("游戏 %1 已启动。日志：%2")
+                          .arg(m_selectedGameVersion,
+                               status.value("gameLogFile").toString()));
+        } else if (state == QStringLiteral("gameExited")) {
+            setOutput(QStringLiteral("游戏已正常退出。"));
+        }
+    });
+
     m_downloadTaskJson = stringify(m_downloads.idleDownloadTask());
     m_launchTaskJson = stringify(m_launch.idle());
     m_javaTaskJson = R"({"active":false,"runtimes":[]})";
@@ -1271,29 +1287,29 @@ void LauncherBackend::startLaunchSelectedVersion(const QString &visibility) {
     AppLogScope scope("backend", "startLaunchSelectedVersion", {
         {"selectedGameVersion", m_selectedGameVersion}, {"visibility", visibility}
     });
-    const QString command = m_instances.generateLaunchCommand(m_selectedGameVersion);
-    AppLogger::info("launch", "command_generated", QString(), {
-        {"selectedGameVersion", m_selectedGameVersion},
-        {"commandLength", command.size()}
-    });
-    const QJsonObject launchResult = m_launch.launch(m_selectedGameVersion, visibility, command);
-    setString(m_launchTaskJson, stringify(launchResult),
-              &LauncherBackend::launchTaskJsonChanged);
-    if (launchResult.value("gameStarted").toBool()) {
-        setOutput(QString("游戏 %1 已启动。日志：%2")
-                      .arg(m_selectedGameVersion, launchResult.value("gameLogFile").toString()));
+
+    const QJsonObject account = m_accounts.selectedAccountForLaunch();
+    LaunchOptions options;
+    if (account.isEmpty()) {
+        options.versionId = m_selectedGameVersion;
+        options.error = QStringLiteral("没有可用于启动游戏的账户。请先添加或选择一个账户。");
     } else {
-        setOutput(launchResult.value("message").toString("游戏启动失败。"));
+        options = m_instances.createLaunchOptions(m_selectedGameVersion,
+                                                  account,
+                                                  m_settings.load());
     }
+
+    AppLogger::info("launch", "launch_options_generated", QString(),
+                    options.diagnostics());
+    m_launch.start(options, visibility);
 }
 
 void LauncherBackend::cancelLaunchTask() {
     AppLogScope scope("backend", "cancelLaunchTask");
-    setString(m_launchTaskJson, stringify(m_launch.cancelled()),
-              &LauncherBackend::launchTaskJsonChanged);
+    m_launch.cancel();
 }
 
-QString LauncherBackend::pollLaunchTask() { return m_launchTaskJson; }
+QString LauncherBackend::pollLaunchTask() { return stringify(m_launch.status()); }
 
 QString LauncherBackend::refreshLauncherSettings() {
     AppLogScope scope("backend", "refreshLauncherSettings");
@@ -1327,7 +1343,10 @@ void LauncherBackend::updateLauncherSetting(const QString &key, const QString &v
 
 QString LauncherBackend::generateLaunchCommand(const QString &versionId) {
     AppLogScope scope("backend", "generateLaunchCommand", {{"versionId", versionId}});
-    return m_instances.generateLaunchCommand(versionId);
+    const QJsonObject account = m_accounts.selectedAccountForLaunch();
+    const LaunchOptions options = m_instances.createLaunchOptions(
+        versionId, account, m_settings.load());
+    return options.valid ? options.displayCommand : options.error;
 }
 
 void LauncherBackend::openFolder(const QString &path) {

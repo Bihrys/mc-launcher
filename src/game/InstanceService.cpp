@@ -3,6 +3,7 @@
 #include "core/JsonUtil.h"
 #include "core/LauncherPaths.h"
 #include "game/VersionRules.h"
+#include "java/JavaService.h"
 
 #include <QCryptographicHash>
 #include <QDateTime>
@@ -10,6 +11,10 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
+#include <QVersionNumber>
+#include <QRegularExpression>
+#include <QProcessEnvironment>
+#include <QJsonDocument>
 #include <QHash>
 #include <QJsonValue>
 #include <QProcess>
@@ -20,6 +25,7 @@
 #include <QUrl>
 
 #include <utility>
+#include <climits>
 
 namespace {
 
@@ -39,21 +45,37 @@ QJsonObject mergeVersionJson(const QJsonObject &parent, const QJsonObject &child
     QJsonObject out = parent;
     for (auto it = child.begin(); it != child.end(); ++it) {
         if (it.key() == "libraries") {
-            QJsonArray libs = parent.value("libraries").toArray();
-            for (const QJsonValue &v : child.value("libraries").toArray()) libs.append(v);
-            out.insert("libraries", libs);
+            QList<QJsonObject> merged;
+            QHash<QString, int> indexByKey;
+            auto appendOrReplace = [&](const QJsonArray &array) {
+                for (const QJsonValue &value : array) {
+                    if (!value.isObject()) continue;
+                    const QJsonObject library = value.toObject();
+                    const QString name = library.value("name").toString();
+                    const QStringList parts = name.split(':');
+                    const QString key = parts.size() >= 2
+                        ? parts.at(0) + ":" + parts.at(1)
+                        : name;
+                    if (!key.isEmpty() && indexByKey.contains(key)) {
+                        merged[indexByKey.value(key)] = library;
+                    } else {
+                        if (!key.isEmpty()) indexByKey.insert(key, merged.size());
+                        merged.append(library);
+                    }
+                }
+            };
+            appendOrReplace(parent.value("libraries").toArray());
+            appendOrReplace(child.value("libraries").toArray());
+            QJsonArray libraries;
+            for (const QJsonObject &library : std::as_const(merged)) libraries.append(library);
+            out.insert("libraries", libraries);
         } else if (it.key() == "arguments") {
             QJsonObject args = parent.value("arguments").toObject();
-            QJsonObject childArgs = child.value("arguments").toObject();
-            if (childArgs.contains("game")) {
-                QJsonArray merged = args.value("game").toArray();
-                for (const QJsonValue &v : childArgs.value("game").toArray()) merged.append(v);
-                args.insert("game", merged);
-            }
-            if (childArgs.contains("jvm")) {
-                QJsonArray merged = args.value("jvm").toArray();
-                for (const QJsonValue &v : childArgs.value("jvm").toArray()) merged.append(v);
-                args.insert("jvm", merged);
+            const QJsonObject childArgs = child.value("arguments").toObject();
+            for (const QString &kind : {QStringLiteral("game"), QStringLiteral("jvm")}) {
+                QJsonArray merged = args.value(kind).toArray();
+                for (const QJsonValue &value : childArgs.value(kind).toArray()) merged.append(value);
+                if (!merged.isEmpty()) args.insert(kind, merged);
             }
             out.insert("arguments", args);
         } else {
@@ -82,14 +104,16 @@ QString replaceLaunchPlaceholders(QString value, const QHash<QString, QString> &
     return value;
 }
 
-QStringList parseArgumentList(const QJsonArray &array, const QHash<QString, QString> &vars) {
+QStringList parseArgumentList(const QJsonArray &array,
+                              const QHash<QString, QString> &vars,
+                              const QSet<QString> &enabledFeatures = {}) {
     QStringList out;
     for (const QJsonValue &v : array) {
         if (v.isString()) {
             out << replaceLaunchPlaceholders(v.toString(), vars);
         } else if (v.isObject()) {
             const QJsonObject obj = v.toObject();
-            if (!VersionRules::allowedByRules(obj.value("rules").toArray())) continue;
+            if (!VersionRules::allowedByRules(obj.value("rules").toArray(), enabledFeatures)) continue;
             for (const QString &item : stringOrArray(obj.value("value"))) {
                 out << replaceLaunchPlaceholders(item, vars);
             }
@@ -191,26 +215,201 @@ bool prepareNativeLibraries(const QJsonObject &versionJson, const QString &nativ
     return true;
 }
 
-QString buildClasspath(const QString &clientJarVersionId, const QJsonObject &versionJson) {
+QString buildClasspath(const QString &clientJarVersionId,
+                       const QJsonObject &versionJson,
+                       QStringList *missingLibraries = nullptr) {
     QStringList entries;
     QSet<QString> seen;
     const QString librariesRoot = LauncherPaths::minecraftDir() + "/libraries";
     for (const QJsonValue &v : versionJson.value("libraries").toArray()) {
         const QJsonObject lib = v.toObject();
         if (!VersionRules::allowedByRules(lib.value("rules").toArray())) continue;
-        QString rel = lib.value("downloads").toObject().value("artifact").toObject().value("path").toString();
-        if (rel.isEmpty()) rel = VersionRules::libraryPathFromName(lib.value("name").toString());
+        QString rel = lib.value("downloads").toObject()
+                          .value("artifact").toObject()
+                          .value("path").toString();
+        if (rel.isEmpty())
+            rel = VersionRules::libraryPathFromName(lib.value("name").toString());
         if (rel.isEmpty()) continue;
         const QString abs = librariesRoot + "/" + rel;
-        if (QFileInfo::exists(abs) && !seen.contains(abs)) {
+        const QFileInfo info(abs);
+        if (!info.isFile() || info.size() <= 0) {
+            if (missingLibraries) missingLibraries->append(rel);
+            continue;
+        }
+        if (!seen.contains(abs)) {
             entries << abs;
             seen.insert(abs);
         }
     }
     const QString clientJar = LauncherPaths::versionsDir() + "/" + clientJarVersionId
         + "/" + clientJarVersionId + ".jar";
-    if (QFileInfo::exists(clientJar)) entries << clientJar;
-    return entries.join(":");
+    const QFileInfo clientInfo(clientJar);
+    if (clientInfo.isFile() && clientInfo.size() > 0) entries << clientJar;
+    return entries.join(QDir::listSeparator());
+}
+
+
+QStringList splitCommandLine(const QString &text) {
+    QStringList result;
+    QString current;
+    QChar quote;
+    bool escaping = false;
+    for (const QChar ch : text) {
+        if (escaping) {
+            current.append(ch);
+            escaping = false;
+            continue;
+        }
+        if (ch == u'\\' && quote != u'\'') {
+            escaping = true;
+            continue;
+        }
+        if (!quote.isNull()) {
+            if (ch == quote) quote = QChar();
+            else current.append(ch);
+            continue;
+        }
+        if (ch == u'\'' || ch == u'"') {
+            quote = ch;
+        } else if (ch.isSpace()) {
+            if (!current.isEmpty()) {
+                result.append(current);
+                current.clear();
+            }
+        } else {
+            current.append(ch);
+        }
+    }
+    if (escaping) current.append(u'\\');
+    if (!current.isEmpty()) result.append(current);
+    return result;
+}
+
+QString compactUuid(QString uuid) {
+    uuid.remove(u'-');
+    return uuid;
+}
+
+int compareGameVersion(const QString &left, const QString &right) {
+    auto normalize = [](QString value) {
+        value.remove(QRegularExpression(QStringLiteral("[^0-9.].*$")));
+        return QVersionNumber::fromString(value);
+    };
+    return QVersionNumber::compare(normalize(left), normalize(right));
+}
+
+int requiredJavaMajorFor(const QJsonObject &versionJson, const QString &gameVersion) {
+    const int declared = versionJson.value("javaVersion").toObject().value("majorVersion").toInt(0);
+    if (declared > 0) return declared;
+    if (compareGameVersion(gameVersion, QStringLiteral("1.20.5")) >= 0) return 21;
+    if (compareGameVersion(gameVersion, QStringLiteral("1.18")) >= 0) return 17;
+    if (compareGameVersion(gameVersion, QStringLiteral("1.17")) >= 0) return 16;
+    return 8;
+}
+
+QString selectJavaExecutable(const QJsonObject &effectiveSettings, int requiredMajor,
+                             QString *selectionError) {
+    const QString configured = effectiveSettings.value("javaPath").toString().trimmed();
+    auto resolveConfigured = [](const QString &path) {
+        QFileInfo info(path);
+        if (info.isFile() && info.isExecutable()) return info.absoluteFilePath();
+        if (info.isDir()) {
+#ifdef Q_OS_WIN
+            const QString candidate = QDir(path).filePath(QStringLiteral("bin/java.exe"));
+#else
+            const QString candidate = QDir(path).filePath(QStringLiteral("bin/java"));
+#endif
+            if (QFileInfo(candidate).isFile() && QFileInfo(candidate).isExecutable()) return candidate;
+        }
+        return QString();
+    };
+    if (!configured.isEmpty()) {
+        const QString resolved = resolveConfigured(configured);
+        if (!resolved.isEmpty()) return resolved;
+        if (selectionError) *selectionError = QStringLiteral("配置的 Java 路径无效：") + configured;
+        return {};
+    }
+
+    const QJsonArray runtimes = JavaService().detect(true).value("runtimes").toArray();
+    QJsonObject exact;
+    QJsonObject compatibleNewer;
+    for (const QJsonValue &value : runtimes) {
+        const QJsonObject runtime = value.toObject();
+        if (!runtime.value("compatible").toBool(true)) continue;
+        const int major = runtime.value("major").toInt(0);
+        if (major == requiredMajor) exact = runtime;
+        else if (major > requiredMajor
+                 && (compatibleNewer.isEmpty()
+                     || major < compatibleNewer.value("major").toInt(INT_MAX))) {
+            compatibleNewer = runtime;
+        }
+    }
+    const QJsonObject selected = !exact.isEmpty() ? exact : compatibleNewer;
+    if (!selected.isEmpty()) return selected.value("path").toString();
+
+    const QString pathJava = QStandardPaths::findExecutable(QStringLiteral("java"));
+    if (!pathJava.isEmpty()) return pathJava;
+    if (selectionError) {
+        *selectionError = QString("未找到可用的 Java %1。请在 Java 管理中安装或选择对应版本。")
+                              .arg(requiredMajor);
+    }
+    return {};
+}
+
+QJsonObject resolveVersionJsonChain(const QString &versionId, QString *baseVersion,
+                                    QString *error) {
+    QString current = versionId;
+    QList<QJsonObject> chain;
+    QSet<QString> visited;
+    for (int depth = 0; depth < 32 && !current.isEmpty(); ++depth) {
+        if (visited.contains(current)) {
+            if (error) *error = QStringLiteral("版本继承关系存在循环：") + current;
+            return {};
+        }
+        visited.insert(current);
+        const QJsonObject object = readVersionObjectById(current);
+        if (object.isEmpty()) {
+            if (error) *error = QStringLiteral("缺少版本 JSON：") + current;
+            return {};
+        }
+        chain.prepend(object);
+        const QString parent = object.value("inheritsFrom").toString();
+        if (parent.isEmpty()) {
+            if (baseVersion) *baseVersion = current;
+            break;
+        }
+        current = parent;
+    }
+    if (chain.isEmpty()) return {};
+    QJsonObject resolved;
+    for (const QJsonObject &object : std::as_const(chain)) resolved = mergeVersionJson(resolved, object);
+    return resolved;
+}
+
+QString redactedCommand(const QString &program, const QStringList &arguments) {
+    QStringList parts{shellQuote(program)};
+    bool redactNext = false;
+    for (const QString &argument : arguments) {
+        if (redactNext) {
+            parts.append(QStringLiteral("'<redacted>'"));
+            redactNext = false;
+            continue;
+        }
+        const QString lower = argument.toLower();
+        if (lower == QStringLiteral("--accesstoken")
+            || lower == QStringLiteral("--clientid")
+            || lower == QStringLiteral("--xuid")) {
+            parts.append(shellQuote(argument));
+            redactNext = true;
+        } else if (argument.startsWith(QStringLiteral("-javaagent:"))
+                   && argument.contains(u'=')) {
+            parts.append(shellQuote(argument.left(argument.indexOf(u'=') + 1)
+                                    + QStringLiteral("<server>")));
+        } else {
+            parts.append(shellQuote(argument));
+        }
+    }
+    return parts.join(u' ');
 }
 
 } // namespace
@@ -373,102 +572,321 @@ QString InstanceService::openFolder(const QString &versionId, const QString &sub
     return path;
 }
 
-QString InstanceService::generateLaunchCommand(const QString &versionId) {
-    const QString id = versionId.trimmed();
-    if (id.isEmpty()) return QString();
-
-    QJsonObject child = readVersionJson(id);
-    if (child.isEmpty()) {
-        return QString("echo ") + shellQuote(QString("版本不存在或缺少 version.json: ") + id);
+LaunchOptions InstanceService::createLaunchOptions(const QString &versionId,
+                                                   const QJsonObject &account,
+                                                   const QJsonObject &launcherSettings) {
+    LaunchOptions options;
+    options.versionId = versionId.trimmed();
+    if (options.versionId.isEmpty()) {
+        options.error = QStringLiteral("当前没有选中的游戏版本。");
+        return options;
     }
 
-    const QString parentId = child.value("inheritsFrom").toString();
-    QJsonObject versionJson = parentId.isEmpty() ? child : mergeVersionJson(readVersionObjectById(parentId), child);
-    const QString mainClass = versionJson.value("mainClass").toString("net.minecraft.client.main.Main");
+    QString baseVersion;
+    QString resolveError;
+    const QJsonObject versionJson = resolveVersionJsonChain(options.versionId, &baseVersion, &resolveError);
+    if (versionJson.isEmpty()) {
+        options.error = resolveError.isEmpty() ? QStringLiteral("无法解析版本 JSON。") : resolveError;
+        return options;
+    }
+    options.gameVersion = baseVersion;
 
-    // Inherited loader versions normally have no <child>.jar. Mojang/HMCL use
-    // the parent (or explicit `jar`) client archive while appending the child
-    // libraries and arguments. Checking only the renamed child jar made every
-    // Fabric/Forge-style instance look incomplete.
-    const QString clientJarVersionId = child.value("jar").toString(
-        parentId.isEmpty() ? id : parentId);
-    const QString clientJar = versionDir(clientJarVersionId) + "/"
-        + clientJarVersionId + ".jar";
-    QFileInfo jarInfo(clientJar);
-    if (!jarInfo.exists() || jarInfo.size() <= 0) {
-        return QString("echo ") + shellQuote(
-            QString("版本 %1 缺少客户端 JAR：%2。请重新安装或修复该版本。")
-                .arg(id, clientJar));
+    const QString mainClass = versionJson.value("mainClass").toString();
+    if (mainClass.isEmpty()) {
+        options.error = QStringLiteral("版本 JSON 缺少 mainClass。");
+        return options;
     }
 
-    const QString classpath = buildClasspath(clientJarVersionId, versionJson);
+    const QString clientJarVersionId = versionJson.value("jar").toString(baseVersion);
+    const QString clientJar = versionDir(clientJarVersionId) + "/" + clientJarVersionId + ".jar";
+    if (!QFileInfo(clientJar).isFile() || QFileInfo(clientJar).size() <= 0) {
+        options.error = QString("版本 %1 缺少客户端 JAR：%2。请重新安装或修复该版本。")
+                            .arg(options.versionId, clientJar);
+        return options;
+    }
+
+    QStringList missingLibraries;
+    const QString classpath = buildClasspath(clientJarVersionId, versionJson,
+                                             &missingLibraries);
+    if (!missingLibraries.isEmpty()) {
+        QStringList shown = missingLibraries.mid(0, 8);
+        options.error = QStringLiteral("版本依赖库不完整，请重新安装或修复该版本：\n")
+            + shown.join(QStringLiteral("\n"));
+        if (missingLibraries.size() > shown.size())
+            options.error += QString("\n……另有 %1 个文件缺失。")
+                                 .arg(missingLibraries.size() - shown.size());
+        return options;
+    }
     if (classpath.isEmpty()) {
-        return QString("echo ") + shellQuote(QString("版本 ") + id + QString(" 缺少 classpath。请检查 libraries 是否已下载。路径: ") + LauncherPaths::minecraftDir() + QString("/libraries"));
+        options.error = QStringLiteral("无法生成 classpath，请重新安装或修复该版本。");
+        return options;
     }
 
-    const QString assetIndex = versionJson.value("assetIndex").toObject().value("id").toString(versionJson.value("assets").toString("legacy"));
-    const QString gameDir = LauncherPaths::minecraftDir();
-    const QString nativesDir = versionDir(id) + "/natives";
+    QJsonObject effectiveSettings = launcherSettings;
+    const QJsonObject instanceSettings = JsonUtil::readObjectFile(
+        versionDir(options.versionId) + "/hmcl-qt-settings.json", {});
+    for (auto it = instanceSettings.begin(); it != instanceSettings.end(); ++it)
+        effectiveSettings.insert(it.key(), it.value());
+
+    QString gameDirectory = effectiveSettings.value("runDirectory").toString().trimmed();
+    if (gameDirectory.isEmpty()) gameDirectory = effectiveSettings.value("runningDir").toString().trimmed();
+    if (gameDirectory.isEmpty()) gameDirectory = effectiveSettings.value("gameDir").toString().trimmed();
+    if (gameDirectory.isEmpty()) gameDirectory = LauncherPaths::minecraftDir();
+    if (effectiveSettings.value("isolated").toBool(false))
+        gameDirectory = versionDir(options.versionId) + "/.minecraft";
+    gameDirectory = QDir(gameDirectory).absolutePath();
+    if (!QDir().mkpath(gameDirectory)) {
+        options.error = QStringLiteral("无法创建游戏运行目录：") + gameDirectory;
+        return options;
+    }
+    options.workingDirectory = gameDirectory;
+
+    const QString nativesDir = versionDir(options.versionId) + "/natives";
     QString nativeError;
-    if (!prepareNativeLibraries(versionJson, nativesDir, &nativeError))
-        return QString("echo ") + shellQuote(nativeError);
-
-    QHash<QString, QString> vars;
-    vars.insert("auth_player_name", "Steve");
-    vars.insert("version_name", id);
-    vars.insert("game_directory", gameDir);
-    vars.insert("assets_root", gameDir + "/assets");
-    vars.insert("assets_index_name", assetIndex);
-    vars.insert("auth_uuid", "00000000-0000-0000-0000-000000000000");
-    vars.insert("auth_access_token", "0");
-    vars.insert("clientid", "0");
-    vars.insert("auth_xuid", "0");
-    vars.insert("user_type", "legacy");
-    vars.insert("version_type", versionJson.value("type").toString("release"));
-    vars.insert("natives_directory", nativesDir);
-    vars.insert("launcher_name", "mc-launcher-qt-cpp");
-    vars.insert("launcher_version", "0.1.0");
-    vars.insert("classpath", classpath);
-
-    QStringList args;
-    args << "java" << "-Xmx2G";
-
-    const QJsonObject arguments = versionJson.value("arguments").toObject();
-    QStringList jvmArgs = parseArgumentList(arguments.value("jvm").toArray(), vars);
-    if (!jvmArgs.isEmpty()) {
-        // Modern version JSON already supplies java.library.path and classpath.
-        // Adding them a second time diverges from HMCL and can produce subtly
-        // different JVM option resolution.
-        args << jvmArgs;
-    } else {
-        args << (QString("-Djava.library.path=") + nativesDir) << "-cp" << classpath;
+    if (!prepareNativeLibraries(versionJson, nativesDir, &nativeError)) {
+        options.error = nativeError;
+        return options;
     }
 
-    args << mainClass;
+    options.requiredJavaMajor = requiredJavaMajorFor(versionJson, baseVersion);
+    QString javaError;
+    options.javaExecutable = selectJavaExecutable(effectiveSettings,
+                                                  options.requiredJavaMajor,
+                                                  &javaError);
+    if (options.javaExecutable.isEmpty()) {
+        options.error = javaError;
+        return options;
+    }
 
-    QStringList gameArgs = parseArgumentList(arguments.value("game").toArray(), vars);
-    if (!gameArgs.isEmpty()) {
-        args << gameArgs;
-    } else {
-        const QString legacyArgs = versionJson.value("minecraftArguments").toString();
-        if (!legacyArgs.isEmpty()) {
-            for (const QString &part : legacyArgs.split(' ', Qt::SkipEmptyParts)) args << replaceLaunchPlaceholders(part, vars);
-        } else {
-            args << "--username" << "Steve"
-                 << "--version" << id
-                 << "--gameDir" << gameDir
-                 << "--assetsDir" << gameDir + "/assets"
-                 << "--assetIndex" << assetIndex
-                 << "--uuid" << "00000000-0000-0000-0000-000000000000"
-                 << "--accessToken" << "0"
-                 << "--userType" << "legacy"
-                 << "--versionType" << versionJson.value("type").toString("release");
+    options.accountKind = account.value("kind").toString(QStringLiteral("offline"));
+    options.accountName = account.value("username").toString(QStringLiteral("Steve"));
+    options.accountUuid = compactUuid(account.value("uuid").toString());
+    if (options.accountUuid.isEmpty())
+        options.accountUuid = QStringLiteral("00000000000000000000000000000000");
+
+    const QString accessToken = account.value("accessToken").toString(
+        options.accountKind == QStringLiteral("offline") ? QStringLiteral("0") : QString());
+    const QString userType = account.value("userType").toString(
+        options.accountKind == QStringLiteral("microsoft")
+            ? QStringLiteral("msa")
+            : options.accountKind == QStringLiteral("offline")
+                ? QStringLiteral("legacy") : QStringLiteral("mojang"));
+
+    options.authServerUrl = account.value("serverUrl").toString();
+    if (options.accountKind == QStringLiteral("yggdrasil")) {
+        options.authlibInjectorPath = LauncherPaths::cacheDir()
+            + QStringLiteral("/authlib-injector/authlib-injector-1.2.7.jar");
+    }
+
+    const QString assetIndex = versionJson.value("assetIndex").toObject()
+                                   .value("id").toString(
+                                       versionJson.value("assets").toString(QStringLiteral("legacy")));
+    if (!assetIndex.isEmpty()) {
+        const QString assetIndexFile = LauncherPaths::minecraftDir()
+            + QStringLiteral("/assets/indexes/") + assetIndex + QStringLiteral(".json");
+        if (!QFileInfo(assetIndexFile).isFile()) {
+            options.error = QStringLiteral("缺少资源索引：") + assetIndexFile
+                + QStringLiteral("。请重新安装或修复该版本。");
+            return options;
         }
     }
 
-    QStringList quoted;
-    for (const QString &arg : args) quoted << shellQuote(arg);
-    return quoted.join(' ');
+    QHash<QString, QString> vars;
+    vars.insert(QStringLiteral("auth_player_name"), options.accountName);
+    vars.insert(QStringLiteral("version_name"), options.versionId);
+    vars.insert(QStringLiteral("game_directory"), gameDirectory);
+    vars.insert(QStringLiteral("assets_root"), LauncherPaths::minecraftDir() + "/assets");
+    vars.insert(QStringLiteral("game_assets"), LauncherPaths::minecraftDir() + "/assets/virtual/legacy");
+    vars.insert(QStringLiteral("assets_index_name"), assetIndex);
+    vars.insert(QStringLiteral("auth_uuid"), options.accountUuid);
+    vars.insert(QStringLiteral("auth_access_token"), accessToken);
+    vars.insert(QStringLiteral("auth_session"), accessToken);
+    vars.insert(QStringLiteral("user_properties"), QStringLiteral("{}"));
+    vars.insert(QStringLiteral("clientid"), account.value("clientId").toString(QStringLiteral("0")));
+    vars.insert(QStringLiteral("auth_xuid"), account.value("xuid").toString(QStringLiteral("0")));
+    vars.insert(QStringLiteral("user_type"), userType);
+    vars.insert(QStringLiteral("version_type"), versionJson.value("type").toString(QStringLiteral("release")));
+    vars.insert(QStringLiteral("natives_directory"), nativesDir);
+    vars.insert(QStringLiteral("launcher_name"), QStringLiteral("HMCL-Qt"));
+    vars.insert(QStringLiteral("launcher_version"), QStringLiteral("0.1.0"));
+    vars.insert(QStringLiteral("classpath"), classpath);
+    vars.insert(QStringLiteral("classpath_separator"), QString(QDir::listSeparator()));
+    vars.insert(QStringLiteral("library_directory"), LauncherPaths::minecraftDir() + "/libraries");
+    vars.insert(QStringLiteral("primary_jar"), clientJar);
+
+    QSet<QString> enabledFeatures;
+    const int width = effectiveSettings.value("width").toInt(
+        effectiveSettings.value("gameWidth").toInt(854));
+    const int height = effectiveSettings.value("height").toInt(
+        effectiveSettings.value("gameHeight").toInt(480));
+    const bool fullscreen = effectiveSettings.value("fullscreen").toBool(false);
+    vars.insert(QStringLiteral("resolution_width"), QString::number(width));
+    vars.insert(QStringLiteral("resolution_height"), QString::number(height));
+    vars.insert(QStringLiteral("quickPlayPath"), effectiveSettings.value("quickPlayPath").toString());
+    vars.insert(QStringLiteral("quickPlaySingleplayer"), effectiveSettings.value("quickPlaySingleplayer").toString());
+    vars.insert(QStringLiteral("quickPlayMultiplayer"), effectiveSettings.value("quickPlayServer").toString());
+    vars.insert(QStringLiteral("quickPlayRealms"), effectiveSettings.value("quickPlayRealms").toString());
+    if (width > 0 && height > 0) enabledFeatures.insert(QStringLiteral("has_custom_resolution"));
+    if (effectiveSettings.value("quickPlayType").toString() == QStringLiteral("multiplayer"))
+        enabledFeatures.insert(QStringLiteral("is_quick_play_multiplayer"));
+    if (effectiveSettings.value("quickPlayType").toString() == QStringLiteral("singleplayer"))
+        enabledFeatures.insert(QStringLiteral("is_quick_play_singleplayer"));
+
+    QStringList javaArguments;
+    const int maxMemory = qMax(256, effectiveSettings.value("maxMemoryMb").toInt(4096));
+    const int minMemory = qMax(0, effectiveSettings.value("minMemoryMb").toInt(256));
+    javaArguments << QString("-Xmx%1m").arg(maxMemory);
+    if (minMemory > 0 && minMemory <= maxMemory)
+        javaArguments << QString("-Xms%1m").arg(minMemory);
+
+    if (!effectiveSettings.value("noJVMOptions").toBool(false)) {
+        javaArguments << QStringLiteral("-Dfile.encoding=UTF-8")
+                      << QStringLiteral("-Djava.rmi.server.useCodebaseOnly=true")
+                      << QStringLiteral("-Dcom.sun.jndi.rmi.object.trustURLCodebase=false")
+                      << QStringLiteral("-Dcom.sun.jndi.cosnaming.object.trustURLCodebase=false")
+                      << QStringLiteral("-Dlog4j2.formatMsgNoLookups=true")
+                      << QStringLiteral("-Dminecraft.client.jar=") + clientJar;
+    }
+
+    if (options.accountKind == QStringLiteral("yggdrasil")) {
+        if (options.authServerUrl.isEmpty()) {
+            options.error = QStringLiteral("第三方账户缺少认证服务器地址，请重新登录该账户。");
+            return options;
+        }
+        javaArguments << QStringLiteral("-javaagent:") + options.authlibInjectorPath
+                         + QStringLiteral("=") + options.authServerUrl;
+        javaArguments << QStringLiteral("-Dauthlibinjector.side=client");
+    }
+
+    // Mojang's legacy logging configuration is generated by the same
+    // version metadata path used by HMCL. It is optional for versions that do
+    // not declare it, but must be passed when the downloaded file exists.
+    const QJsonObject loggingClient = versionJson.value("logging").toObject()
+                                          .value("client").toObject();
+    const QString loggingArgument = loggingClient.value("argument").toString();
+    const QString loggingFileId = loggingClient.value("file").toObject()
+                                      .value("id").toString();
+    if (!loggingArgument.isEmpty() && !loggingFileId.isEmpty()) {
+        const QString loggingPath = LauncherPaths::minecraftDir()
+            + QStringLiteral("/assets/log_configs/") + loggingFileId;
+        if (QFileInfo(loggingPath).isFile()) {
+            QString argument = loggingArgument;
+            argument.replace(QStringLiteral("${path}"), loggingPath);
+            javaArguments << argument;
+        }
+    }
+
+    const QString customJvm = effectiveSettings.value("jvmArgs").toString();
+    if (!customJvm.trimmed().isEmpty()) javaArguments << splitCommandLine(customJvm);
+
+    const QJsonObject arguments = versionJson.value("arguments").toObject();
+    QStringList versionJvmArguments = parseArgumentList(arguments.value("jvm").toArray(),
+                                                        vars, enabledFeatures);
+    bool hasClasspath = false;
+    bool hasNativePath = false;
+    for (const QString &argument : std::as_const(versionJvmArguments)) {
+        if (argument == QStringLiteral("-cp") || argument == QStringLiteral("-classpath"))
+            hasClasspath = true;
+        if (argument.startsWith(QStringLiteral("-Djava.library.path=")))
+            hasNativePath = true;
+    }
+    if (!hasNativePath) javaArguments << QStringLiteral("-Djava.library.path=") + nativesDir;
+    if (!hasClasspath) javaArguments << QStringLiteral("-cp") << classpath;
+    javaArguments << versionJvmArguments;
+
+    QStringList gameArguments = parseArgumentList(arguments.value("game").toArray(),
+                                                  vars, enabledFeatures);
+    if (gameArguments.isEmpty()) {
+        const QString legacy = versionJson.value("minecraftArguments").toString();
+        if (!legacy.isEmpty()) {
+            for (const QString &argument : splitCommandLine(legacy))
+                gameArguments << replaceLaunchPlaceholders(argument, vars);
+        } else {
+            gameArguments << QStringLiteral("--username") << options.accountName
+                          << QStringLiteral("--version") << options.versionId
+                          << QStringLiteral("--gameDir") << gameDirectory
+                          << QStringLiteral("--assetsDir") << LauncherPaths::minecraftDir() + "/assets"
+                          << QStringLiteral("--assetIndex") << assetIndex
+                          << QStringLiteral("--uuid") << options.accountUuid
+                          << QStringLiteral("--accessToken") << accessToken
+                          << QStringLiteral("--userType") << userType
+                          << QStringLiteral("--versionType")
+                          << versionJson.value("type").toString(QStringLiteral("release"));
+        }
+    }
+
+    if (width > 0 && height > 0) {
+        if (!gameArguments.contains(QStringLiteral("--width")))
+            gameArguments << QStringLiteral("--width") << QString::number(width);
+        if (!gameArguments.contains(QStringLiteral("--height")))
+            gameArguments << QStringLiteral("--height") << QString::number(height);
+    }
+    if (fullscreen && !gameArguments.contains(QStringLiteral("--fullscreen")))
+        gameArguments << QStringLiteral("--fullscreen");
+
+    const QString quickPlayType = effectiveSettings.value("quickPlayType").toString();
+    if (quickPlayType == QStringLiteral("multiplayer")) {
+        const QString server = effectiveSettings.value("quickPlayServer").toString().trimmed();
+        if (!server.isEmpty()) gameArguments << QStringLiteral("--quickPlayMultiplayer") << server;
+    } else if (quickPlayType == QStringLiteral("singleplayer")) {
+        const QString world = effectiveSettings.value("quickPlaySingleplayer").toString().trimmed();
+        if (!world.isEmpty()) gameArguments << QStringLiteral("--quickPlaySingleplayer") << world;
+    }
+
+    const QString customGameArguments = effectiveSettings.value("gameArguments").toString();
+    if (!customGameArguments.trimmed().isEmpty())
+        gameArguments << splitCommandLine(customGameArguments);
+
+    options.arguments = javaArguments;
+    options.arguments << mainClass;
+    options.arguments << gameArguments;
+
+    QRegularExpression unresolvedPattern(QStringLiteral("\\$\\{[^}]+\\}"));
+    QStringList unresolved;
+    for (const QString &argument : std::as_const(options.arguments)) {
+        const QRegularExpressionMatch match = unresolvedPattern.match(argument);
+        if (match.hasMatch() && !unresolved.contains(match.captured(0)))
+            unresolved.append(match.captured(0));
+    }
+    if (!unresolved.isEmpty()) {
+        options.error = QStringLiteral("版本启动参数包含无法解析的变量：")
+            + unresolved.join(QStringLiteral("、"));
+        return options;
+    }
+
+    const QString environmentText = effectiveSettings.value("environmentVariables").toString();
+    for (const QString &line : environmentText.split(QRegularExpression(QStringLiteral("[\\r\\n]+")),
+                                                      Qt::SkipEmptyParts)) {
+        const int equals = line.indexOf(u'=');
+        if (equals > 0)
+            options.environment.insert(line.left(equals).trimmed(), line.mid(equals + 1));
+    }
+
+    const QString gameLogDir = LauncherPaths::logsDir() + QStringLiteral("/game");
+    QDir().mkpath(gameLogDir);
+    QString safeVersion = options.versionId;
+    safeVersion.replace(u'/', u'_');
+    safeVersion.replace(u'\\', u'_');
+    options.logFile = gameLogDir + QStringLiteral("/game-") + safeVersion + u'-'
+        + QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"))
+        + QStringLiteral(".log");
+
+    options.displayCommand = redactedCommand(options.javaExecutable, options.arguments);
+    options.valid = true;
+    return options;
+}
+
+QString InstanceService::generateLaunchCommand(const QString &versionId) {
+    QJsonObject offlineAccount{
+        {"kind", QStringLiteral("offline")},
+        {"username", QStringLiteral("Steve")},
+        {"uuid", QStringLiteral("00000000000000000000000000000000")},
+        {"accessToken", QStringLiteral("0")},
+        {"userType", QStringLiteral("legacy")}
+    };
+    const LaunchOptions options = createLaunchOptions(versionId, offlineAccount, QJsonObject{});
+    return options.valid ? options.displayCommand
+                         : QStringLiteral("echo ") + shellQuote(options.error);
 }
 
 QString InstanceService::clean(const QString &versionId, const QString &what) {

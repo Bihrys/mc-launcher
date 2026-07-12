@@ -252,6 +252,21 @@ Rectangle {
                         verticalAlignment: Text.AlignVCenter
                         wrapMode: Text.WordWrap
                     }
+
+                    Text {
+                        width: taskColumn.width
+                        visible: (root.status.status === "failed"
+                                  || root.status.status === "cancelled")
+                                 && root.stages.length > 0
+                        text: root.status.message || (root.status.status === "cancelled"
+                              ? "启动任务已取消。" : "启动失败。")
+                        color: root.status.status === "failed"
+                               ? "#D32F2F" : root.style.cTextOnSurfaceVariant
+                        font.pixelSize: 12
+                        wrapMode: Text.WordWrap
+                        elide: Text.ElideRight
+                        maximumLineCount: 6
+                    }
                 }
             }
         }
@@ -266,7 +281,7 @@ Rectangle {
 
             Label {
                 Layout.fillWidth: true
-                text: root.activeTask ? root.formatSpeed(root.status.speed || 0) : ""
+                text: root.activeTask ? (root.status.speedText || root.formatSpeed(root.status.speed || 0)) : ""
                 color: root.style.cTextOnSurface
                 font.pixelSize: 12
                 elide: Text.ElideRight
