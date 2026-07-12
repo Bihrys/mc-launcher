@@ -14,6 +14,7 @@ Rectangle {
     property bool activeTask: !!root.status.active
     property var stages: root.status.stages || []
     property var files: root.status.files || []
+    property bool showTerminalMessage: true
 
     signal cancelRequested()
     signal closeRequested()
@@ -255,8 +256,9 @@ Rectangle {
 
                     Text {
                         width: taskColumn.width
-                        visible: (root.status.status === "failed"
-                                  || root.status.status === "cancelled")
+                        visible: root.showTerminalMessage
+                                 && (root.status.status === "failed"
+                                     || root.status.status === "cancelled")
                                  && root.stages.length > 0
                         text: root.status.message || (root.status.status === "cancelled"
                               ? "启动任务已取消。" : "启动失败。")

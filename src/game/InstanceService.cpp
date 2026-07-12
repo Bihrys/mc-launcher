@@ -2,6 +2,7 @@
 
 #include "core/JsonUtil.h"
 #include "core/LauncherPaths.h"
+#include "download/hmcl/DownloadProvider.h"
 #include "game/VersionRules.h"
 #include "java/JavaService.h"
 #include "launch/LaunchEnvironment.h"
@@ -27,6 +28,7 @@
 #include <QUrl>
 
 #include <utility>
+#include <algorithm>
 #include <climits>
 
 namespace {
@@ -85,6 +87,74 @@ QJsonObject mergeVersionJson(const QJsonObject &parent, const QJsonObject &child
         }
     }
     return out;
+}
+
+
+
+bool fileMatchesSha1(const QString &path, const QString &sha1) {
+    if (sha1.isEmpty()) return QFileInfo(path).isFile() && QFileInfo(path).size() > 0;
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) return false;
+    QCryptographicHash hash(QCryptographicHash::Sha1);
+    if (!hash.addData(&file)) return false;
+    return hash.result().toHex() == sha1.toLatin1().toLower();
+}
+
+QJsonObject repairDownload(const QList<QUrl> &urls,
+                           const QString &destPath,
+                           const QString &sha1,
+                           qint64 size,
+                           const QString &displayName,
+                           const QString &stageId) {
+    QJsonArray jsonUrls;
+    for (const QUrl &url : urls) {
+        if (url.isValid() && !url.isEmpty()) jsonUrls.append(url.toString());
+    }
+    return QJsonObject{
+        {"urls", jsonUrls}, {"destPath", destPath}, {"sha1", sha1},
+        {"size", static_cast<double>(size)}, {"displayName", displayName},
+        {"stageId", stageId}
+    };
+}
+
+QString libraryUrlFor(const QJsonObject &library, const QJsonObject &artifact,
+                      const QString &relativePath) {
+    QString url = artifact.value("url").toString();
+    if (!url.isEmpty()) return url;
+    QString base = library.value("url").toString();
+    if (base.isEmpty()) base = QStringLiteral("https://libraries.minecraft.net/");
+    if (!base.endsWith(u'/')) base.append(u'/');
+    return base + relativePath;
+}
+
+QJsonObject applyHmclPatches(QJsonObject object, QString *gameVersion) {
+    const QJsonArray patches = object.value("patches").toArray();
+    if (patches.isEmpty()) return object;
+
+    QList<QJsonObject> sorted;
+    sorted.reserve(patches.size());
+    for (const QJsonValue &value : patches) {
+        if (value.isObject()) sorted.append(value.toObject());
+    }
+    std::sort(sorted.begin(), sorted.end(), [](const QJsonObject &a, const QJsonObject &b) {
+        return a.value("priority").toInt(0) < b.value("priority").toInt(0);
+    });
+
+    object.remove("patches");
+    QJsonObject resolved = object;
+    for (QJsonObject patch : std::as_const(sorted)) {
+        const QString patchId = patch.value("id").toString();
+        if (patchId == QStringLiteral("game") && gameVersion) {
+            const QString version = patch.value("version").toString();
+            if (!version.isEmpty()) *gameVersion = version;
+        }
+        // HMCL clears the patch jar before merging so loader patches cannot
+        // accidentally replace the primary Minecraft client jar.
+        patch.remove("jar");
+        patch.remove("patches");
+        resolved = mergeVersionJson(resolved, patch);
+    }
+    return resolved;
 }
 
 QStringList stringOrArray(const QJsonValue &value) {
@@ -236,7 +306,6 @@ QString buildClasspath(const QString &clientJarVersionId,
         const QFileInfo info(abs);
         if (!info.isFile() || info.size() <= 0) {
             if (missingLibraries) missingLibraries->append(rel);
-            continue;
         }
         if (!seen.contains(abs)) {
             entries << abs;
@@ -246,7 +315,11 @@ QString buildClasspath(const QString &clientJarVersionId,
     const QString clientJar = LauncherPaths::versionsDir() + "/" + clientJarVersionId
         + "/" + clientJarVersionId + ".jar";
     const QFileInfo clientInfo(clientJar);
-    if (clientInfo.isFile() && clientInfo.size() > 0) entries << clientJar;
+    if ((!clientInfo.isFile() || clientInfo.size() <= 0) && missingLibraries)
+        missingLibraries->append(clientJar);
+    // The pre-launch repair stage may download the client jar after the launch
+    // plan is built, so the expected path must already be present in classpath.
+    if (!seen.contains(clientJar)) entries << clientJar;
     return entries.join(QDir::listSeparator());
 }
 
@@ -408,7 +481,11 @@ QJsonObject resolveVersionJsonChain(const QString &versionId, QString *baseVersi
     }
     if (chain.isEmpty()) return {};
     QJsonObject resolved;
-    for (const QJsonObject &object : std::as_const(chain)) resolved = mergeVersionJson(resolved, object);
+    QString patchedGameVersion = baseVersion ? *baseVersion : QString();
+    for (const QJsonObject &object : std::as_const(chain)) {
+        resolved = mergeVersionJson(resolved, applyHmclPatches(object, &patchedGameVersion));
+    }
+    if (baseVersion && !patchedGameVersion.isEmpty()) *baseVersion = patchedGameVersion;
     return resolved;
 }
 
@@ -466,19 +543,24 @@ QJsonArray InstanceService::scanVersions() const {
     const auto entries = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
     for (const QFileInfo &info : entries) {
         const QString id = info.fileName();
-        const QJsonObject json = readVersionJson(id);
+        const QJsonObject raw = readVersionJson(id);
+        if (raw.isEmpty()) continue;
+        QString gameVersion;
+        QString resolveError;
+        const QJsonObject json = resolveVersionJsonChain(id, &gameVersion, &resolveError);
+        if (json.isEmpty()) continue;
         const QString type = json.value("type").toString("release");
-        const QString inherits = json.value("inheritsFrom").toString();
-        const QString gameVersion = inherits.isEmpty() ? id : inherits;
-        QString loaderSummary = "原版";
-        if (id.contains("fabric", Qt::CaseInsensitive)) loaderSummary = "Fabric";
-        else if (id.contains("quilt", Qt::CaseInsensitive)) loaderSummary = "Quilt";
-        else if (id.contains("neoforge", Qt::CaseInsensitive)) loaderSummary = "NeoForge";
-        else if (id.contains("forge", Qt::CaseInsensitive)) loaderSummary = "Forge";
+        const QStringList loaderKinds = detectLoaderKinds(json, id);
+        QString loaderSummary = QStringLiteral("原版");
+        QString iconName = iconForVersion(id, type);
+        if (loaderKinds.contains(QStringLiteral("fabric"))) { loaderSummary = QStringLiteral("Fabric"); iconName = QStringLiteral("fabric"); }
+        else if (loaderKinds.contains(QStringLiteral("quilt"))) { loaderSummary = QStringLiteral("Quilt"); iconName = QStringLiteral("quilt"); }
+        else if (loaderKinds.contains(QStringLiteral("neoforge"))) { loaderSummary = QStringLiteral("NeoForge"); iconName = QStringLiteral("neoforge"); }
+        else if (loaderKinds.contains(QStringLiteral("forge"))) { loaderSummary = QStringLiteral("Forge"); iconName = QStringLiteral("forge"); }
         arr.append(QJsonObject{
             {"id", id}, {"title", id}, {"name", id}, {"subtitle", gameVersion}, {"tag", type},
             {"versionType", type}, {"gameVersion", gameVersion}, {"loaderSummary", loaderSummary},
-            {"iconName", iconForVersion(id, type)}, {"selected", false}, {"canUpdate", false},
+            {"iconName", iconName}, {"selected", false}, {"canUpdate", false},
             {"path", info.absoluteFilePath()}
         });
     }
@@ -513,9 +595,13 @@ QJsonObject InstanceService::installedVersions() {
 QJsonObject InstanceService::detail(const QString &versionId) {
     const QString id = versionId.trimmed();
     const QString dir = versionDir(id);
-    QJsonObject json = readVersionJson(id);
-    const QString inherits = json.value("inheritsFrom").toString();
-    const QString gameVersion = inherits.isEmpty() ? id : inherits;
+    const QJsonObject raw = readVersionJson(id);
+    QString gameVersion;
+    QString resolveError;
+    QJsonObject json = resolveVersionJsonChain(id, &gameVersion, &resolveError);
+    if (json.isEmpty()) json = raw;
+    const QString inherits = raw.value("inheritsFrom").toString();
+    if (gameVersion.isEmpty()) gameVersion = inherits.isEmpty() ? id : inherits;
     const QString mainClass = json.value("mainClass").toString();
     QJsonArray folders;
     const QList<QPair<QString, QString>> map = {
@@ -527,10 +613,16 @@ QJsonObject InstanceService::detail(const QString &versionId) {
         folders.append(QJsonObject{{"key", pair.first}, {"title", pair.second}, {"path", sub}, {"exists", d.exists()}, {"itemCount", d.exists() ? d.entryList(QDir::NoDotAndDotDot | QDir::AllEntries).size() : 0}});
     }
     QJsonArray loaders;
-    QString lower = id.toLower();
-    if (lower.contains("fabric")) loaders.append(QJsonObject{{"kind", "Fabric"}, {"version", id}});
-    if (lower.contains("quilt")) loaders.append(QJsonObject{{"kind", "Quilt"}, {"version", id}});
-    if (lower.contains("forge")) loaders.append(QJsonObject{{"kind", lower.contains("neoforge") ? "NeoForge" : "Forge"}, {"version", id}});
+    const QStringList detectedLoaders = detectLoaderKinds(json, id);
+    for (const QString &loader : detectedLoaders) {
+        QString title = loader;
+        if (loader == QStringLiteral("fabric")) title = QStringLiteral("Fabric");
+        else if (loader == QStringLiteral("quilt")) title = QStringLiteral("Quilt");
+        else if (loader == QStringLiteral("forge")) title = QStringLiteral("Forge");
+        else if (loader == QStringLiteral("neoforge")) title = QStringLiteral("NeoForge");
+        else if (loader == QStringLiteral("optifine")) title = QStringLiteral("OptiFine");
+        loaders.append(QJsonObject{{"kind", title}, {"version", id}});
+    }
 
     QJsonObject settings{{"javaPath", ""}, {"minMemoryMb", 256}, {"maxMemoryMb", 4096}, {"jvmArgs", ""}, {"gameArgs", ""}, {"width", 854}, {"height", 480}, {"fullscreen", false}, {"isolated", false}, {"runDirectory", LauncherPaths::minecraftDir()}, {"server", ""}};
     const QString settingsPath = dir + "/hmcl-qt-settings.json";
@@ -623,36 +715,95 @@ LaunchOptions InstanceService::createLaunchOptions(const QString &versionId,
         return options;
     }
 
-    const QString clientJarVersionId = versionJson.value("jar").toString(baseVersion);
-    const QString clientJar = versionDir(clientJarVersionId) + "/" + clientJarVersionId + ".jar";
-    if (!QFileInfo(clientJar).isFile() || QFileInfo(clientJar).size() <= 0) {
-        options.error = QString("版本 %1 缺少客户端 JAR：%2。请重新安装或修复该版本。")
-                            .arg(options.versionId, clientJar);
-        return options;
-    }
-
-    QStringList missingLibraries;
-    const QString classpath = buildClasspath(clientJarVersionId, versionJson,
-                                             &missingLibraries);
-    if (!missingLibraries.isEmpty()) {
-        QStringList shown = missingLibraries.mid(0, 8);
-        options.error = QStringLiteral("版本依赖库不完整，请重新安装或修复该版本：\n")
-            + shown.join(QStringLiteral("\n"));
-        if (missingLibraries.size() > shown.size())
-            options.error += QString("\n……另有 %1 个文件缺失。")
-                                 .arg(missingLibraries.size() - shown.size());
-        return options;
-    }
-    if (classpath.isEmpty()) {
-        options.error = QStringLiteral("无法生成 classpath，请重新安装或修复该版本。");
-        return options;
-    }
-
     QJsonObject effectiveSettings = launcherSettings;
     const QJsonObject instanceSettings = JsonUtil::readObjectFile(
         versionDir(options.versionId) + "/hmcl-qt-settings.json", {});
     for (auto it = instanceSettings.begin(); it != instanceSettings.end(); ++it)
         effectiveSettings.insert(it.key(), it.value());
+
+    const QString fileSource = effectiveSettings.value("fileDownloadSource")
+                                   .toString(effectiveSettings.value("downloadSource")
+                                                 .toString(QStringLiteral("balanced")));
+    const HmclDownloadProvider provider = HmclDownloadProvider::fromSource(fileSource);
+    options.downloadSource = provider.id();
+
+    QJsonArray dependencyDownloads;
+    QStringList missingWithoutUrl;
+
+    const QString clientJarVersionId = versionJson.value("jar").toString(baseVersion);
+    const QString clientJar = versionDir(clientJarVersionId) + "/" + clientJarVersionId + ".jar";
+    const QJsonObject clientInfo = versionJson.value("downloads").toObject()
+                                      .value("client").toObject();
+    const QString clientSha1 = clientInfo.value("sha1").toString();
+    if (!fileMatchesSha1(clientJar, clientSha1)) {
+        const QString url = clientInfo.value("url").toString();
+        if (url.isEmpty()) {
+            missingWithoutUrl.append(clientJar);
+        } else {
+            dependencyDownloads.append(repairDownload(
+                provider.candidatesFor(url), clientJar, clientSha1,
+                static_cast<qint64>(clientInfo.value("size").toDouble()),
+                QFileInfo(clientJar).fileName(), QStringLiteral("hmcl.install.game")));
+        }
+    }
+
+    QStringList missingLibraries;
+    const QString classpath = buildClasspath(clientJarVersionId, versionJson,
+                                             &missingLibraries);
+    if (classpath.isEmpty()) {
+        options.error = QStringLiteral("无法生成 classpath，请重新安装或修复该版本。");
+        return options;
+    }
+
+    const QString librariesRoot = LauncherPaths::minecraftDir() + "/libraries";
+    QSet<QString> scheduledPaths;
+    for (const QJsonValue &value : versionJson.value("libraries").toArray()) {
+        const QJsonObject library = value.toObject();
+        if (!VersionRules::allowedByRules(library.value("rules").toArray())) continue;
+
+        const QJsonObject downloads = library.value("downloads").toObject();
+        const QJsonObject artifact = downloads.value("artifact").toObject();
+        QString relative = artifact.value("path").toString();
+        if (relative.isEmpty()) relative = VersionRules::libraryPathFromName(library.value("name").toString());
+        if (!relative.isEmpty()) {
+            const QString path = librariesRoot + "/" + relative;
+            const QString sha1 = artifact.value("sha1").toString();
+            if (!fileMatchesSha1(path, sha1) && !scheduledPaths.contains(path)) {
+                const QString url = libraryUrlFor(library, artifact, relative);
+                if (url.isEmpty()) missingWithoutUrl.append(path);
+                else dependencyDownloads.append(repairDownload(
+                    provider.candidatesFor(url), path, sha1,
+                    static_cast<qint64>(artifact.value("size").toDouble()),
+                    QFileInfo(path).fileName(), QStringLiteral("hmcl.install.libraries")));
+                scheduledPaths.insert(path);
+            }
+        }
+
+        const QString classifier = nativeClassifierForLibrary(library);
+        if (classifier.isEmpty()) continue;
+        const QJsonObject nativeArtifact = downloads.value("classifiers").toObject()
+                                               .value(classifier).toObject();
+        QString nativeRelative = nativeArtifact.value("path").toString();
+        if (nativeRelative.isEmpty()) continue;
+        const QString nativePath = librariesRoot + "/" + nativeRelative;
+        if (!options.nativeArchives.contains(nativePath)) options.nativeArchives.append(nativePath);
+        const QString nativeSha1 = nativeArtifact.value("sha1").toString();
+        if (!fileMatchesSha1(nativePath, nativeSha1) && !scheduledPaths.contains(nativePath)) {
+            const QString nativeUrl = libraryUrlFor(library, nativeArtifact, nativeRelative);
+            if (nativeUrl.isEmpty()) missingWithoutUrl.append(nativePath);
+            else dependencyDownloads.append(repairDownload(
+                provider.candidatesFor(nativeUrl), nativePath, nativeSha1,
+                static_cast<qint64>(nativeArtifact.value("size").toDouble()),
+                QFileInfo(nativePath).fileName(), QStringLiteral("hmcl.install.libraries")));
+            scheduledPaths.insert(nativePath);
+        }
+    }
+
+    if (!missingWithoutUrl.isEmpty()) {
+        options.error = QStringLiteral("以下游戏文件缺失且版本元数据没有下载地址：\n")
+            + missingWithoutUrl.mid(0, 8).join(QStringLiteral("\n"));
+        return options;
+    }
 
     QString gameDirectory = effectiveSettings.value("runDirectory").toString().trimmed();
     if (gameDirectory.isEmpty()) gameDirectory = effectiveSettings.value("runningDir").toString().trimmed();
@@ -670,11 +821,6 @@ LaunchOptions InstanceService::createLaunchOptions(const QString &versionId,
     options.minecraftDirectory = LauncherPaths::minecraftDir();
 
     const QString nativesDir = versionDir(options.versionId) + "/natives";
-    QString nativeError;
-    if (!prepareNativeLibraries(versionJson, nativesDir, &nativeError)) {
-        options.error = nativeError;
-        return options;
-    }
     options.nativeDirectory = nativesDir;
 
     options.requiredJavaMajor = requiredJavaMajorFor(versionJson, baseVersion);
@@ -719,18 +865,48 @@ LaunchOptions InstanceService::createLaunchOptions(const QString &versionId,
             + QStringLiteral("/authlib-injector/authlib-injector-1.2.7.jar");
     }
 
-    const QString assetIndex = versionJson.value("assetIndex").toObject()
-                                   .value("id").toString(
-                                       versionJson.value("assets").toString(QStringLiteral("legacy")));
+    const QJsonObject assetIndexInfo = versionJson.value("assetIndex").toObject();
+    const QString assetIndex = assetIndexInfo.value("id").toString(
+                                   versionJson.value("assets").toString(QStringLiteral("legacy")));
+    options.assetsDirectory = LauncherPaths::minecraftDir() + QStringLiteral("/assets");
+    options.assetIndexId = assetIndex;
+    options.assetIndexFile = options.assetsDirectory + QStringLiteral("/indexes/")
+        + assetIndex + QStringLiteral(".json");
     if (!assetIndex.isEmpty()) {
-        const QString assetIndexFile = LauncherPaths::minecraftDir()
-            + QStringLiteral("/assets/indexes/") + assetIndex + QStringLiteral(".json");
-        if (!QFileInfo(assetIndexFile).isFile()) {
-            options.error = QStringLiteral("缺少资源索引：") + assetIndexFile
-                + QStringLiteral("。请重新安装或修复该版本。");
-            return options;
+        const QString indexSha1 = assetIndexInfo.value("sha1").toString();
+        if (!fileMatchesSha1(options.assetIndexFile, indexSha1)) {
+            const QString indexUrl = assetIndexInfo.value("url").toString();
+            if (indexUrl.isEmpty()) {
+                options.error = QStringLiteral("缺少资源索引且版本元数据没有下载地址：")
+                    + options.assetIndexFile;
+                return options;
+            }
+            dependencyDownloads.append(repairDownload(
+                provider.candidatesFor(indexUrl), options.assetIndexFile, indexSha1,
+                static_cast<qint64>(assetIndexInfo.value("size").toDouble()),
+                QFileInfo(options.assetIndexFile).fileName(), QStringLiteral("hmcl.install.assets")));
         }
     }
+
+    const QJsonObject loggingClient = versionJson.value("logging").toObject()
+                                          .value("client").toObject();
+    const QJsonObject loggingFile = loggingClient.value("file").toObject();
+    const QString loggingFileId = loggingFile.value("id").toString();
+    if (!loggingFileId.isEmpty()) {
+        const QString loggingPath = options.assetsDirectory
+            + QStringLiteral("/log_configs/") + loggingFileId;
+        const QString loggingSha1 = loggingFile.value("sha1").toString();
+        if (!fileMatchesSha1(loggingPath, loggingSha1)) {
+            const QString loggingUrl = loggingFile.value("url").toString();
+            if (!loggingUrl.isEmpty()) {
+                dependencyDownloads.append(repairDownload(
+                    provider.candidatesFor(loggingUrl), loggingPath, loggingSha1,
+                    static_cast<qint64>(loggingFile.value("size").toDouble()),
+                    loggingFileId, QStringLiteral("hmcl.install.assets")));
+            }
+        }
+    }
+    options.dependencyDownloads = dependencyDownloads;
 
     QHash<QString, QString> vars;
     vars.insert(QStringLiteral("auth_player_name"), options.accountName);
@@ -780,17 +956,30 @@ LaunchOptions InstanceService::createLaunchOptions(const QString &versionId,
     QStringList javaArguments;
     const int maxMemory = qMax(256, effectiveSettings.value("maxMemoryMb").toInt(4096));
     const int minMemory = qMax(0, effectiveSettings.value("minMemoryMb").toInt(256));
+    options.maxMemoryMiB = maxMemory;
     javaArguments << QString("-Xmx%1m").arg(maxMemory);
     if (minMemory > 0 && minMemory <= maxMemory)
         javaArguments << QString("-Xms%1m").arg(minMemory);
 
     if (!effectiveSettings.value("noJVMOptions").toBool(false)) {
+        const QString launcherHome = QFileInfo(LauncherPaths::minecraftDir()).absolutePath();
         javaArguments << QStringLiteral("-Dfile.encoding=UTF-8")
+                      << QStringLiteral("-Dstdout.encoding=UTF-8")
+                      << QStringLiteral("-Dstderr.encoding=UTF-8")
                       << QStringLiteral("-Djava.rmi.server.useCodebaseOnly=true")
                       << QStringLiteral("-Dcom.sun.jndi.rmi.object.trustURLCodebase=false")
                       << QStringLiteral("-Dcom.sun.jndi.cosnaming.object.trustURLCodebase=false")
                       << QStringLiteral("-Dlog4j2.formatMsgNoLookups=true")
-                      << QStringLiteral("-Dminecraft.client.jar=") + clientJar;
+                      << QStringLiteral("-Dminecraft.client.jar=") + clientJar
+                      << QStringLiteral("-Duser.home=") + launcherHome
+                      << QStringLiteral("-Djava.net.useSystemProxies=true")
+                      << QStringLiteral("-Dfml.ignoreInvalidMinecraftCertificates=true")
+                      << QStringLiteral("-Dfml.ignorePatchDiscrepancies=true")
+                      << QStringLiteral("-Djna.tmpdir=") + nativesDir
+                      << QStringLiteral("-Dorg.lwjgl.system.SharedLibraryExtractPath=") + nativesDir
+                      << QStringLiteral("-Dio.netty.native.workdir=") + nativesDir
+                      << QStringLiteral("-Dminecraft.launcher.brand=HMCL")
+                      << QStringLiteral("-Dminecraft.launcher.version=3.15.2");
     }
 
     if (options.accountKind == QStringLiteral("yggdrasil")) {
@@ -806,14 +995,14 @@ LaunchOptions InstanceService::createLaunchOptions(const QString &versionId,
     // Mojang's legacy logging configuration is generated by the same
     // version metadata path used by HMCL. It is optional for versions that do
     // not declare it, but must be passed when the downloaded file exists.
-    const QJsonObject loggingClient = versionJson.value("logging").toObject()
+    const QJsonObject loggingClientArgs = versionJson.value("logging").toObject()
                                           .value("client").toObject();
-    const QString loggingArgument = loggingClient.value("argument").toString();
-    const QString loggingFileId = loggingClient.value("file").toObject()
+    const QString loggingArgument = loggingClientArgs.value("argument").toString();
+    const QString loggingFileIdForArgs = loggingClientArgs.value("file").toObject()
                                       .value("id").toString();
-    if (!loggingArgument.isEmpty() && !loggingFileId.isEmpty()) {
+    if (!loggingArgument.isEmpty() && !loggingFileIdForArgs.isEmpty()) {
         const QString loggingPath = LauncherPaths::minecraftDir()
-            + QStringLiteral("/assets/log_configs/") + loggingFileId;
+            + QStringLiteral("/assets/log_configs/") + loggingFileIdForArgs;
         if (QFileInfo(loggingPath).isFile()) {
             QString argument = loggingArgument;
             argument.replace(QStringLiteral("${path}"), loggingPath);

@@ -3,9 +3,14 @@
 #include "logging/AppLogger.h"
 
 #include <QDateTime>
+#include <QStandardPaths>
+#include <QProcess>
+#include <QFile>
+#include <QCryptographicHash>
 #include <QDir>
 #include <QFileInfo>
 
+#include <cstdio>
 #include <utility>
 
 namespace {
@@ -16,6 +21,74 @@ bool containsAny(const QByteArray &text, const QList<QByteArray> &needles) {
         if (lower.contains(needle.toLower())) return true;
     }
     return false;
+}
+
+
+
+bool extractArchive(const QString &archive, const QString &destination, QString *error) {
+    QString program = QStandardPaths::findExecutable(QStringLiteral("bsdtar"));
+    QStringList arguments;
+    if (!program.isEmpty()) {
+        arguments << QStringLiteral("-xf") << archive << QStringLiteral("-C") << destination;
+    } else {
+        program = QStandardPaths::findExecutable(QStringLiteral("unzip"));
+        if (!program.isEmpty())
+            arguments << QStringLiteral("-o") << QStringLiteral("-q") << archive
+                      << QStringLiteral("-d") << destination;
+    }
+    if (program.isEmpty()) {
+        if (error) *error = QStringLiteral("缺少原生库解压工具：请安装 libarchive(bsdtar) 或 unzip。");
+        return false;
+    }
+
+    QProcess process;
+    process.start(program, arguments);
+    if (!process.waitForStarted(5000) || !process.waitForFinished(60000)
+        || process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
+        if (error) {
+            *error = QStringLiteral("无法解压原生库：") + QFileInfo(archive).fileName()
+                + QStringLiteral("\n")
+                + QString::fromUtf8(process.readAllStandardError()).trimmed();
+        }
+        return false;
+    }
+    return true;
+}
+
+bool prepareNativeArchives(const QStringList &archives, const QString &destination,
+                           QString *error) {
+    if (archives.isEmpty()) return true;
+    QCryptographicHash hash(QCryptographicHash::Sha1);
+    for (const QString &archive : archives) {
+        const QFileInfo info(archive);
+        if (!info.isFile() || info.size() <= 0) {
+            if (error) *error = QStringLiteral("缺少原生库：") + archive;
+            return false;
+        }
+        hash.addData(archive.toUtf8());
+        hash.addData(QByteArray::number(info.size()));
+        hash.addData(QByteArray::number(info.lastModified().toMSecsSinceEpoch()));
+    }
+    const QByteArray cacheKey = hash.result().toHex();
+    QFile marker(destination + QStringLiteral("/.native-cache-key"));
+    if (marker.open(QIODevice::ReadOnly)) {
+        const bool valid = marker.readAll().trimmed() == cacheKey;
+        marker.close();
+        if (valid) return true;
+    }
+
+    QDir(destination).removeRecursively();
+    if (!QDir().mkpath(destination)) {
+        if (error) *error = QStringLiteral("无法创建原生库目录：") + destination;
+        return false;
+    }
+    for (const QString &archive : archives) {
+        if (!extractArchive(archive, destination, error)) return false;
+    }
+    QDir(destination + QStringLiteral("/META-INF")).removeRecursively();
+    marker.setFileName(destination + QStringLiteral("/.native-cache-key"));
+    if (marker.open(QIODevice::WriteOnly | QIODevice::Truncate)) marker.write(cacheKey);
+    return true;
 }
 
 QString exitTypeName(ProcessListener::ExitType type) {
@@ -116,6 +189,17 @@ DefaultLauncher::~DefaultLauncher() {
 void DefaultLauncher::start() {
     if (m_process.state() != QProcess::NotRunning) return;
 
+    QString nativeError;
+    if (!prepareNativeArchives(m_options.nativeArchives, m_options.nativeDirectory,
+                               &nativeError)) {
+        AppLogger::error("launch", "native_prepare_failed", nativeError, {
+            {"versionId", m_options.versionId},
+            {"nativeDirectory", m_options.nativeDirectory}
+        });
+        if (m_listener) m_listener->onProcessError(nativeError);
+        return;
+    }
+
     QDir().mkpath(QFileInfo(m_options.logFile).absolutePath());
     m_logFile.setFileName(m_options.logFile);
     if (m_logFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
@@ -134,6 +218,13 @@ void DefaultLauncher::start() {
                             .toUtf8());
         m_logFile.flush();
     }
+
+    AppLogger::info("launch", "process_command",
+                    QStringLiteral("Launched process: ") + m_options.displayCommand, {
+        {"versionId", m_options.versionId},
+        {"workingDirectory", m_options.workingDirectory},
+        {"java", m_options.javaExecutable}
+    });
 
     AppLogger::info("launch", "graphics_environment", QString(), {
         {"renderer", m_options.renderer},
@@ -174,6 +265,13 @@ qint64 DefaultLauncher::processId() const {
 
 void DefaultLauncher::appendLog(const QByteArray &data, bool standardError) {
     if (data.isEmpty()) return;
+
+    // HMCLProcessListener mirrors the child process output to the launcher's
+    // terminal while also retaining it for the log/crash analyzer.
+    FILE *stream = standardError ? stderr : stdout;
+    std::fwrite(data.constData(), 1, static_cast<size_t>(data.size()), stream);
+    std::fflush(stream);
+
     detectReadyFromLog(data);
 
     m_logBuffer.append(data);

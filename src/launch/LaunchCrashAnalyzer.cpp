@@ -38,6 +38,19 @@ Result analyze(const QString &logText, int exitCode) {
     }
 
     if (containsAny(logText, {
+            QStringLiteral("NoSuchFileException"),
+            QStringLiteral("/assets/objects/")
+        }) && logText.contains(QStringLiteral("/assets/objects/"), Qt::CaseInsensitive)) {
+        result.matched = true;
+        result.category = QStringLiteral("missing_assets");
+        result.title = QStringLiteral("游戏资源文件缺失");
+        result.message = QStringLiteral(
+            "Minecraft 读取资源对象时发现文件不存在。启动器会在下次启动前按照资源索引补全并校验资源文件。"
+        );
+        return result;
+    }
+
+    if (containsAny(logText, {
             QStringLiteral("Could not create the Java Virtual Machine."),
             QStringLiteral("Error occurred during initialization of VM"),
             QStringLiteral("A fatal exception has occurred. Program will exit.")

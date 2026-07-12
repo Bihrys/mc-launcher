@@ -9,6 +9,7 @@ import "features/java"
 import "features/download"
 import "features/account"
 import "features/main"
+import "features/launch"
 
 Item {
     id: root
@@ -56,11 +57,14 @@ Item {
         "cancelled": false,
         "speedText": "请耐心等待",
         "currentStage": "",
+        "crash": ({}),
         "stages": [],
         "tasks": []
     })
 
     property bool launchDialogOpen: false
+    property string launchErrorHandledId: ""
+    property string launchCrashHandledId: ""
 
     // HMCL-style global task executor. Every download entry point feeds this
     // one host so navigation never destroys an active task dialog.
@@ -610,12 +614,34 @@ Item {
                 anchors.fill: parent
                 style: root.appStyle
                 status: root.launchTaskStatus
+                showTerminalMessage: false
                 onCancelRequested: {
                     root.backend.cancelLaunchTask()
                     root.pollLaunchTask()
                 }
                 onCloseRequested: root.launchDialogOpen = false
             }
+        }
+    }
+
+
+    HmclLaunchErrorWindow {
+        id: launchErrorWindow
+        style: root.appStyle
+        backend: root.backend
+        parentWindow: root.appWindow
+        onDismissed: function(taskId) {
+            root.launchErrorHandledId = taskId
+        }
+    }
+
+    HmclGameCrashWindow {
+        id: launchCrashWindow
+        style: root.appStyle
+        backend: root.backend
+        parentWindow: root.appWindow
+        onDismissed: function(taskId) {
+            root.launchCrashHandledId = taskId
         }
     }
 
@@ -1097,9 +1123,16 @@ Item {
             return
         }
 
+        if (launchErrorWindow.visible)
+            launchErrorWindow.close()
+        if (launchCrashWindow.visible)
+            launchCrashWindow.close()
+
         root.launchDialogOpen = true
         root.launchWindowActionHandledId = ""
         root.launchReopenHandledId = ""
+        root.launchErrorHandledId = ""
+        root.launchCrashHandledId = ""
         root.launchActionArmed = true
         root.backend.startLaunchSelectedVersion(root.launcherVisibility)
         root.pollLaunchTask()
@@ -1115,16 +1148,23 @@ Item {
         try {
             root.launchTaskStatus = JSON.parse(raw)
 
-            if (root.launchTaskStatus.gameStarted
-                    || root.launchTaskStatus.status === "finished"
-                    || root.launchTaskStatus.status === "gameRunning"
-                    || root.launchTaskStatus.status === "gameExited") {
-                root.launchDialogOpen = false
-            } else if (root.launchTaskStatus.active || root.launchTaskStatus.status === "failed") {
-                root.launchDialogOpen = true
-            }
-
+            // HMCL closes TaskExecutorDialogPane as soon as the launch task
+            // stops. Startup errors use a MessageDialogPane, while a running
+            // game's abnormal exit opens GameCrashWindow separately.
+            root.launchDialogOpen = root.launchTaskStatus.active === true
             root.applyLaunchWindowAction()
+
+            var taskId = String(root.launchTaskStatus.id || "")
+            var state = String(root.launchTaskStatus.status || "")
+            if (!root.launchTaskStatus.active && taskId.length > 0) {
+                if (state === "failed" && root.launchErrorHandledId !== taskId) {
+                    root.launchErrorHandledId = taskId
+                    launchErrorWindow.showError(root.launchTaskStatus)
+                } else if (state === "gameCrashed" && root.launchCrashHandledId !== taskId) {
+                    root.launchCrashHandledId = taskId
+                    launchCrashWindow.showCrash(root.launchTaskStatus)
+                }
+            }
         } catch (e) {
             root.logAction("ui.error", "launch_task_parse_failed", {
                 "error": String(e),
@@ -1182,7 +1222,8 @@ Item {
             root.appWindow.requestActivate()
         }
 
-        if ((status.status === "failed" || status.status === "cancelled")
+        if ((status.status === "failed" || status.status === "cancelled"
+                || status.status === "gameCrashed")
                 && !status.shouldHide
                 && !status.shouldClose
                 && !status.shouldReopen) {

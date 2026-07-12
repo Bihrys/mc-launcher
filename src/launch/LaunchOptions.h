@@ -19,6 +19,10 @@ struct LaunchOptions {
     QString instanceDirectory;
     QString minecraftDirectory;
     QString nativeDirectory;
+    QString assetsDirectory;
+    QString assetIndexFile;
+    QString assetIndexId;
+    QString downloadSource;
     QString displayCommand;
     QString logFile;
 
@@ -31,8 +35,11 @@ struct LaunchOptions {
     QString graphicsBackend = QStringLiteral("default");
     QString renderer = QStringLiteral("default");
     QStringList loaderKinds;
+    QStringList nativeArchives;
+    QJsonArray dependencyDownloads;
 
     int requiredJavaMajor = 0;
+    int maxMemoryMiB = 0;
     bool detectWindow = true;
 
     QStringList arguments;
@@ -51,6 +58,10 @@ struct LaunchOptions {
             {"instanceDirectory", instanceDirectory},
             {"minecraftDirectory", minecraftDirectory},
             {"nativeDirectory", nativeDirectory},
+            {"assetsDirectory", assetsDirectory},
+            {"assetIndexFile", assetIndexFile},
+            {"assetIndexId", assetIndexId},
+            {"downloadSource", downloadSource},
             {"displayCommand", displayCommand},
             {"logFile", logFile},
             {"accountKind", accountKind},
@@ -61,7 +72,10 @@ struct LaunchOptions {
             {"graphicsBackend", graphicsBackend},
             {"renderer", renderer},
             {"loaderKinds", loaders},
+            {"nativeArchiveCount", static_cast<int>(nativeArchives.size())},
+            {"dependencyDownloadCount", dependencyDownloads.size()},
             {"requiredJavaMajor", requiredJavaMajor},
+            {"maxMemoryMiB", maxMemoryMiB},
             {"detectWindow", detectWindow},
             {"argumentCount", static_cast<int>(arguments.size())}
         };

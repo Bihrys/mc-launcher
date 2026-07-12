@@ -9,6 +9,7 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QFutureWatcher>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -86,6 +87,8 @@ LauncherBackend::LauncherBackend(QObject *parent) : QObject(parent) {
                                status.value("gameLogFile").toString()));
         } else if (state == QStringLiteral("gameExited")) {
             setOutput(QStringLiteral("游戏已正常退出。"));
+        } else if (state == QStringLiteral("gameCrashed")) {
+            setOutput(status.value("message").toString(QStringLiteral("游戏异常退出。")));
         }
     });
 
@@ -1362,6 +1365,54 @@ void LauncherBackend::openFolder(const QString &path) {
     AppLogger::info("backend", "openFolder.result", QString(), {
         {"path", localPath}, {"opened", opened}
     });
+}
+
+void LauncherBackend::openFile(const QString &path) {
+    AppLogScope scope("backend", "openFile", {{"path", path}});
+    QString localPath = path;
+    if (localPath.startsWith(QStringLiteral("file://")))
+        localPath = QUrl(localPath).toLocalFile();
+    const QFileInfo info(localPath);
+    if (!info.isFile()) {
+        AppLogger::warning("backend", "openFile.not_found", QString(),
+                           {{"path", localPath}});
+        return;
+    }
+    const bool opened = QDesktopServices::openUrl(QUrl::fromLocalFile(info.absoluteFilePath()));
+    AppLogger::info("backend", "openFile.result", QString(), {
+        {"path", info.absoluteFilePath()}, {"opened", opened}
+    });
+}
+
+QString LauncherBackend::exportGameCrashLog(const QString &sourcePath) {
+    AppLogScope scope("backend", "exportGameCrashLog", {{"sourcePath", sourcePath}});
+    QString localPath = sourcePath;
+    if (localPath.startsWith(QStringLiteral("file://")))
+        localPath = QUrl(localPath).toLocalFile();
+    const QFileInfo source(localPath);
+    if (!source.isFile()) {
+        AppLogger::warning("backend", "exportGameCrashLog.not_found", QString(),
+                           {{"sourcePath", localPath}});
+        return {};
+    }
+
+    const QString target = QDir::homePath()
+        + QStringLiteral("/minecraft-exported-crash-info-")
+        + QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd'T'HH-mm-ss"))
+        + QStringLiteral(".log");
+    QFile::remove(target);
+    if (!QFile::copy(source.absoluteFilePath(), target)) {
+        AppLogger::warning("backend", "exportGameCrashLog.copy_failed", QString(), {
+            {"sourcePath", source.absoluteFilePath()}, {"target", target}
+        });
+        return {};
+    }
+
+    QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(target).absolutePath()));
+    AppLogger::info("backend", "exportGameCrashLog.success", QString(), {
+        {"sourcePath", source.absoluteFilePath()}, {"target", target}
+    });
+    return target;
 }
 
 QString LauncherBackend::openLauncherSpecialFolder(const QString &kind) {

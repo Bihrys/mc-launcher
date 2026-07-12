@@ -210,6 +210,8 @@ public:
                                          const QString &value);
   Q_INVOKABLE QString generateLaunchCommand(const QString &versionId);
   Q_INVOKABLE void openFolder(const QString &path);
+  Q_INVOKABLE void openFile(const QString &path);
+  Q_INVOKABLE QString exportGameCrashLog(const QString &sourcePath);
   Q_INVOKABLE QString openLauncherSpecialFolder(const QString &kind);
   Q_INVOKABLE QString exportLauncherDiagnostics();
   Q_INVOKABLE QString resetLauncherSettings();

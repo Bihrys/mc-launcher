@@ -11,6 +11,7 @@
 #include <QObject>
 
 #include <memory>
+#include <atomic>
 
 class QNetworkReply;
 
@@ -36,6 +37,7 @@ private:
     void clearTasks();
     void fail(const QString &title, const QString &message,
               const QString &category = QString());
+    void startDependencyStage();
     void startAuthenticationStage();
     void downloadAuthlibInjector(int candidateIndex = 0);
     void startProcess();
@@ -62,4 +64,6 @@ private:
     bool m_processReady = false;
     bool m_terminal = false;
     QString m_processLog;
+    std::shared_ptr<std::atomic_bool> m_dependencyCancel;
+    quint64 m_dependencyGeneration = 0;
 };

@@ -1,29 +1,53 @@
 #include "core/LauncherPaths.h"
 
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QStandardPaths>
+#include <QStringList>
+
+namespace {
+
+QString xdgConfigHome() {
+    QString base = qEnvironmentVariable("XDG_CONFIG_HOME");
+    if (base.isEmpty()) base = QDir::homePath() + "/.config";
+    return QDir::cleanPath(base);
+}
+
+QString xdgDataHome() {
+    QString base = qEnvironmentVariable("XDG_DATA_HOME");
+    if (base.isEmpty()) base = QDir::homePath() + "/.local/share";
+    return QDir::cleanPath(base);
+}
+
+QString migrateFile(const QString &target, const QStringList &legacyCandidates) {
+    if (QFileInfo::isFile(target)) return target;
+    for (const QString &legacy : legacyCandidates) {
+        if (!QFileInfo::isFile(legacy)) continue;
+        QDir().mkpath(QFileInfo(target).absolutePath());
+        if (QFile::copy(legacy, target)) return target;
+    }
+    return target;
+}
+
+} // namespace
 
 QString LauncherPaths::homeDir() {
     return QDir::homePath();
 }
 
 QString LauncherPaths::configDir() {
-    QString base = qEnvironmentVariable("XDG_CONFIG_HOME");
-    if (base.isEmpty()) base = QDir::homePath() + "/.config";
-    return base + "/mc-launcher-qt-cpp";
+    return xdgConfigHome() + "/mc-launcher-qt-cpp";
 }
 
 QString LauncherPaths::dataDir() {
-    QString base = qEnvironmentVariable("XDG_DATA_HOME");
-    if (base.isEmpty()) base = QDir::homePath() + "/.local/share";
-    return base + "/mc-launcher-qt-cpp";
+    return xdgDataHome() + "/mc-launcher-qt-cpp";
 }
 
 QString LauncherPaths::cacheDir() {
     QString base = qEnvironmentVariable("XDG_CACHE_HOME");
     if (base.isEmpty()) base = QDir::homePath() + "/.cache";
-    return base + "/mc-launcher-qt-cpp";
+    return QDir::cleanPath(base) + "/mc-launcher-qt-cpp";
 }
 
 QString LauncherPaths::logsDir() {
@@ -31,9 +55,23 @@ QString LauncherPaths::logsDir() {
 }
 
 QString LauncherPaths::minecraftDir() {
-    QString mc = QDir::homePath() + "/.minecraft";
-    if (QFileInfo::exists(mc)) return mc;
-    return dataDir() + "/minecraft";
+    // Keep the repository deterministic. The old implementation silently
+    // switched to ~/.minecraft merely because that directory existed, while
+    // downloads and HMCL testing used ~/.local/share/mc-launcher/minecraft.
+    // That split libraries/assets across two repositories and caused startup
+    // crashes from missing asset objects.
+    const QString override = qEnvironmentVariable("MC_LAUNCHER_MINECRAFT_DIR").trimmed();
+    if (!override.isEmpty()) return QDir(override).absolutePath();
+
+    const QString canonical = xdgDataHome() + "/mc-launcher/minecraft";
+    const QString oldCppRoot = xdgDataHome() + "/mc-launcher-qt-cpp/minecraft";
+
+    if (QFileInfo::isDir(canonical)) return canonical;
+    if (QFileInfo::isDir(oldCppRoot)) return oldCppRoot;
+
+    // New installations use the same project-owned directory seen by HMCL in
+    // the user's test log. Never auto-adopt ~/.minecraft.
+    return canonical;
 }
 
 QString LauncherPaths::versionsDir() {
@@ -41,15 +79,25 @@ QString LauncherPaths::versionsDir() {
 }
 
 QString LauncherPaths::accountsFile() {
-    return configDir() + "/accounts.json";
+    const QString target = configDir() + "/accounts.json";
+    return migrateFile(target, {
+        xdgConfigHome() + "/mc-launcher/accounts.json",
+        xdgDataHome() + "/mc-launcher/accounts.json"
+    });
 }
 
 QString LauncherPaths::authServersFile() {
-    return configDir() + "/auth_servers.json";
+    const QString target = configDir() + "/auth_servers.json";
+    return migrateFile(target, {
+        xdgConfigHome() + "/mc-launcher/auth_servers.json"
+    });
 }
 
 QString LauncherPaths::settingsFile() {
-    return configDir() + "/launcher_settings.json";
+    const QString target = configDir() + "/launcher_settings.json";
+    return migrateFile(target, {
+        xdgConfigHome() + "/mc-launcher/launcher_settings.json"
+    });
 }
 
 QString LauncherPaths::specialFolder(const QString &kind) {

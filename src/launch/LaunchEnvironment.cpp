@@ -4,29 +4,8 @@
 
 namespace {
 
-void removeRendererOverrides(QProcessEnvironment &environment) {
-    // Renderer variables are launcher options in HMCL. Do not let variables
-    // used to start the Qt UI silently leak into a Minecraft process when the
-    // user selected the default renderer.
-    static const QStringList names{
-        QStringLiteral("__GLX_VENDOR_LIBRARY_NAME"),
-        QStringLiteral("LIBGL_ALWAYS_SOFTWARE"),
-        QStringLiteral("MESA_LOADER_DRIVER_OVERRIDE"),
-        QStringLiteral("LIBGL_KOPPER_DRI2"),
-        QStringLiteral("GALLIUM_DRIVER"),
-        QStringLiteral("VK_ICD_FILENAMES"),
-        QStringLiteral("VK_DRIVER_FILES"),
-        QStringLiteral("GBM_BACKEND"),
-        QStringLiteral("__NV_PRIME_RENDER_OFFLOAD"),
-        QStringLiteral("DRI_PRIME"),
-        QStringLiteral("MESA_GL_VERSION_OVERRIDE")
-    };
-    for (const QString &name : names) environment.remove(name);
-}
-
 void applyRenderer(QProcessEnvironment &environment, const LaunchOptions &options) {
     const QString renderer = options.renderer.trimmed().toLower();
-    removeRendererOverrides(environment);
 
 #if defined(Q_OS_LINUX) || defined(Q_OS_FREEBSD)
     // HMCL DefaultLauncher#getEnvVars: Linux/BSD OpenGL renderers.
@@ -63,16 +42,10 @@ QProcessEnvironment build(const LaunchOptions &options,
                           const QProcessEnvironment &userVariables) {
     QProcessEnvironment environment = QProcessEnvironment::systemEnvironment();
 
-    // Qt Quick rendering variables are not Minecraft renderer settings.
-    // HMCL is a JavaFX process and therefore does not leak these values to the
-    // child game process. Strip them before applying HMCL renderer options.
-    static const QStringList qtOnlyVariables{
-        QStringLiteral("QT_OPENGL"),
-        QStringLiteral("QT_QUICK_BACKEND"),
-        QStringLiteral("QSG_RHI_BACKEND"),
-        QStringLiteral("QT_XCB_GL_INTEGRATION")
-    };
-    for (const QString &name : qtOnlyVariables) environment.remove(name);
+    // Match HMCL/ProcessBuilder: inherit the complete launcher environment.
+    // In particular, NVIDIA/GLX/PRIME variables must remain untouched on
+    // Wayland compositors. Renderer-specific values are only added below when
+    // the user explicitly selects LLVMpipe or Zink.
 
     insertIfNotEmpty(environment, QStringLiteral("INST_NAME"), options.versionId);
     insertIfNotEmpty(environment, QStringLiteral("INST_ID"), options.versionId);
