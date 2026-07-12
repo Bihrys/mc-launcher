@@ -21,9 +21,9 @@ QString xdgDataHome() {
 }
 
 QString migrateFile(const QString &target, const QStringList &legacyCandidates) {
-    if (QFileInfo::isFile(target)) return target;
+    if (QFileInfo(target).isFile()) return target;
     for (const QString &legacy : legacyCandidates) {
-        if (!QFileInfo::isFile(legacy)) continue;
+        if (!QFileInfo(legacy).isFile()) continue;
         QDir().mkpath(QFileInfo(target).absolutePath());
         if (QFile::copy(legacy, target)) return target;
     }
@@ -55,23 +55,10 @@ QString LauncherPaths::logsDir() {
 }
 
 QString LauncherPaths::minecraftDir() {
-    // Keep the repository deterministic. The old implementation silently
-    // switched to ~/.minecraft merely because that directory existed, while
-    // downloads and HMCL testing used ~/.local/share/mc-launcher/minecraft.
-    // That split libraries/assets across two repositories and caused startup
-    // crashes from missing asset objects.
-    const QString override = qEnvironmentVariable("MC_LAUNCHER_MINECRAFT_DIR").trimmed();
-    if (!override.isEmpty()) return QDir(override).absolutePath();
-
-    const QString canonical = xdgDataHome() + "/mc-launcher/minecraft";
-    const QString oldCppRoot = xdgDataHome() + "/mc-launcher-qt-cpp/minecraft";
-
-    if (QFileInfo::isDir(canonical)) return canonical;
-    if (QFileInfo::isDir(oldCppRoot)) return oldCppRoot;
-
-    // New installations use the same project-owned directory seen by HMCL in
-    // the user's test log. Never auto-adopt ~/.minecraft.
-    return canonical;
+    // HMCL-compatible default game repository requested by the project:
+    // all downloaded versions, libraries, assets and launch working data
+    // use the same ~/.minecraft directory.
+    return QDir::cleanPath(QDir::homePath() + QStringLiteral("/.minecraft"));
 }
 
 QString LauncherPaths::versionsDir() {
