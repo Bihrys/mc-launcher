@@ -327,13 +327,27 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
         teardown();
         return;
     }
-    const QJsonObject versionJson = JsonUtil::readObjectFile(versionJsonPath, {});
+    QJsonObject versionJson = JsonUtil::readObjectFile(versionJsonPath, {});
     if (versionJson.isEmpty()) {
         setTask(buildTask("failed", "安装失败", "版本 JSON 解析失败。", 0));
         teardown();
         return;
     }
     if (m_cancelled.load()) { cancelledExit(); return; }
+
+    // A vanilla version downloaded only as the parent of a loader instance is
+    // an internal dependency. HMCL does not expose hidden dependency versions
+    // in getDisplayVersions(). Mark it explicitly so deleting the visible
+    // instance does not make the parent suddenly appear in the list.
+    if (installingLoader) {
+        versionJson.insert(QStringLiteral("hidden"), true);
+        versionJson.insert(QStringLiteral("hmclQtHelper"), true);
+        JsonUtil::writeObjectFile(versionJsonPath, versionJson);
+    } else {
+        versionJson.remove(QStringLiteral("hidden"));
+        versionJson.remove(QStringLiteral("hmclQtHelper"));
+        JsonUtil::writeObjectFile(versionJsonPath, versionJson);
+    }
 
     // --- Step 3: asset index ---
     const QJsonObject assetIndexInfo = versionJson.value("assetIndex").toObject();
@@ -556,6 +570,13 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
                 teardown();
                 return;
             }
+
+            // The generated loader id is an installation helper. HMCL exposes
+            // only the named root instance in the instance list, so remove the
+            // helper copy after the materialized instance has been verified.
+            if (finalId != requestedVersionId && finalId != gameVersion) {
+                QDir(LauncherPaths::versionsDir() + "/" + finalId).removeRecursively();
+            }
             succeedStage(loaderStage);
 
             if (installingFabricApi) {
@@ -567,7 +588,10 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
                                       {"currentFile", fabricApi.value("fileName").toString()}});
                 QString fileName = fabricApi.value("fileName").toString();
                 if (fileName.isEmpty()) fileName = QString("fabric-api-%1.jar").arg(apiVersion);
-                const QString modsDir = LauncherPaths::versionsDir() + "/" + requestedVersionId + "/mods";
+                // The project uses HMCL's shared ~/.minecraft running
+                // directory, so optional Fabric API belongs in the repository
+                // mods folder rather than beside the version JSON.
+                const QString modsDir = LauncherPaths::minecraftDir() + "/mods";
                 QDir().mkpath(modsDir);
                 const bool apiOk = dl->downloadSync(
                     provider.candidatesFor(fabricApi.value("fileUrl").toString()),
@@ -610,6 +634,8 @@ void GameInstaller::runPipeline(const QString &source, const QString &gameVersio
             teardown();
             return;
         }
+        if (id != requestedVersionId)
+            QDir(LauncherPaths::versionsDir() + "/" + id).removeRecursively();
         QJsonObject done{{"active", false}, {"cancelled", false}, {"percent", 100},
                          {"title", "安装完成"}, {"message", QString("%1 安装完成，可以启动了。").arg(requestedVersionId)},
                          {"installedVersionId", requestedVersionId},

@@ -38,6 +38,21 @@ Result analyze(const QString &logText, int exitCode) {
     }
 
     if (containsAny(logText, {
+            QStringLiteral("NoClassDefFoundError: org/lwjgl/"),
+            QStringLiteral("ClassNotFoundException: org.lwjgl."),
+            QStringLiteral("[LWJGL] Failed to load a library")
+        })) {
+        result.matched = true;
+        result.category = QStringLiteral("missing_lwjgl_libraries");
+        result.title = QStringLiteral("LWJGL 依赖库不完整");
+        result.message = QStringLiteral(
+            "启动命令缺少当前 Minecraft 版本所需的 LWJGL 模块或原生库。"
+            "启动器会在下次启动前按版本 JSON 重新合并、下载并校验全部依赖库。"
+        );
+        return result;
+    }
+
+    if (containsAny(logText, {
             QStringLiteral("NoSuchFileException"),
             QStringLiteral("/assets/objects/")
         }) && logText.contains(QStringLiteral("/assets/objects/"), Qt::CaseInsensitive)) {

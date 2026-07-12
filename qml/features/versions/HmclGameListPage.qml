@@ -76,6 +76,13 @@ Item {
                 style: root.style
                 profileModel: profileListModel
 
+                onProfileSelected: function(profileId) {
+                    // The current backend exposes the HMCL default repository.
+                    // Keep the click path wired so additional repositories can
+                    // be selected without changing this page's UI contract.
+                    root.logAction("profile_selected", {"profileId": profileId})
+                }
+                onNewDirectoryRequested: root.backend.output = "新建游戏目录"
                 onInstallRequested: root.backend.output = "请回到下载页安装新游戏。"
                 onImportRequested: root.backend.output = "拖入整合包或在下载页安装整合包。"
                 onGlobalSettingsRequested: root.backend.output = "全局设置位于设置页。"
@@ -198,10 +205,18 @@ Item {
                                 style: root.style
                                 iconBase: root.iconBase
 
-                                onSelectRequested: gameListModel.selectInstance(instanceId)
-                                onOpenRequested: root.openInstance(instanceId)
+                                onSelectRequested: {
+                                    gameListModel.selectInstance(instanceId)
+                                    root.backend.selectInstance(instanceId)
+                                }
+                                onOpenRequested: {
+                                    gameListModel.selectInstance(instanceId)
+                                    root.backend.selectInstance(instanceId)
+                                    root.openInstance(instanceId)
+                                }
                                 onLaunchRequested: {
                                     gameListModel.selectInstance(instanceId)
+                                    root.backend.selectInstance(instanceId)
                                     root.backend.startLaunchSelectedVersion("keep")
                                 }
                                 onUpdateRequested: root.openInstance(instanceId)
@@ -236,6 +251,7 @@ Item {
         onTestLaunchRequested: {
             popupMenu.visible = false
             gameListModel.selectInstance(root.menuInstanceId)
+            root.backend.selectInstance(root.menuInstanceId)
             root.backend.startLaunchSelectedVersion("keep")
         }
         onScriptRequested: {
@@ -261,6 +277,7 @@ Item {
         onSelectRequested: {
             popupMenu.visible = false
             gameListModel.selectInstance(root.menuInstanceId)
+            root.backend.selectInstance(root.menuInstanceId)
         }
         onFolderRequested: {
             popupMenu.visible = false
@@ -276,7 +293,9 @@ Item {
         confirmText: "确定"
         onAccepted: function(id, value) {
             if (value.length > 0) {
-                gameListModel.renameInstance(id, value)
+                root.backend.renameInstance(id, value)
+                gameListModel.refresh()
+                profileListModel.refresh()
             }
         }
     }
@@ -290,7 +309,9 @@ Item {
         showCopySaves: true
         onAcceptedWithSaves: function(id, value, copySaves) {
             if (value.length > 0) {
-                gameListModel.duplicateInstance(id, value, copySaves)
+                root.backend.duplicateInstance(id, value, copySaves)
+                gameListModel.refresh()
+                profileListModel.refresh()
             }
         }
     }
@@ -302,7 +323,9 @@ Item {
         title: "删除实例"
         message: "确定要删除该实例吗？此操作不可撤销。"
         onConfirmed: function(id) {
-            gameListModel.removeInstance(id)
+            root.backend.deleteInstance(id)
+            gameListModel.refresh()
+            profileListModel.refresh()
         }
     }
 

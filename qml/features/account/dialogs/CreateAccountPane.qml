@@ -11,7 +11,7 @@ Item {
     required property var style
     required property var backend
 
-    property string mode: "offline" // offline | yggdrasil | microsoft
+    property string mode: "offline" // offline | yggdrasil
     property string serverName: ""
     property string serverUrl: ""
     property var serverLinks: ({})
@@ -26,11 +26,8 @@ Item {
 
     property string yggdrasilUsername: ""
     property string yggdrasilPassword: ""
-    property string microsoftClientId: ""
-
     signal offlineAccepted(string username, string uuid)
     signal yggdrasilAccepted(string serverUrl, string username, string password)
-    signal microsoftAccepted(string clientId)
     signal canceled()
 
     function begin(newMode) {
@@ -66,8 +63,6 @@ Item {
                 return
             }
             yggdrasilAccepted(serverUrl, yggdrasilUsername.trim(), yggdrasilPassword)
-        } else if (mode === "microsoft") {
-            microsoftAccepted(microsoftClientId.trim())
         }
     }
 
@@ -77,35 +72,47 @@ Item {
     Rectangle {
         id: dialog
         anchors.centerIn: parent
-        width: Math.min(root.width - 64, root.mode === "microsoft" ? 650 : 560)
+        width: Math.min(root.width - 64, 560)
         height: Math.min(root.height - 48,
-                         root.mode === "offline" ? (root.offlineAdvanced ? 430 : 322)
-                                                   : (root.mode === "yggdrasil" ? 348 : 310))
+                         root.mode === "offline" ? (root.offlineAdvanced ? 430 : 322) : 348)
         radius: 4
         color: root.style.cSurface
         border.color: root.style.cBorder
         border.width: 1
         clip: true
+        scale: root.visible ? 1 : 0.97
+        opacity: root.visible ? 1 : 0
+
+        Behavior on scale {
+            NumberAnimation {
+                duration: root.style.animationsEnabled ? root.style.motionShort4 : 0
+                easing.type: Easing.OutCubic
+            }
+        }
+        Behavior on opacity {
+            NumberAnimation { duration: root.style.animationsEnabled ? root.style.motionShort4 : 0 }
+        }
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 17
+            anchors.leftMargin: 24
+            anchors.rightMargin: 24
+            anchors.topMargin: 24
+            anchors.bottomMargin: 16
             spacing: 14
 
             Text {
                 Layout.fillWidth: true
-                text: root.mode === "offline" ? "添加离线账户"
-                      : root.mode === "yggdrasil" ? "添加第三方账户"
-                      : "添加 Microsoft 账户"
+                text: root.mode === "offline" ? "添加离线账户" : "添加第三方账户"
                 color: root.style.cTextOnSurface
-                font.pixelSize: 18
+                font.pixelSize: 20
                 font.bold: true
             }
 
             StackLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                currentIndex: root.mode === "offline" ? 0 : (root.mode === "yggdrasil" ? 1 : 2)
+                currentIndex: root.mode === "offline" ? 0 : 1
 
                 ColumnLayout {
                     spacing: 12
@@ -274,38 +281,6 @@ Item {
                     Item { Layout.fillHeight: true }
                 }
 
-                ColumnLayout {
-                    spacing: 10
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 78
-                        radius: 4
-                        color: root.style.cSurfaceContainer
-                        border.color: root.style.cBorder
-                        Text {
-                            anchors.fill: parent
-                            anchors.margins: 10
-                            text: "使用 Microsoft 账户登录正版 Minecraft。登录会在浏览器中完成，HMCL 同样提供浏览器授权和设备代码两种方式。"
-                            color: root.style.cTextOnSurfaceVariant
-                            font.pixelSize: 12
-                            wrapMode: Text.WordWrap
-                        }
-                    }
-                    TextField {
-                        Layout.fillWidth: true
-                        placeholderText: "Azure Public Client ID"
-                        text: root.microsoftClientId
-                        onTextEdited: root.microsoftClientId = text
-                    }
-                    Flow {
-                        Layout.fillWidth: true
-                        spacing: 14
-                        Text { text: "使用设备代码"; color: root.style.cButtonSelected; font.pixelSize: 12 }
-                        Text { text: "编辑 Microsoft 个人资料"; color: root.style.cButtonSelected; font.pixelSize: 12; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.backend.openUrl("https://account.live.com/editprof.aspx") } }
-                        Text { text: "购买 Minecraft"; color: root.style.cButtonSelected; font.pixelSize: 12; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.backend.openUrl("https://www.minecraft.net/store/minecraft-java-bedrock-edition-pc") } }
-                    }
-                    Item { Layout.fillHeight: true }
-                }
             }
 
             Text {

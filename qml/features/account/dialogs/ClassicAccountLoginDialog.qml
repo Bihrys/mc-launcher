@@ -25,6 +25,7 @@ Item {
     MouseArea { anchors.fill: parent }
 
     Rectangle {
+        id: dialog
         anchors.centerIn: parent
         width: Math.min(root.width - 64, 500)
         height: 230
@@ -32,14 +33,28 @@ Item {
         color: root.style.cSurface
         border.color: root.style.cBorder
         border.width: 1
+        scale: root.visible ? 1 : 0.97
+        opacity: root.visible ? 1 : 0
+        Behavior on scale {
+            NumberAnimation {
+                duration: root.style.animationsEnabled ? root.style.motionShort4 : 0
+                easing.type: Easing.OutCubic
+            }
+        }
+        Behavior on opacity {
+            NumberAnimation { duration: root.style.animationsEnabled ? root.style.motionShort4 : 0 }
+        }
 
         Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; height: 3; visible: root.busy; color: root.style.cButtonSelected }
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 17
+            anchors.leftMargin: 24
+            anchors.rightMargin: 24
+            anchors.topMargin: 24
+            anchors.bottomMargin: 16
             spacing: 15
-            Text { Layout.fillWidth: true; text: "请输入密码"; color: root.style.cTextOnSurface; font.pixelSize: 18; font.bold: true }
+            Text { Layout.fillWidth: true; text: "请输入密码"; color: root.style.cTextOnSurface; font.pixelSize: 20; font.bold: true }
             Text { Layout.fillWidth: true; text: root.username; color: root.style.cTextOnSurface; font.pixelSize: 13; elide: Text.ElideRight }
             TextField {
                 id: passwordField

@@ -5,17 +5,26 @@
 #include "logging/AppLogger.h"
 
 #include <QCoreApplication>
+#include <QPainter>
+#include <QLibrary>
+#include <QImage>
+#include <QBuffer>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QFutureWatcher>
+#include <QHostAddress>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonParseError>
 #include <QPointer>
 #include <QRegularExpression>
+#include <QRandomGenerator>
+#include <QCryptographicHash>
+#include <QTcpSocket>
+#include <QUrlQuery>
 #include <QSysInfo>
 #include <QStringConverter>
 #include <QTextStream>
@@ -68,6 +77,97 @@ QByteArray tailOfFile(const QString &path, qint64 maxBytes = 512 * 1024) {
     if (file.size() > maxBytes) file.seek(file.size() - maxBytes);
     return file.readAll();
 }
+
+QString randomUrlSafe(int bytes) {
+    QByteArray data(bytes, '\0');
+    auto *generator = QRandomGenerator::system();
+    for (int offset = 0; offset < bytes; offset += 4) {
+        const quint32 value = generator->generate();
+        const int count = qMin(4, bytes - offset);
+        for (int i = 0; i < count; ++i)
+            data[offset + i] = char((value >> (i * 8)) & 0xff);
+    }
+    return QString::fromLatin1(data.toBase64(QByteArray::Base64UrlEncoding
+                                              | QByteArray::OmitTrailingEquals));
+}
+
+QString qrCodePngDataUrl(const QString &text) {
+    if (text.trimmed().isEmpty()) return {};
+
+    // libqrencode has a small stable C ABI. It is loaded at runtime so the
+    // launcher still starts on systems where QR support is not installed.
+    struct QRcodeCompat {
+        int version;
+        int width;
+        unsigned char *data;
+    };
+    using EncodeFn = QRcodeCompat *(*)(const char *, int, int);
+    using FreeFn = void (*)(QRcodeCompat *);
+
+    QLibrary library;
+    const QStringList candidates = {
+        QStringLiteral("qrencode"),
+        QStringLiteral("libqrencode.so.4"),
+        QStringLiteral("libqrencode.so")
+    };
+    for (const QString &candidate : candidates) {
+        library.setFileName(candidate);
+        if (library.load()) break;
+    }
+    if (!library.isLoaded()) return {};
+
+    const auto encode = reinterpret_cast<EncodeFn>(
+        library.resolve("QRcode_encodeString8bit"));
+    const auto freeCode = reinterpret_cast<FreeFn>(library.resolve("QRcode_free"));
+    if (!encode || !freeCode) return {};
+
+    const QByteArray utf8 = text.toUtf8();
+    QRcodeCompat *code = encode(utf8.constData(), 0, 1); // version auto, EC level M
+    if (!code || code->width <= 0 || !code->data) {
+        if (code) freeCode(code);
+        return {};
+    }
+
+    constexpr int quietZone = 4;
+    constexpr int modulePixels = 4;
+    const int modules = code->width + quietZone * 2;
+    QImage image(modules * modulePixels, modules * modulePixels,
+                 QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    {
+        QPainter painter(&image);
+        painter.setRenderHint(QPainter::Antialiasing, false);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(Qt::black);
+        for (int y = 0; y < code->width; ++y) {
+            for (int x = 0; x < code->width; ++x) {
+                if ((code->data[y * code->width + x] & 1U) == 0U) continue;
+                painter.drawRect((x + quietZone) * modulePixels,
+                                 (y + quietZone) * modulePixels,
+                                 modulePixels, modulePixels);
+            }
+        }
+    }
+    freeCode(code);
+
+    QByteArray png;
+    QBuffer buffer(&png);
+    if (!buffer.open(QIODevice::WriteOnly) || !image.save(&buffer, "PNG")) return {};
+    return QStringLiteral("data:image/png;base64,")
+        + QString::fromLatin1(png.toBase64());
+}
+
+QString oauthHtml(bool success, const QString &message) {
+    const QString title = success ? QStringLiteral("登录完成") : QStringLiteral("登录失败");
+    const QString color = success ? QStringLiteral("#2e7d32") : QStringLiteral("#b3261e");
+    return QString::fromUtf8(
+        R"HTML(<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>%1</title></head><body style="font-family:system-ui,sans-serif;margin:0;display:grid;place-items:center;min-height:100vh;background:#f7f7f7">
+<main style="max-width:560px;padding:32px;background:white;border-radius:8px;box-shadow:0 8px 28px #0002"><h1 style="color:%2">%1</h1>
+<p>%3</p><p>现在可以关闭此页面并返回启动器。</p></main></body></html>)HTML")
+        .arg(title, color, message.toHtmlEscaped());
+}
 }
 
 LauncherBackend::LauncherBackend(QObject *parent) : QObject(parent) {
@@ -97,7 +197,18 @@ LauncherBackend::LauncherBackend(QObject *parent) : QObject(parent) {
     m_javaTaskJson = R"({"active":false,"runtimes":[]})";
     m_accountTaskJson = R"({"active":false})";
     m_yggdrasilTaskJson = R"({"active":false})";
+    m_microsoftLoginTaskJson = R"({"active":false,"state":"idle"})";
     m_authServerProbeTaskJson = R"({"active":false})";
+
+    connect(&m_microsoftCallbackServer, &QTcpServer::newConnection,
+            this, &LauncherBackend::handleMicrosoftCallback);
+    m_microsoftCallbackTimeout.setSingleShot(true);
+    connect(&m_microsoftCallbackTimeout, &QTimer::timeout, this, [this]() {
+        if (!m_microsoftCallbackServer.isListening()) return;
+        stopMicrosoftCallbackServer();
+        setMicrosoftLoginTask(QJsonObject{{"active", false}, {"success", false},
+            {"state", "failed"}, {"message", "Microsoft 浏览器授权等待超时，请重新登录。"}});
+    });
 
     refreshLauncherSettings();
     refreshAuthServers();
@@ -127,6 +238,7 @@ QString LauncherBackend::fieldName(const QString *field) const {
     if (field == &m_currentAccountAvatarUrl) return "currentAccountAvatarUrl";
     if (field == &m_accountsJson) return "accountsJson";
     if (field == &m_pendingYggdrasilProfilesJson) return "pendingYggdrasilProfilesJson";
+    if (field == &m_microsoftLoginTaskJson) return "microsoftLoginTaskJson";
     if (field == &m_authServersJson) return "authServersJson";
     if (field == &m_downloadCatalogJson) return "downloadCatalogJson";
     if (field == &m_downloadTaskJson) return "downloadTaskJson";
@@ -537,14 +649,273 @@ void LauncherBackend::loginYggdrasil(const QString &serverUrl, const QString &us
 
 QString LauncherBackend::pollYggdrasilLoginTask() { return m_yggdrasilTaskJson; }
 
-void LauncherBackend::loginMicrosoftBrowser(const QString &clientId) {
-    AppLogScope scope("backend", "loginMicrosoftBrowser", {
-        {"clientIdLength", clientId.size()},
-        {"clientIdPrefix", clientId.left(8)}
+QString LauncherBackend::microsoftClientConfiguration() {
+    return stringify(m_accounts.microsoftClientConfiguration());
+}
+
+void LauncherBackend::setMicrosoftLoginTask(const QJsonObject &task) {
+    setString(m_microsoftLoginTaskJson, stringify(task),
+              &LauncherBackend::microsoftLoginTaskJsonChanged);
+}
+
+void LauncherBackend::stopMicrosoftCallbackServer() {
+    m_microsoftCallbackTimeout.stop();
+    if (m_microsoftCallbackServer.isListening()) m_microsoftCallbackServer.close();
+}
+
+void LauncherBackend::cancelMicrosoftLogin() {
+    AppLogScope scope("backend", "cancelMicrosoftLogin");
+    ++m_microsoftRequestSerial;
+    if (m_microsoftCancellation) m_microsoftCancellation->store(true);
+    stopMicrosoftCallbackServer();
+    setMicrosoftLoginTask(QJsonObject{{"active", false}, {"success", false},
+        {"state", "cancelled"}, {"message", "Microsoft 登录已取消。"}});
+}
+
+QString LauncherBackend::pollMicrosoftLoginTask() {
+    return m_microsoftLoginTaskJson;
+}
+
+QString LauncherBackend::qrCodeDataUrl(const QString &text) {
+    return qrCodePngDataUrl(text);
+}
+
+void LauncherBackend::loginMicrosoftBrowser() {
+    AppLogScope scope("backend", "loginMicrosoftBrowser");
+    cancelMicrosoftLogin();
+    const quint64 serial = ++m_microsoftRequestSerial;
+    const QJsonObject configuration = m_accounts.microsoftClientConfiguration();
+    m_microsoftClientId = configuration.value("clientId").toString();
+    if (m_microsoftClientId.isEmpty()) {
+        setMicrosoftLoginTask(QJsonObject{{"active", false}, {"success", false},
+            {"state", "missingConfiguration"},
+            {"message", "未配置 Microsoft Public Client ID。"},
+            {"configPath", configuration.value("configPath")},
+            {"redirectUris", configuration.value("redirectUris")}});
+        return;
+    }
+
+    stopMicrosoftCallbackServer();
+    quint16 selectedPort = 0;
+    for (quint16 port = 29111; port <= 29115; ++port) {
+        if (m_microsoftCallbackServer.listen(QHostAddress::LocalHost, port)) {
+            selectedPort = port;
+            break;
+        }
+    }
+    if (selectedPort == 0) {
+        setMicrosoftLoginTask(QJsonObject{{"active", false}, {"success", false},
+            {"state", "failed"},
+            {"message", "无法监听本地回调端口 29111–29115。请检查端口占用或防火墙。"}});
+        return;
+    }
+
+    m_microsoftRedirectUri = QStringLiteral("http://localhost:%1/auth-response").arg(selectedPort);
+    m_microsoftState = randomUrlSafe(24);
+    m_microsoftCodeVerifier = randomUrlSafe(64);
+    const QByteArray challengeBytes = QCryptographicHash::hash(
+        m_microsoftCodeVerifier.toUtf8(), QCryptographicHash::Sha256);
+    const QString challenge = QString::fromLatin1(challengeBytes.toBase64(
+        QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals));
+
+    QUrl authorizationUrl(QStringLiteral("https://login.live.com/oauth20_authorize.srf"));
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("client_id"), m_microsoftClientId);
+    query.addQueryItem(QStringLiteral("response_type"), QStringLiteral("code"));
+    query.addQueryItem(QStringLiteral("redirect_uri"), m_microsoftRedirectUri);
+    query.addQueryItem(QStringLiteral("scope"), QStringLiteral("XboxLive.signin offline_access"));
+    query.addQueryItem(QStringLiteral("prompt"), QStringLiteral("select_account"));
+    query.addQueryItem(QStringLiteral("state"), m_microsoftState);
+    query.addQueryItem(QStringLiteral("code_challenge"), challenge);
+    query.addQueryItem(QStringLiteral("code_challenge_method"), QStringLiteral("S256"));
+    authorizationUrl.setQuery(query);
+
+    setMicrosoftLoginTask(QJsonObject{{"active", true}, {"success", false},
+        {"state", "waitForBrowser"}, {"percent", 20},
+        {"title", "Microsoft 登录"},
+        {"message", "请在浏览器中完成 Microsoft 授权。"},
+        {"authorizationUrl", authorizationUrl.toString(QUrl::FullyEncoded)},
+        {"redirectUri", m_microsoftRedirectUri}, {"serial", double(serial)}});
+    m_microsoftCallbackTimeout.start(5 * 60 * 1000);
+
+    if (!QDesktopServices::openUrl(authorizationUrl)) {
+        setMicrosoftLoginTask(QJsonObject{{"active", true}, {"success", false},
+            {"state", "waitForBrowser"}, {"percent", 20},
+            {"title", "Microsoft 登录"},
+            {"message", "系统未能自动打开浏览器，请点击“打开浏览器”。"},
+            {"authorizationUrl", authorizationUrl.toString(QUrl::FullyEncoded)},
+            {"redirectUri", m_microsoftRedirectUri}});
+    }
+}
+
+void LauncherBackend::handleMicrosoftCallback() {
+    while (m_microsoftCallbackServer.hasPendingConnections()) {
+        QTcpSocket *socket = m_microsoftCallbackServer.nextPendingConnection();
+        if (!socket) continue;
+        if (!socket->waitForReadyRead(3000)) {
+            socket->disconnectFromHost();
+            socket->deleteLater();
+            continue;
+        }
+        const QByteArray requestData = socket->readAll();
+        const QByteArray firstLine = requestData.split('\n').value(0).trimmed();
+        const QList<QByteArray> parts = firstLine.split(' ');
+        const QUrl callbackUrl = parts.size() >= 2
+            ? QUrl(QStringLiteral("http://localhost") + QString::fromUtf8(parts.at(1)))
+            : QUrl();
+        const QUrlQuery callbackQuery(callbackUrl);
+        const QString returnedState = callbackQuery.queryItemValue(QStringLiteral("state"));
+        const QString code = callbackQuery.queryItemValue(QStringLiteral("code"));
+        const QString oauthError = callbackQuery.queryItemValue(QStringLiteral("error"));
+        const QString oauthDescription = callbackQuery.queryItemValue(QStringLiteral("error_description"));
+
+        bool accepted = callbackUrl.path() == QStringLiteral("/auth-response")
+                        && oauthError.isEmpty() && !code.isEmpty()
+                        && returnedState == m_microsoftState;
+        QString message;
+        if (callbackUrl.path() != QStringLiteral("/auth-response"))
+            message = QStringLiteral("回调路径不匹配。");
+        else if (!oauthError.isEmpty())
+            message = oauthDescription.isEmpty() ? oauthError : oauthDescription;
+        else if (returnedState != m_microsoftState)
+            message = QStringLiteral("OAuth state 校验失败，已拒绝此回调。");
+        else if (code.isEmpty())
+            message = QStringLiteral("Microsoft 回调中缺少授权码。");
+        else
+            message = QStringLiteral("授权码已接收，启动器正在完成 Xbox 与 Minecraft 登录。");
+
+        const QByteArray html = oauthHtml(accepted, message).toUtf8();
+        const QByteArray response = QByteArrayLiteral("HTTP/1.1 200 OK\r\n")
+            + QByteArrayLiteral("Content-Type: text/html; charset=utf-8\r\n")
+            + QByteArrayLiteral("Cache-Control: no-store\r\n")
+            + QByteArrayLiteral("Connection: close\r\nContent-Length: ")
+            + QByteArray::number(html.size()) + QByteArrayLiteral("\r\n\r\n") + html;
+        socket->write(response);
+        socket->waitForBytesWritten(1000);
+        socket->disconnectFromHost();
+        socket->deleteLater();
+
+        stopMicrosoftCallbackServer();
+        if (!accepted) {
+            setMicrosoftLoginTask(QJsonObject{{"active", false}, {"success", false},
+                {"state", "failed"}, {"message", message}});
+            setOutput(message);
+            return;
+        }
+        startMicrosoftAuthorizationExchange(code);
+        return;
+    }
+}
+
+void LauncherBackend::startMicrosoftAuthorizationExchange(const QString &code) {
+    const quint64 serial = m_microsoftRequestSerial;
+    const QString clientId = m_microsoftClientId;
+    const QString redirectUri = m_microsoftRedirectUri;
+    const QString verifier = m_microsoftCodeVerifier;
+    setMicrosoftLoginTask(QJsonObject{{"active", true}, {"success", false},
+        {"state", "authenticating"}, {"percent", 55},
+        {"title", "正在验证正版账户"},
+        {"message", "正在完成 OAuth、Xbox Live、XSTS 与 Minecraft Services 验证。"}});
+
+    auto *watcher = new QFutureWatcher<QJsonObject>(this);
+    connect(watcher, &QFutureWatcher<QJsonObject>::finished, this,
+            [this, watcher, serial]() {
+        const QJsonObject result = watcher->result();
+        watcher->deleteLater();
+        finishMicrosoftLogin(result, serial);
     });
-    auto payload = m_accounts.addMicrosoftPlaceholder(clientId);
-    setAccountsPayload(payload);
-    setOutput("Microsoft 账户占位已创建。真实 OAuth 后续按 HMCL Microsoft 登录链路接入。");
+    watcher->setFuture(QtConcurrent::run([this, clientId, code, redirectUri, verifier]() {
+        return m_accounts.authenticateMicrosoftAuthorizationCode(
+            clientId, code, redirectUri, verifier);
+    }));
+}
+
+void LauncherBackend::loginMicrosoftDeviceCode() {
+    AppLogScope scope("backend", "loginMicrosoftDeviceCode");
+    cancelMicrosoftLogin();
+    const quint64 serial = ++m_microsoftRequestSerial;
+    const QJsonObject configuration = m_accounts.microsoftClientConfiguration();
+    const QString clientId = configuration.value("clientId").toString();
+    if (clientId.isEmpty()) {
+        setMicrosoftLoginTask(QJsonObject{{"active", false}, {"success", false},
+            {"state", "missingConfiguration"},
+            {"message", "未配置 Microsoft Public Client ID。"},
+            {"configPath", configuration.value("configPath")},
+            {"redirectUris", configuration.value("redirectUris")}});
+        return;
+    }
+
+    m_microsoftCancellation = std::make_shared<std::atomic_bool>(false);
+    setMicrosoftLoginTask(QJsonObject{{"active", true}, {"success", false},
+        {"state", "requestingDeviceCode"}, {"percent", 15},
+        {"title", "Microsoft 登录"}, {"message", "正在申请设备代码…"}});
+
+    auto *codeWatcher = new QFutureWatcher<QJsonObject>(this);
+    connect(codeWatcher, &QFutureWatcher<QJsonObject>::finished, this,
+            [this, codeWatcher, serial, clientId]() {
+        const QJsonObject codeResult = codeWatcher->result();
+        codeWatcher->deleteLater();
+        if (serial != m_microsoftRequestSerial) return;
+        if (!codeResult.value("success").toBool(false)) {
+            finishMicrosoftLogin(codeResult, serial);
+            return;
+        }
+
+        const QString deviceCode = codeResult.value("deviceCode").toString();
+        const QString userCode = codeResult.value("userCode").toString();
+        const QString verificationUri = codeResult.value("verificationUri").toString();
+        const int interval = codeResult.value("interval").toInt(5);
+        const int expiresIn = codeResult.value("expiresIn").toInt(900);
+        QString scanUri = verificationUri;
+        if (verificationUri == QStringLiteral("https://www.microsoft.com/link")) {
+            QUrl url(verificationUri);
+            QUrlQuery query;
+            query.addQueryItem(QStringLiteral("otc"), userCode);
+            url.setQuery(query);
+            scanUri = url.toString(QUrl::FullyEncoded);
+        }
+
+        setMicrosoftLoginTask(QJsonObject{{"active", true}, {"success", false},
+            {"state", "waitForDevice"}, {"percent", 30},
+            {"title", "使用设备代码登录"},
+            {"message", codeResult.value("message")},
+            {"userCode", userCode}, {"verificationUri", verificationUri},
+            {"scanUri", scanUri}, {"expiresIn", expiresIn}, {"interval", interval}});
+        QDesktopServices::openUrl(QUrl(scanUri));
+
+        auto *loginWatcher = new QFutureWatcher<QJsonObject>(this);
+        const auto cancellation = m_microsoftCancellation;
+        connect(loginWatcher, &QFutureWatcher<QJsonObject>::finished, this,
+                [this, loginWatcher, serial]() {
+            const QJsonObject result = loginWatcher->result();
+            loginWatcher->deleteLater();
+            finishMicrosoftLogin(result, serial);
+        });
+        loginWatcher->setFuture(QtConcurrent::run(
+            [this, clientId, deviceCode, interval, expiresIn, cancellation]() {
+                return m_accounts.authenticateMicrosoftDeviceCode(
+                    clientId, deviceCode, interval, expiresIn, cancellation);
+            }));
+    });
+    codeWatcher->setFuture(QtConcurrent::run([this, clientId]() {
+        return m_accounts.requestMicrosoftDeviceCode(clientId);
+    }));
+}
+
+void LauncherBackend::finishMicrosoftLogin(const QJsonObject &result, quint64 serial) {
+    if (serial != m_microsoftRequestSerial) return;
+    const bool success = result.value("success").toBool(false);
+    if (success && result.value("accounts").isArray()) {
+        setAccountsPayload(QJsonObject{{"accounts", result.value("accounts").toArray()}});
+    }
+    const QString message = result.value("message").toString(
+        success ? QStringLiteral("Microsoft 登录完成。")
+                : QStringLiteral("Microsoft 登录失败。"));
+    setMicrosoftLoginTask(QJsonObject{{"active", false}, {"success", success},
+        {"state", success ? "completed" : "failed"},
+        {"percent", success ? 100 : 0}, {"message", message},
+        {"stage", result.value("stage")}, {"errorCode", result.value("errorCode")}});
+    setOutput(message);
 }
 
 void LauncherBackend::selectYggdrasilProfile(const QString &index) {
@@ -1118,12 +1489,19 @@ QString LauncherBackend::refreshInstalledVersions() {
 
 QString LauncherBackend::refreshInstances() {
     AppLogScope scope("backend", "refreshInstances");
-    QJsonObject payload = m_instances.list();
-    setString(m_instanceListJson, stringify(payload), &LauncherBackend::instanceListJsonChanged);
-    QString selected = payload.value("selectedInstance").toString();
-    if (m_selectedGameVersion.isEmpty() && !selected.isEmpty()) {
-        setString(m_selectedGameVersion, selected, &LauncherBackend::selectedGameVersionChanged);
-    }
+    const QJsonObject payload = m_instances.list();
+    setString(m_instanceListJson, stringify(payload),
+              &LauncherBackend::instanceListJsonChanged);
+
+    // Keep the main page launch button synchronized with the repository after
+    // refresh, deletion, rename and installation. HMCL's selected-instance
+    // property is repository-backed rather than a one-time initialization.
+    const QString selected = payload.value(QStringLiteral("selectedInstance")).toString();
+    setString(m_selectedGameVersion, selected,
+              &LauncherBackend::selectedGameVersionChanged);
+    if (!selected.isEmpty()) refreshInstanceDetail(selected);
+    else setString(m_instanceDetailJson, QStringLiteral("{}"),
+                   &LauncherBackend::instanceDetailJsonChanged);
     return m_instanceListJson;
 }
 
@@ -1270,8 +1648,13 @@ void LauncherBackend::saveInstanceSettings(const QString &versionId,
 
 void LauncherBackend::selectGameVersion(const QString &versionId) {
     AppLogScope scope("backend", "selectGameVersion", {{"versionId", versionId}});
-    setString(m_selectedGameVersion, versionId, &LauncherBackend::selectedGameVersionChanged);
-    refreshInstanceDetail(versionId);
+    const QJsonObject payload = m_instances.select(versionId);
+    const QString selected = payload.value(QStringLiteral("selectedInstance")).toString();
+    setString(m_selectedGameVersion, selected,
+              &LauncherBackend::selectedGameVersionChanged);
+    setString(m_instanceListJson, stringify(payload),
+              &LauncherBackend::instanceListJsonChanged);
+    if (!selected.isEmpty()) refreshInstanceDetail(selected);
 }
 
 void LauncherBackend::deleteGameVersion(const QString &versionId) {

@@ -1,7 +1,10 @@
 #pragma once
+#include <QByteArray>
 #include <QJsonObject>
 #include <QObject>
 #include <QString>
+#include <QTcpServer>
+#include <QTimer>
 
 #include <atomic>
 #include <functional>
@@ -27,6 +30,8 @@ class LauncherBackend : public QObject {
   Q_PROPERTY(
       QString pendingYggdrasilProfilesJson READ pendingYggdrasilProfilesJson
           NOTIFY pendingYggdrasilProfilesJsonChanged)
+  Q_PROPERTY(QString microsoftLoginTaskJson READ microsoftLoginTaskJson NOTIFY
+                 microsoftLoginTaskJsonChanged)
   Q_PROPERTY(QString authServersJson READ authServersJson NOTIFY
                  authServersJsonChanged)
   Q_PROPERTY(QString downloadCatalogJson READ downloadCatalogJson NOTIFY
@@ -70,6 +75,7 @@ public:
     return m_pendingYggdrasilProfilesJson;
   }
   QString authServersJson() const { return m_authServersJson; }
+  QString microsoftLoginTaskJson() const { return m_microsoftLoginTaskJson; }
   QString downloadCatalogJson() const { return m_downloadCatalogJson; }
   QString downloadTaskJson() const { return m_downloadTaskJson; }
   QString installedVersionsJson() const { return m_installedVersionsJson; }
@@ -110,7 +116,12 @@ public:
                                   const QString &username,
                                   const QString &password);
   Q_INVOKABLE QString pollYggdrasilLoginTask();
-  Q_INVOKABLE void loginMicrosoftBrowser(const QString &clientId);
+  Q_INVOKABLE QString microsoftClientConfiguration();
+  Q_INVOKABLE void loginMicrosoftBrowser();
+  Q_INVOKABLE void loginMicrosoftDeviceCode();
+  Q_INVOKABLE void cancelMicrosoftLogin();
+  Q_INVOKABLE QString pollMicrosoftLoginTask();
+  Q_INVOKABLE QString qrCodeDataUrl(const QString &text);
   Q_INVOKABLE void selectYggdrasilProfile(const QString &index);
   Q_INVOKABLE QString refreshAccounts();
   Q_INVOKABLE QString refreshAuthServers();
@@ -228,6 +239,7 @@ signals:
   void currentAccountAvatarUrlChanged();
   void accountsJsonChanged();
   void pendingYggdrasilProfilesJsonChanged();
+  void microsoftLoginTaskJsonChanged();
   void authServersJsonChanged();
   void downloadCatalogJsonChanged();
   void downloadTaskJsonChanged();
@@ -255,6 +267,11 @@ private:
                           std::function<QJsonObject()> operation);
   void finishJavaOperation(const QJsonObject &result,
                            const QString &fallbackTitle);
+  void handleMicrosoftCallback();
+  void startMicrosoftAuthorizationExchange(const QString &code);
+  void finishMicrosoftLogin(const QJsonObject &result, quint64 serial);
+  void setMicrosoftLoginTask(const QJsonObject &task);
+  void stopMicrosoftCallbackServer();
 
   LauncherSettings m_settings;
   AccountService m_accounts;
@@ -269,6 +286,7 @@ private:
   QString m_currentAccountAvatarUrl;
   QString m_accountsJson;
   QString m_pendingYggdrasilProfilesJson;
+  QString m_microsoftLoginTaskJson;
   QString m_authServersJson;
   QString m_downloadCatalogJson;
   QString m_downloadTaskJson;
@@ -297,5 +315,13 @@ private:
   quint64 m_javaRequestSerial = 0;
   quint64 m_accountRequestSerial = 0;
   quint64 m_authServerProbeRequestSerial = 0;
+  quint64 m_microsoftRequestSerial = 0;
   std::shared_ptr<std::atomic_bool> m_javaCancellation;
+  std::shared_ptr<std::atomic_bool> m_microsoftCancellation;
+  QTcpServer m_microsoftCallbackServer;
+  QTimer m_microsoftCallbackTimeout;
+  QString m_microsoftClientId;
+  QString m_microsoftRedirectUri;
+  QString m_microsoftState;
+  QString m_microsoftCodeVerifier;
 };

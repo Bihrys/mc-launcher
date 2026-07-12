@@ -124,8 +124,8 @@ Item {
                     opacity: root.step === 0 ? 1 : 0
                     x: root.step === 0 ? 0 : -transitionBody.width * 0.2
 
-                    Behavior on opacity { NumberAnimation { duration: root.style.animationsEnabled ? root.style.motionMedium4 : 0; easing.type: Easing.InOutCubic } }
-                    Behavior on x { NumberAnimation { duration: root.style.animationsEnabled ? root.style.motionMedium4 : 0; easing.type: Easing.InOutCubic } }
+                    Behavior on opacity { NumberAnimation { duration: root.style.animationsEnabled ? root.style.motionShort4 : 0; easing.type: Easing.InOutCubic } }
+                    Behavior on x { NumberAnimation { duration: root.style.animationsEnabled ? root.style.motionShort4 : 0; easing.type: Easing.InOutCubic } }
 
                     TextField {
                         id: urlField
@@ -163,8 +163,8 @@ Item {
                     opacity: root.step === 1 ? 1 : 0
                     x: root.step === 1 ? 0 : transitionBody.width * 0.2
 
-                    Behavior on opacity { NumberAnimation { duration: root.style.animationsEnabled ? root.style.motionMedium4 : 0; easing.type: Easing.InOutCubic } }
-                    Behavior on x { NumberAnimation { duration: root.style.animationsEnabled ? root.style.motionMedium4 : 0; easing.type: Easing.InOutCubic } }
+                    Behavior on opacity { NumberAnimation { duration: root.style.animationsEnabled ? root.style.motionShort4 : 0; easing.type: Easing.InOutCubic } }
+                    Behavior on x { NumberAnimation { duration: root.style.animationsEnabled ? root.style.motionShort4 : 0; easing.type: Easing.InOutCubic } }
 
                     Text {
                         Layout.preferredWidth: 100

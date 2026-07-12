@@ -8,6 +8,9 @@ ColumnLayout {
     property string title: ""
     property string subtitle: ""
     property string tag: ""
+    property int titleFontSize: 15
+    property int subtitleFontSize: 12
+    property bool titleBold: false
 
     spacing: 1
 
@@ -29,7 +32,8 @@ ColumnLayout {
             Layout.fillWidth: true
             text: root.title
             color: root.styleValue("cTextOnSurface", "#222222")
-            font.pixelSize: 15
+            font.pixelSize: root.titleFontSize
+            font.bold: root.titleBold
             elide: Text.ElideRight
         }
 
@@ -56,7 +60,7 @@ ColumnLayout {
         Layout.fillWidth: true
         text: root.subtitle
         color: root.styleValue("cTextOnSurfaceVariant", "#666666")
-        font.pixelSize: 12
+        font.pixelSize: root.subtitleFontSize
         elide: Text.ElideRight
     }
 }

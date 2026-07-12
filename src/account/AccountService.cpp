@@ -1,5 +1,7 @@
 #include "account/AccountService.h"
 
+#include "account/MicrosoftAuthService.h"
+
 #include "core/JsonUtil.h"
 #include "core/LauncherPaths.h"
 
@@ -135,7 +137,12 @@ QJsonArray AccountService::loadAccounts() const {
 }
 
 bool AccountService::saveAccounts(const QJsonArray &accounts) const {
-    return JsonUtil::writeArrayFile(LauncherPaths::accountsFile(), accounts);
+    const QString path = LauncherPaths::accountsFile();
+    const bool written = JsonUtil::writeArrayFile(path, accounts);
+    if (written) {
+        QFile::setPermissions(path, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    }
+    return written;
 }
 
 QString AccountService::offlineUuid(const QString &username) const {
@@ -664,6 +671,35 @@ QJsonObject AccountService::refreshAccount(int index) {
                            {"message", QStringLiteral("离线账户已刷新。")}};
     }
 
+    if (kind == QStringLiteral("microsoft")) {
+        MicrosoftAuthService service;
+        const QJsonObject refreshed = service.refresh(
+            account.value(QStringLiteral("clientId")).toString(),
+            account.value(QStringLiteral("refreshToken")).toString());
+        if (!refreshed.value(QStringLiteral("success")).toBool(false)) {
+            QJsonObject failed = refreshed;
+            failed.insert(QStringLiteral("requiresPassword"), false);
+            failed.insert(QStringLiteral("requiresMicrosoftLogin"), true);
+            return failed;
+        }
+
+        QJsonObject next = refreshed.value(QStringLiteral("account")).toObject();
+        next.insert(QStringLiteral("selected"), account.value(QStringLiteral("selected")).toBool(false));
+        const QString uuid = next.value(QStringLiteral("uuid")).toString();
+        const QString skinUrl = next.value(QStringLiteral("skinUrl")).toString();
+        next.insert(QStringLiteral("avatarUrl"),
+                    skinUrl.isEmpty() ? defaultAvatarForUuid(uuid)
+                                      : avatarFromSkinUrl(uuid, skinUrl));
+        accounts[index] = next;
+        if (!saveAccounts(accounts)) {
+            return QJsonObject{{QStringLiteral("success"), false},
+                               {QStringLiteral("message"), QStringLiteral("账户刷新成功，但账户文件写入失败。")}};
+        }
+        return QJsonObject{{QStringLiteral("success"), true},
+                           {QStringLiteral("accounts"), publicPayload(accounts).value(QStringLiteral("accounts"))},
+                           {QStringLiteral("message"), QStringLiteral("Microsoft 账户已刷新。")}};
+    }
+
     if (kind != QStringLiteral("yggdrasil")) {
         return QJsonObject{{"success", false}, {"requiresPassword", false},
                            {"message", QStringLiteral("此账户暂不支持刷新。")}};
@@ -902,15 +938,73 @@ QJsonObject AccountService::cleanupAvatarCache() {
                        {"message", QStringLiteral("头像缓存清理完成。")}};
 }
 
-QJsonObject AccountService::addMicrosoftPlaceholder(const QString &clientId) {
-    const QString name = QStringLiteral("MicrosoftUser");
+QJsonObject AccountService::microsoftClientConfiguration() const {
+    return MicrosoftAuthService::configuration();
+}
+
+QJsonObject AccountService::saveMicrosoftLoginResult(const QJsonObject &result) {
+    if (!result.value(QStringLiteral("success")).toBool(false)) return result;
+
+    QJsonObject account = result.value(QStringLiteral("account")).toObject();
+    const QString uuid = account.value(QStringLiteral("uuid")).toString();
+    if (uuid.isEmpty() || account.value(QStringLiteral("username")).toString().isEmpty()) {
+        return QJsonObject{{QStringLiteral("success"), false},
+                           {QStringLiteral("stage"), QStringLiteral("persist")},
+                           {QStringLiteral("message"),
+                            QStringLiteral("Microsoft 登录结果缺少角色名或 UUID。")}};
+    }
+
+    const QString skinUrl = account.value(QStringLiteral("skinUrl")).toString();
+    account.insert(QStringLiteral("avatarUrl"),
+                   skinUrl.isEmpty() ? defaultAvatarForUuid(uuid)
+                                     : avatarFromSkinUrl(uuid, skinUrl));
+    account.insert(QStringLiteral("selected"), true);
+
     QJsonArray accounts = loadAccounts();
-    for (int i = 0; i < accounts.size(); ++i) { QJsonObject a = accounts.at(i).toObject(); a["selected"] = false; accounts[i] = a; }
-    const QString uuid = offlineUuid("microsoft:" + clientId);
-    accounts.append(QJsonObject{{"kind", "microsoft"}, {"username", name}, {"uuid", uuid}, {"selected", true},
-                                {"avatarUrl", defaultAvatarForUuid(uuid)}, {"note", "Microsoft OAuth 待接入"}});
-    saveAccounts(accounts);
-    return publicPayload(accounts);
+    int replaceIndex = -1;
+    for (int i = 0; i < accounts.size(); ++i) {
+        QJsonObject existing = accounts.at(i).toObject();
+        existing.insert(QStringLiteral("selected"), false);
+        accounts[i] = existing;
+        if (existing.value(QStringLiteral("kind")).toString() == QStringLiteral("microsoft")
+            && existing.value(QStringLiteral("uuid")).toString() == uuid) {
+            replaceIndex = i;
+        }
+    }
+    if (replaceIndex >= 0) accounts[replaceIndex] = account;
+    else accounts.append(account);
+
+    if (!saveAccounts(accounts)) {
+        return QJsonObject{{QStringLiteral("success"), false},
+                           {QStringLiteral("stage"), QStringLiteral("persist")},
+                           {QStringLiteral("message"),
+                            QStringLiteral("Microsoft 登录成功，但账户文件写入失败。")}};
+    }
+
+    return QJsonObject{{QStringLiteral("success"), true},
+                       {QStringLiteral("accounts"), publicPayload(accounts).value(QStringLiteral("accounts"))},
+                       {QStringLiteral("message"), result.value(QStringLiteral("message"))}};
+}
+
+QJsonObject AccountService::authenticateMicrosoftAuthorizationCode(
+    const QString &clientId, const QString &authorizationCode,
+    const QString &redirectUri, const QString &codeVerifier) {
+    MicrosoftAuthService service;
+    return saveMicrosoftLoginResult(service.exchangeAuthorizationCode(
+        clientId, authorizationCode, redirectUri, codeVerifier));
+}
+
+QJsonObject AccountService::requestMicrosoftDeviceCode(const QString &clientId) const {
+    MicrosoftAuthService service;
+    return service.requestDeviceCode(clientId);
+}
+
+QJsonObject AccountService::authenticateMicrosoftDeviceCode(
+    const QString &clientId, const QString &deviceCode, int intervalSeconds,
+    int expiresInSeconds, const std::shared_ptr<std::atomic_bool> &cancelled) {
+    MicrosoftAuthService service;
+    return saveMicrosoftLoginResult(service.completeDeviceCode(
+        clientId, deviceCode, intervalSeconds, expiresInSeconds, cancelled));
 }
 
 QJsonObject AccountService::switchAccountByIdentifier(const QString &kind, const QString &uuid, const QString &serverUrl) {

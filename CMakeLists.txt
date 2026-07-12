@@ -39,6 +39,7 @@ qt_add_executable(mc-launcher-qt-cpp
     src/diagnostics/FpsMonitor.cpp
     src/settings/LauncherSettings.cpp
     src/account/AccountService.cpp
+    src/account/MicrosoftAuthService.cpp
     src/game/InstanceService.cpp
     src/game/VersionRules.cpp
     src/download/DownloadService.cpp
@@ -59,6 +60,12 @@ qt_add_executable(mc-launcher-qt-cpp
 )
 
 target_include_directories(mc-launcher-qt-cpp PRIVATE src)
+
+set(MC_LAUNCHER_MICROSOFT_CLIENT_ID "" CACHE STRING "Microsoft public-client application ID")
+if(MC_LAUNCHER_MICROSOFT_CLIENT_ID)
+    target_compile_definitions(mc-launcher-qt-cpp PRIVATE
+        MC_LAUNCHER_MICROSOFT_CLIENT_ID="${MC_LAUNCHER_MICROSOFT_CLIENT_ID}")
+endif()
 
 target_link_libraries(mc-launcher-qt-cpp PRIVATE
     Qt6::Core

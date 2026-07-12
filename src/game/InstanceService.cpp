@@ -10,6 +10,7 @@
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -33,6 +34,48 @@
 
 namespace {
 
+
+QString selectedInstanceStatePath() {
+    return LauncherPaths::configDir() + QStringLiteral("/selected_instance.txt");
+}
+
+QString readSelectedInstanceId() {
+    QFile file(selectedInstanceStatePath());
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) return {};
+    return QString::fromUtf8(file.readAll()).trimmed();
+}
+
+void writeSelectedInstanceId(const QString &versionId) {
+    QDir().mkpath(LauncherPaths::configDir());
+    QFile file(selectedInstanceStatePath());
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) return;
+    file.write(versionId.trimmed().toUtf8());
+}
+
+QString loaderSignature(const QJsonObject &raw, const QString &gameVersion,
+                        const QStringList &loaderKinds) {
+    const QJsonObject meta = raw.value(QStringLiteral("hmclQt")).toObject();
+    QString kind = meta.value(QStringLiteral("libraryId")).toString();
+    if (kind.isEmpty() && !loaderKinds.isEmpty()) kind = loaderKinds.first();
+    const QString loaderVersion = meta.value(QStringLiteral("loaderVersion")).toString();
+    const QString base = meta.value(QStringLiteral("gameVersion")).toString(gameVersion);
+    if (kind.isEmpty()) return {};
+    return base.toLower() + u'|' + kind.toLower() + u'|' + loaderVersion.toLower();
+}
+
+QString canonicalLoaderHelperId(const QJsonObject &raw, const QString &gameVersion,
+                                const QStringList &loaderKinds) {
+    const QJsonObject meta = raw.value(QStringLiteral("hmclQt")).toObject();
+    QString kind = meta.value(QStringLiteral("libraryId")).toString();
+    if (kind.isEmpty() && !loaderKinds.isEmpty()) kind = loaderKinds.first();
+    const QString loaderVersion = meta.value(QStringLiteral("loaderVersion")).toString();
+    const QString base = meta.value(QStringLiteral("gameVersion")).toString(gameVersion);
+    if (base.isEmpty() || kind.isEmpty() || loaderVersion.isEmpty()) return {};
+    QString id = base + u'-' + kind + u'-' + loaderVersion;
+    id.replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9_.+-]")), QStringLiteral("_"));
+    return id;
+}
+
 QString shellQuote(const QString &value) {
     QString out = value;
     out.replace("'", "'\\''");
@@ -49,29 +92,19 @@ QJsonObject mergeVersionJson(const QJsonObject &parent, const QJsonObject &child
     QJsonObject out = parent;
     for (auto it = child.begin(); it != child.end(); ++it) {
         if (it.key() == "libraries") {
-            QList<QJsonObject> merged;
-            QHash<QString, int> indexByKey;
-            auto appendOrReplace = [&](const QJsonArray &array) {
-                for (const QJsonValue &value : array) {
-                    if (!value.isObject()) continue;
-                    const QJsonObject library = value.toObject();
-                    const QString name = library.value("name").toString();
-                    const QStringList parts = name.split(':');
-                    const QString key = parts.size() >= 2
-                        ? parts.at(0) + ":" + parts.at(1)
-                        : name;
-                    if (!key.isEmpty() && indexByKey.contains(key)) {
-                        merged[indexByKey.value(key)] = library;
-                    } else {
-                        if (!key.isEmpty()) indexByKey.insert(key, merged.size());
-                        merged.append(library);
-                    }
-                }
-            };
-            appendOrReplace(parent.value("libraries").toArray());
-            appendOrReplace(child.value("libraries").toArray());
+            // HMCL Version.merge() uses Lang.merge(this.libraries, parent.libraries):
+            // the child/patch list is prepended to the parent list without Maven
+            // coordinate de-duplication. This is essential for modern Minecraft
+            // metadata, where the same group:artifact:version may appear several
+            // times with different rule sets and different artifact paths
+            // (regular JAR, unsafe JAR and platform-native JAR variants).
+            // Collapsing by group:artifact discards LWJGL modules such as
+            // lwjgl-glfw/lwjgl-opengl and causes ClassNotFoundException at launch.
             QJsonArray libraries;
-            for (const QJsonObject &library : std::as_const(merged)) libraries.append(library);
+            for (const QJsonValue &value : child.value("libraries").toArray())
+                libraries.append(value);
+            for (const QJsonValue &value : parent.value("libraries").toArray())
+                libraries.append(value);
             out.insert("libraries", libraries);
         } else if (it.key() == "arguments") {
             QJsonObject args = parent.value("arguments").toObject();
@@ -128,8 +161,18 @@ QString libraryUrlFor(const QJsonObject &library, const QJsonObject &artifact,
 }
 
 QJsonObject applyHmclPatches(QJsonObject object, QString *gameVersion) {
-    const QJsonArray patches = object.value("patches").toArray();
-    if (patches.isEmpty()) return object;
+    // HMCL distinguishes an external launcher version (the `patches` field is
+    // absent) from an HMCL root version (the field exists). For an HMCL root,
+    // top-level resolved fields are deliberately ignored and the effective
+    // version is rebuilt exclusively from its sorted patches. Starting from
+    // the top-level object here duplicates both JVM and game arguments.
+    if (!object.contains(QStringLiteral("patches"))) return object;
+
+    const QJsonArray patches = object.value(QStringLiteral("patches")).toArray();
+    if (patches.isEmpty()) {
+        object.remove(QStringLiteral("patches"));
+        return object;
+    }
 
     QList<QJsonObject> sorted;
     sorted.reserve(patches.size());
@@ -137,23 +180,26 @@ QJsonObject applyHmclPatches(QJsonObject object, QString *gameVersion) {
         if (value.isObject()) sorted.append(value.toObject());
     }
     std::sort(sorted.begin(), sorted.end(), [](const QJsonObject &a, const QJsonObject &b) {
-        return a.value("priority").toInt(0) < b.value("priority").toInt(0);
+        return a.value(QStringLiteral("priority")).toInt(0)
+             < b.value(QStringLiteral("priority")).toInt(0);
     });
 
-    object.remove("patches");
-    QJsonObject resolved = object;
+    QJsonObject resolved;
+    const QString rootId = object.value(QStringLiteral("id")).toString();
+    if (!rootId.isEmpty()) resolved.insert(QStringLiteral("id"), rootId);
+
     for (QJsonObject patch : std::as_const(sorted)) {
-        const QString patchId = patch.value("id").toString();
+        const QString patchId = patch.value(QStringLiteral("id")).toString();
         if (patchId == QStringLiteral("game") && gameVersion) {
-            const QString version = patch.value("version").toString();
+            const QString version = patch.value(QStringLiteral("version")).toString();
             if (!version.isEmpty()) *gameVersion = version;
         }
-        // HMCL clears the patch jar before merging so loader patches cannot
-        // accidentally replace the primary Minecraft client jar.
-        patch.remove("jar");
-        patch.remove("patches");
+        // Same as Version.resolve(): patches cannot replace the primary jar.
+        patch.remove(QStringLiteral("jar"));
+        patch.remove(QStringLiteral("patches"));
         resolved = mergeVersionJson(resolved, patch);
     }
+    if (!rootId.isEmpty()) resolved.insert(QStringLiteral("id"), rootId);
     return resolved;
 }
 
@@ -194,6 +240,69 @@ QStringList parseArgumentList(const QJsonArray &array,
     return out;
 }
 
+
+QStringList collapseRepeatedArgumentBlocks(QStringList arguments) {
+    // Some old Qt-port versions persisted already-resolved argument arrays and
+    // then appended the same patch arguments again. Collapse an exact repeated
+    // block before applying option-level normalization. HMCL resolves a patch
+    // container once, so an identical adjacent half cannot be intentional.
+    bool changed = true;
+    while (changed && arguments.size() >= 2) {
+        changed = false;
+        for (int repeatCount = 2; repeatCount <= arguments.size(); ++repeatCount) {
+            if (arguments.size() % repeatCount != 0) continue;
+            const int blockSize = arguments.size() / repeatCount;
+            bool identical = true;
+            for (int block = 1; block < repeatCount && identical; ++block) {
+                for (int i = 0; i < blockSize; ++i) {
+                    if (arguments.at(i) != arguments.at(block * blockSize + i)) {
+                        identical = false;
+                        break;
+                    }
+                }
+            }
+            if (identical) {
+                arguments = arguments.mid(0, blockSize);
+                changed = true;
+                break;
+            }
+        }
+    }
+    return arguments;
+}
+
+QStringList deduplicateGameArguments(const QStringList &arguments) {
+    static const QSet<QString> singletonOptions = {
+        QStringLiteral("--username"), QStringLiteral("--version"),
+        QStringLiteral("--gameDir"), QStringLiteral("--assetsDir"),
+        QStringLiteral("--assetIndex"), QStringLiteral("--uuid"),
+        QStringLiteral("--accessToken"), QStringLiteral("--clientId"),
+        QStringLiteral("--xuid"), QStringLiteral("--userType"),
+        QStringLiteral("--versionType"), QStringLiteral("--width"),
+        QStringLiteral("--height"), QStringLiteral("--quickPlaySingleplayer"),
+        QStringLiteral("--quickPlayMultiplayer")
+    };
+
+    QStringList result;
+    QSet<QString> seen;
+    for (int i = 0; i < arguments.size(); ++i) {
+        const QString current = arguments.at(i);
+        if (!singletonOptions.contains(current)) {
+            result.append(current);
+            continue;
+        }
+
+        const QString value = i + 1 < arguments.size() ? arguments.at(i + 1) : QString();
+        if (!seen.contains(current)) {
+            result.append(current);
+            if (i + 1 < arguments.size()) result.append(value);
+            seen.insert(current);
+        }
+        if (i + 1 < arguments.size()) ++i;
+    }
+    return result;
+}
+
 QString nativeClassifierForLibrary(const QJsonObject &library) {
 #ifdef Q_OS_WIN
     const QString os = QStringLiteral("windows");
@@ -202,9 +311,41 @@ QString nativeClassifierForLibrary(const QJsonObject &library) {
 #else
     const QString os = QStringLiteral("linux");
 #endif
-    QString classifier = library.value("natives").toObject().value(os).toString();
-    classifier.replace("${arch}", QSysInfo::WordSize >= 64 ? "64" : "32");
-    return classifier;
+
+    QString arch = QSysInfo::currentCpuArchitecture().toLower();
+    if (arch == QStringLiteral("amd64") || arch == QStringLiteral("x64"))
+        arch = QStringLiteral("x86_64");
+    else if (arch == QStringLiteral("aarch64"))
+        arch = QStringLiteral("arm64");
+    const QString bits = QSysInfo::WordSize >= 64
+        ? QStringLiteral("64") : QStringLiteral("32");
+
+    // Port of HMCL Library.POSSIBLE_NATIVE_DESCRIPTORS/getClassifier().
+    // Newer Mojang metadata may use linux, native-linux, natives-linux,
+    // linux-x86_64, natives-linux-64, etc. It may also omit the `natives`
+    // map and expose the descriptor directly in downloads.classifiers.
+    const QStringList keys{QString(), arch, bits};
+    const QStringList variants{QString(), QStringLiteral("native"),
+                               QStringLiteral("natives")};
+    const QJsonObject natives = library.value(QStringLiteral("natives")).toObject();
+    const QJsonObject classifiers = library.value(QStringLiteral("downloads")).toObject()
+                                        .value(QStringLiteral("classifiers")).toObject();
+    for (const QString &key : keys) {
+        for (const QString &variant : variants) {
+            QString descriptor;
+            if (!variant.isEmpty()) descriptor = variant + u'-';
+            descriptor += os;
+            if (!key.isEmpty()) descriptor += u'-' + key;
+
+            QString mapped = natives.value(descriptor).toString();
+            if (!mapped.isEmpty()) {
+                mapped.replace(QStringLiteral("${arch}"), bits);
+                return mapped;
+            }
+            if (classifiers.contains(descriptor)) return descriptor;
+        }
+    }
+    return {};
 }
 
 bool extractArchive(const QString &archive, const QString &destination, QString *error) {
@@ -296,6 +437,11 @@ QString buildClasspath(const QString &clientJarVersionId,
     for (const QJsonValue &v : versionJson.value("libraries").toArray()) {
         const QJsonObject lib = v.toObject();
         if (!VersionRules::allowedByRules(lib.value("rules").toArray())) continue;
+        // HMCL excludes libraries represented by a native classifier from the
+        // Java classpath and extracts them separately. Explicit classifier
+        // artifacts without a natives/classifiers descriptor remain ordinary
+        // classpath entries, matching HMCL Library.isNative().
+        if (!nativeClassifierForLibrary(lib).isEmpty()) continue;
         QString rel = lib.value("downloads").toObject()
                           .value("artifact").toObject()
                           .value("path").toString();
@@ -537,49 +683,148 @@ QJsonObject InstanceService::readVersionJson(const QString &versionId) const {
 }
 
 QJsonArray InstanceService::scanVersions() const {
-    QJsonArray arr;
+    struct Candidate {
+        QString id;
+        QFileInfo info;
+        QJsonObject raw;
+        QJsonObject resolved;
+        QString gameVersion;
+        QString type;
+        QStringList loaderKinds;
+        QString loaderSummary;
+        QString iconName;
+        QString signature;
+        QString canonicalHelperId;
+    };
+
+    QList<Candidate> candidates;
+    QSet<QString> inheritedParents;
+    QHash<QString, int> signatureCount;
+
     QDir dir(LauncherPaths::versionsDir());
-    if (!dir.exists()) return arr;
-    const auto entries = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
+    if (!dir.exists()) return {};
+
+    const auto entries = dir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot,
+                                           QDir::Name);
     for (const QFileInfo &info : entries) {
         const QString id = info.fileName();
         const QJsonObject raw = readVersionJson(id);
         if (raw.isEmpty()) continue;
+
+        const QString parent = raw.value(QStringLiteral("inheritsFrom")).toString();
+        if (!parent.isEmpty()) inheritedParents.insert(parent);
+
         QString gameVersion;
         QString resolveError;
-        const QJsonObject json = resolveVersionJsonChain(id, &gameVersion, &resolveError);
-        if (json.isEmpty()) continue;
-        const QString type = json.value("type").toString("release");
-        const QStringList loaderKinds = detectLoaderKinds(json, id);
-        QString loaderSummary = QStringLiteral("原版");
-        QString iconName = iconForVersion(id, type);
-        if (loaderKinds.contains(QStringLiteral("fabric"))) { loaderSummary = QStringLiteral("Fabric"); iconName = QStringLiteral("fabric"); }
-        else if (loaderKinds.contains(QStringLiteral("quilt"))) { loaderSummary = QStringLiteral("Quilt"); iconName = QStringLiteral("quilt"); }
-        else if (loaderKinds.contains(QStringLiteral("neoforge"))) { loaderSummary = QStringLiteral("NeoForge"); iconName = QStringLiteral("neoforge"); }
-        else if (loaderKinds.contains(QStringLiteral("forge"))) { loaderSummary = QStringLiteral("Forge"); iconName = QStringLiteral("forge"); }
-        arr.append(QJsonObject{
-            {"id", id}, {"title", id}, {"name", id}, {"subtitle", gameVersion}, {"tag", type},
-            {"versionType", type}, {"gameVersion", gameVersion}, {"loaderSummary", loaderSummary},
-            {"iconName", iconName}, {"selected", false}, {"canUpdate", false},
-            {"path", info.absoluteFilePath()}
+        const QJsonObject resolved = resolveVersionJsonChain(id, &gameVersion,
+                                                              &resolveError);
+        if (resolved.isEmpty()) continue;
+
+        Candidate c;
+        c.id = id;
+        c.info = info;
+        c.raw = raw;
+        c.resolved = resolved;
+        c.gameVersion = gameVersion.isEmpty() ? id : gameVersion;
+        c.type = resolved.value(QStringLiteral("type")).toString(QStringLiteral("release"));
+        c.loaderKinds = detectLoaderKinds(resolved, id);
+        c.loaderSummary = QStringLiteral("原版");
+        c.iconName = iconForVersion(id, c.type);
+        if (c.loaderKinds.contains(QStringLiteral("fabric"))) {
+            c.loaderSummary = QStringLiteral("Fabric");
+            c.iconName = QStringLiteral("fabric");
+        } else if (c.loaderKinds.contains(QStringLiteral("quilt"))) {
+            c.loaderSummary = QStringLiteral("Quilt");
+            c.iconName = QStringLiteral("quilt");
+        } else if (c.loaderKinds.contains(QStringLiteral("neoforge"))) {
+            c.loaderSummary = QStringLiteral("NeoForge");
+            c.iconName = QStringLiteral("neoforge");
+        } else if (c.loaderKinds.contains(QStringLiteral("forge"))) {
+            c.loaderSummary = QStringLiteral("Forge");
+            c.iconName = QStringLiteral("forge");
+        } else if (c.loaderKinds.contains(QStringLiteral("optifine"))) {
+            c.loaderSummary = QStringLiteral("OptiFine");
+            c.iconName = QStringLiteral("optifine");
+        }
+        c.signature = loaderSignature(raw, c.gameVersion, c.loaderKinds);
+        c.canonicalHelperId = canonicalLoaderHelperId(raw, c.gameVersion,
+                                                       c.loaderKinds);
+        if (!c.signature.isEmpty()) signatureCount[c.signature] += 1;
+        candidates.append(c);
+    }
+
+    QJsonArray result;
+    for (const Candidate &c : std::as_const(candidates)) {
+        // HMCL's getDisplayVersions() excludes hidden versions. The vanilla
+        // parent downloaded only to satisfy an inherited loader instance is
+        // also an implementation detail and must not appear as a separate row.
+        if (c.raw.value(QStringLiteral("hidden")).toBool(false)) continue;
+        if (inheritedParents.contains(c.id)) continue;
+
+        // Older Qt-port builds materialized a user-facing instance by copying
+        // the canonical helper id (e.g. 26.2-fabric-0.19.3), leaving both on
+        // disk. Prefer the named instance and suppress the generated helper.
+        if (!c.signature.isEmpty()
+                && signatureCount.value(c.signature) > 1
+                && c.id.compare(c.canonicalHelperId, Qt::CaseInsensitive) == 0) {
+            continue;
+        }
+
+        result.append(QJsonObject{
+            {QStringLiteral("id"), c.id},
+            {QStringLiteral("title"), c.id},
+            {QStringLiteral("name"), c.id},
+            {QStringLiteral("subtitle"), c.gameVersion},
+            {QStringLiteral("tag"), c.type},
+            {QStringLiteral("versionType"), c.type},
+            {QStringLiteral("gameVersion"), c.gameVersion},
+            {QStringLiteral("loaderSummary"), c.loaderSummary},
+            {QStringLiteral("iconName"), c.iconName},
+            {QStringLiteral("selected"), false},
+            {QStringLiteral("canUpdate"), false},
+            {QStringLiteral("path"), c.info.absoluteFilePath()}
         });
     }
-    return arr;
+    return result;
 }
 
 QJsonObject InstanceService::list() {
     const QJsonArray instances = scanVersions();
-    QString selected;
-    if (!instances.isEmpty()) selected = instances.first().toObject().value("id").toString();
+    QString selected = readSelectedInstanceId();
+    bool selectedExists = false;
+    for (const QJsonValue &value : instances) {
+        if (value.toObject().value(QStringLiteral("id")).toString() == selected) {
+            selectedExists = true;
+            break;
+        }
+    }
+    if (!selectedExists) {
+        selected = instances.isEmpty()
+            ? QString()
+            : instances.first().toObject().value(QStringLiteral("id")).toString();
+        writeSelectedInstanceId(selected);
+    }
+
     QJsonArray marked;
-    for (int i = 0; i < instances.size(); ++i) {
-        QJsonObject item = instances.at(i).toObject();
-        item["selected"] = item.value("id").toString() == selected;
+    for (const QJsonValue &value : instances) {
+        QJsonObject item = value.toObject();
+        item.insert(QStringLiteral("selected"),
+                    item.value(QStringLiteral("id")).toString() == selected);
         marked.append(item);
     }
+
     QJsonArray profiles;
-    profiles.append(QJsonObject{{"id", "default"}, {"name", "默认游戏目录"}, {"path", LauncherPaths::minecraftDir()}, {"selected", true}});
-    return QJsonObject{{"instances", marked}, {"profiles", profiles}, {"selectedInstance", selected}};
+    profiles.append(QJsonObject{
+        {QStringLiteral("id"), QStringLiteral("default")},
+        {QStringLiteral("name"), QStringLiteral("默认游戏目录")},
+        {QStringLiteral("path"), LauncherPaths::minecraftDir()},
+        {QStringLiteral("selected"), true}
+    });
+    return QJsonObject{
+        {QStringLiteral("instances"), marked},
+        {QStringLiteral("profiles"), profiles},
+        {QStringLiteral("selectedInstance"), selected}
+    };
 }
 
 QJsonObject InstanceService::installedVersions() {
@@ -656,30 +901,121 @@ QJsonObject InstanceService::files(const QString &versionId, const QString &kind
 }
 
 QJsonObject InstanceService::select(const QString &versionId) {
-    Q_UNUSED(versionId)
+    const QString id = versionId.trimmed();
+    if (!id.isEmpty() && QFileInfo(versionDir(id)).isDir())
+        writeSelectedInstanceId(id);
     return list();
 }
 
 QJsonObject InstanceService::rename(const QString &versionId, const QString &newName) {
-    QString oldDir = versionDir(versionId);
-    QString newDir = LauncherPaths::versionsDir() + "/" + newName.trimmed();
-    bool ok = !newName.trimmed().isEmpty() && QDir().rename(oldDir, newDir);
-    return QJsonObject{{"success", ok}, {"message", ok ? "已重命名实例" : "重命名失败"}};
+    const QString targetId = newName.trimmed();
+    const QString oldDir = versionDir(versionId);
+    const QString newDir = LauncherPaths::versionsDir() + "/" + targetId;
+    const bool ok = !targetId.isEmpty() && !QFileInfo(newDir).exists()
+                 && QDir().rename(oldDir, newDir);
+    if (ok) {
+        const QString oldJson = newDir + "/" + versionId + ".json";
+        const QString newJson = newDir + "/" + targetId + ".json";
+        if (QFileInfo(oldJson).isFile()) QFile::rename(oldJson, newJson);
+        QJsonObject json = JsonUtil::readObjectFile(newJson, {});
+        if (!json.isEmpty()) {
+            json.insert(QStringLiteral("id"), targetId);
+            JsonUtil::writeObjectFile(newJson, json);
+        }
+        if (readSelectedInstanceId() == versionId) writeSelectedInstanceId(targetId);
+    }
+    return QJsonObject{{"success", ok},
+                       {"message", ok ? "已重命名实例" : "重命名失败"}};
 }
 
 QJsonObject InstanceService::duplicate(const QString &versionId, const QString &newName, bool copySaves) {
+    const QString targetId = newName.trimmed();
+    const QString sourceDir = versionDir(versionId);
+    const QString targetDir = versionDir(targetId);
+    if (targetId.isEmpty() || !QFileInfo(sourceDir).isDir() || QFileInfo(targetDir).exists()) {
+        return QJsonObject{{"success", false}, {"message", "复制失败：目标名称无效或已存在"}};
+    }
+
+    if (!QDir().mkpath(targetDir))
+        return QJsonObject{{"success", false}, {"message", "复制失败：无法创建目标目录"}};
+
+    QDir source(sourceDir);
+    QDirIterator iterator(sourceDir, QDir::NoDotAndDotDot | QDir::AllEntries,
+                          QDirIterator::Subdirectories);
+    bool ok = true;
+    while (iterator.hasNext() && ok) {
+        const QString sourcePath = iterator.next();
+        const QFileInfo info(sourcePath);
+        QString relative = source.relativeFilePath(sourcePath);
+        if (relative == versionId + QStringLiteral(".json"))
+            relative = targetId + QStringLiteral(".json");
+        if (relative == versionId + QStringLiteral(".jar"))
+            relative = targetId + QStringLiteral(".jar");
+        const QString targetPath = targetDir + u'/' + relative;
+        if (info.isDir()) {
+            ok = QDir().mkpath(targetPath);
+        } else {
+            QDir().mkpath(QFileInfo(targetPath).absolutePath());
+            ok = QFile::copy(sourcePath, targetPath);
+        }
+    }
+
+    const QString targetJsonPath = targetDir + u'/' + targetId + QStringLiteral(".json");
+    if (ok) {
+        QJsonObject json = JsonUtil::readObjectFile(targetJsonPath, {});
+        if (json.isEmpty()) {
+            ok = false;
+        } else {
+            json.insert(QStringLiteral("id"), targetId);
+            ok = JsonUtil::writeObjectFile(targetJsonPath, json);
+        }
+    }
+
+    // HMCL only copies the instance working directory when the user asks for
+    // saves. This project currently uses the shared ~/.minecraft run directory,
+    // so there is no per-instance saves tree to duplicate here.
     Q_UNUSED(copySaves)
-    QString src = versionDir(versionId);
-    QString dst = LauncherPaths::versionsDir() + "/" + newName.trimmed();
-    QDir().mkpath(dst);
-    QFile::copy(src + "/" + versionId + ".json", dst + "/" + newName.trimmed() + ".json");
-    QFile::copy(src + "/" + versionId + ".jar", dst + "/" + newName.trimmed() + ".jar");
-    return QJsonObject{{"success", true}, {"message", "已复制实例骨架"}};
+
+    if (!ok) QDir(targetDir).removeRecursively();
+    return QJsonObject{{"success", ok},
+                       {"message", ok ? "已复制实例" : "复制实例失败"}};
 }
 
 QJsonObject InstanceService::remove(const QString &versionId) {
-    bool ok = QDir(versionDir(versionId)).removeRecursively();
-    return QJsonObject{{"success", ok}, {"message", ok ? "已删除实例" : "删除失败"}};
+    const QJsonObject removedJson = readVersionJson(versionId);
+    const QString parentId = removedJson.value(QStringLiteral("inheritsFrom")).toString();
+    const bool ok = QDir(versionDir(versionId)).removeRecursively();
+
+    if (ok && !parentId.isEmpty()) {
+        bool parentStillReferenced = false;
+        QDir versions(LauncherPaths::versionsDir());
+        for (const QFileInfo &info : versions.entryInfoList(
+                 QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+            const QString id = info.fileName();
+            const QJsonObject raw = readVersionJson(id);
+            if (raw.value(QStringLiteral("inheritsFrom")).toString() == parentId) {
+                parentStillReferenced = true;
+                break;
+            }
+        }
+        if (!parentStillReferenced) {
+            const QJsonObject parent = readVersionJson(parentId);
+            if (parent.value(QStringLiteral("hmclQtHelper")).toBool(false)
+                    || parent.value(QStringLiteral("hidden")).toBool(false)) {
+                QDir(versionDir(parentId)).removeRecursively();
+            }
+        }
+    }
+
+    if (ok && readSelectedInstanceId() == versionId) {
+        const QJsonArray remaining = scanVersions();
+        const QString next = remaining.isEmpty()
+            ? QString()
+            : remaining.first().toObject().value(QStringLiteral("id")).toString();
+        writeSelectedInstanceId(next);
+    }
+    return QJsonObject{{"success", ok},
+                       {"message", ok ? "已删除实例" : "删除失败"}};
 }
 
 QString InstanceService::openFolder(const QString &versionId, const QString &subFolder) {
@@ -762,40 +1098,63 @@ LaunchOptions InstanceService::createLaunchOptions(const QString &versionId,
         if (!VersionRules::allowedByRules(library.value("rules").toArray())) continue;
 
         const QJsonObject downloads = library.value("downloads").toObject();
-        const QJsonObject artifact = downloads.value("artifact").toObject();
-        QString relative = artifact.value("path").toString();
-        if (relative.isEmpty()) relative = VersionRules::libraryPathFromName(library.value("name").toString());
-        if (!relative.isEmpty()) {
-            const QString path = librariesRoot + "/" + relative;
-            const QString sha1 = artifact.value("sha1").toString();
-            if (!fileMatchesSha1(path, sha1) && !scheduledPaths.contains(path)) {
-                const QString url = libraryUrlFor(library, artifact, relative);
-                if (url.isEmpty()) missingWithoutUrl.append(path);
-                else dependencyDownloads.append(repairDownload(
-                    provider.candidatesFor(url), path, sha1,
-                    static_cast<qint64>(artifact.value("size").toDouble()),
-                    QFileInfo(path).fileName(), QStringLiteral("hmcl.install.libraries")));
-                scheduledPaths.insert(path);
+        const QString classifier = nativeClassifierForLibrary(library);
+        if (!classifier.isEmpty()) {
+            const QJsonObject nativeArtifact = downloads.value("classifiers").toObject()
+                                                   .value(classifier).toObject();
+            QString nativeRelative = nativeArtifact.value("path").toString();
+            if (nativeRelative.isEmpty()) {
+                QString coordinate = library.value("name").toString();
+                const QStringList parts = coordinate.split(u':');
+                if (parts.size() >= 3) {
+                    QString group = parts.at(0);
+                    group.replace(u'.', u'/');
+                    const QString artifactName = parts.at(1);
+                    const QString artifactVersion = parts.at(2);
+                    nativeRelative = group + u'/' + artifactName + u'/' + artifactVersion
+                        + u'/' + artifactName + u'-' + artifactVersion + u'-'
+                        + classifier + QStringLiteral(".jar");
+                }
             }
+            if (nativeRelative.isEmpty()) continue;
+
+            const QString nativePath = librariesRoot + u'/' + nativeRelative;
+            if (!options.nativeArchives.contains(nativePath))
+                options.nativeArchives.append(nativePath);
+            const QString nativeSha1 = nativeArtifact.value("sha1").toString();
+            if (!fileMatchesSha1(nativePath, nativeSha1)
+                    && !scheduledPaths.contains(nativePath)) {
+                const QString nativeUrl = libraryUrlFor(library, nativeArtifact,
+                                                        nativeRelative);
+                if (nativeUrl.isEmpty()) missingWithoutUrl.append(nativePath);
+                else dependencyDownloads.append(repairDownload(
+                    provider.candidatesFor(nativeUrl), nativePath, nativeSha1,
+                    static_cast<qint64>(nativeArtifact.value("size").toDouble()),
+                    QFileInfo(nativePath).fileName(),
+                    QStringLiteral("hmcl.install.libraries")));
+                scheduledPaths.insert(nativePath);
+            }
+            continue;
         }
 
-        const QString classifier = nativeClassifierForLibrary(library);
-        if (classifier.isEmpty()) continue;
-        const QJsonObject nativeArtifact = downloads.value("classifiers").toObject()
-                                               .value(classifier).toObject();
-        QString nativeRelative = nativeArtifact.value("path").toString();
-        if (nativeRelative.isEmpty()) continue;
-        const QString nativePath = librariesRoot + "/" + nativeRelative;
-        if (!options.nativeArchives.contains(nativePath)) options.nativeArchives.append(nativePath);
-        const QString nativeSha1 = nativeArtifact.value("sha1").toString();
-        if (!fileMatchesSha1(nativePath, nativeSha1) && !scheduledPaths.contains(nativePath)) {
-            const QString nativeUrl = libraryUrlFor(library, nativeArtifact, nativeRelative);
-            if (nativeUrl.isEmpty()) missingWithoutUrl.append(nativePath);
+        const QJsonObject artifact = downloads.value("artifact").toObject();
+        QString relative = artifact.value("path").toString();
+        if (relative.isEmpty())
+            relative = VersionRules::libraryPathFromName(
+                library.value("name").toString());
+        if (relative.isEmpty()) continue;
+
+        const QString path = librariesRoot + u'/' + relative;
+        const QString sha1 = artifact.value("sha1").toString();
+        if (!fileMatchesSha1(path, sha1) && !scheduledPaths.contains(path)) {
+            const QString url = libraryUrlFor(library, artifact, relative);
+            if (url.isEmpty()) missingWithoutUrl.append(path);
             else dependencyDownloads.append(repairDownload(
-                provider.candidatesFor(nativeUrl), nativePath, nativeSha1,
-                static_cast<qint64>(nativeArtifact.value("size").toDouble()),
-                QFileInfo(nativePath).fileName(), QStringLiteral("hmcl.install.libraries")));
-            scheduledPaths.insert(nativePath);
+                provider.candidatesFor(url), path, sha1,
+                static_cast<qint64>(artifact.value("size").toDouble()),
+                QFileInfo(path).fileName(),
+                QStringLiteral("hmcl.install.libraries")));
+            scheduledPaths.insert(path);
         }
     }
 
@@ -1014,8 +1373,8 @@ LaunchOptions InstanceService::createLaunchOptions(const QString &versionId,
     if (!customJvm.trimmed().isEmpty()) javaArguments << splitCommandLine(customJvm);
 
     const QJsonObject arguments = versionJson.value("arguments").toObject();
-    QStringList versionJvmArguments = parseArgumentList(arguments.value("jvm").toArray(),
-                                                        vars, enabledFeatures);
+    QStringList versionJvmArguments = collapseRepeatedArgumentBlocks(
+        parseArgumentList(arguments.value("jvm").toArray(), vars, enabledFeatures));
     bool hasClasspath = false;
     bool hasNativePath = false;
     for (const QString &argument : std::as_const(versionJvmArguments)) {
@@ -1028,8 +1387,8 @@ LaunchOptions InstanceService::createLaunchOptions(const QString &versionId,
     if (!hasClasspath) javaArguments << QStringLiteral("-cp") << classpath;
     javaArguments << versionJvmArguments;
 
-    QStringList gameArguments = parseArgumentList(arguments.value("game").toArray(),
-                                                  vars, enabledFeatures);
+    QStringList gameArguments = collapseRepeatedArgumentBlocks(
+        parseArgumentList(arguments.value("game").toArray(), vars, enabledFeatures));
     if (gameArguments.isEmpty()) {
         const QString legacy = versionJson.value("minecraftArguments").toString();
         if (!legacy.isEmpty()) {
@@ -1066,6 +1425,12 @@ LaunchOptions InstanceService::createLaunchOptions(const QString &versionId,
         const QString world = effectiveSettings.value("quickPlaySingleplayer").toString().trimmed();
         if (!world.isEmpty()) gameArguments << QStringLiteral("--quickPlaySingleplayer") << world;
     }
+
+    // HMCL root versions are patch containers. Older Qt-port builds merged
+    // both the root's pre-resolved arguments and its patches, which produced
+    // duplicate singleton options such as --version. Keep one value for each
+    // launcher-owned singleton option before appending user custom arguments.
+    gameArguments = deduplicateGameArguments(gameArguments);
 
     const QString customGameArguments = effectiveSettings.value("gameArguments").toString();
     if (!customGameArguments.trimmed().isEmpty())

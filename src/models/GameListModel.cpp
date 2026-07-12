@@ -3,6 +3,7 @@
 #include "game/InstanceService.h"
 
 #include <QJsonObject>
+#include <QRegularExpression>
 
 GameListModel::GameListModel(QObject *parent) : QAbstractListModel(parent) {}
 
@@ -33,12 +34,22 @@ QHash<int, QByteArray> GameListModel::roleNames() const {
 }
 
 QJsonArray GameListModel::filtered(const QJsonArray &rows) const {
-    if (m_search.trimmed().isEmpty()) return rows;
+    const QString text = m_search.trimmed();
+    if (text.isEmpty()) return rows;
+
+    const bool regexMode = text.startsWith(QStringLiteral("regex:"), Qt::CaseInsensitive);
+    const QRegularExpression expression(
+        regexMode ? text.mid(QStringLiteral("regex:").size())
+                  : QRegularExpression::escape(text),
+        QRegularExpression::CaseInsensitiveOption);
+
     QJsonArray out;
-    QString q = m_search.toLower();
-    for (const auto &v : rows) {
-        QJsonObject o = v.toObject();
-        if (o.value("title").toString().toLower().contains(q) || o.value("id").toString().toLower().contains(q)) out.append(o);
+    if (!expression.isValid()) return out;
+    for (const QJsonValue &value : rows) {
+        const QJsonObject object = value.toObject();
+        const QString corpus = object.value(QStringLiteral("id")).toString()
+            + u' ' + object.value(QStringLiteral("title")).toString();
+        if (expression.match(corpus).hasMatch()) out.append(object);
     }
     return out;
 }
@@ -65,12 +76,10 @@ void GameListModel::setSearch(const QString &text) {
 }
 
 void GameListModel::selectInstance(const QString &id) {
-    m_selectedId = id;
-    for (int i = 0; i < m_allRows.size(); ++i) {
-        auto o = m_allRows.at(i).toObject();
-        o["selected"] = o.value("id").toString() == id;
-        m_allRows[i] = o;
-    }
+    InstanceService service;
+    const QJsonObject payload = service.select(id);
+    m_allRows = payload.value(QStringLiteral("instances")).toArray();
+    m_selectedId = payload.value(QStringLiteral("selectedInstance")).toString();
     setRows(filtered(m_allRows));
 }
 

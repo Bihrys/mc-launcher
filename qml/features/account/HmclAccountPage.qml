@@ -15,7 +15,7 @@ Item {
     property string dialogMode: ""
     property string offlineName: "Steve"
     property string offlineAvatarUrl: ""
-    property string microsoftClientId: ""
+    property bool microsoftDialogOpen: false
     property string yggdrasilServer: ""
     property string yggdrasilUsername: ""
     property string yggdrasilPassword: ""
@@ -217,7 +217,7 @@ Item {
                             style: root.style
                             title: "Microsoft"
                             iconKind: "MICROSOFT"
-                            onClicked: root.openDialog("microsoft")
+                            onClicked: root.openMicrosoftDialog()
                         }
 
                         HmclNavMethodItem {
@@ -427,7 +427,7 @@ Item {
 
         anchors.fill: parent
         z: 900
-        visible: root.accountMenuOpen
+        visible: root.accountMenuOpen && !root.microsoftDialogOpen
 
         MouseArea {
             anchors.fill: parent
@@ -541,14 +541,28 @@ Item {
         }
     }
 
+    MicrosoftAccountLoginPane {
+        id: microsoftLoginPane
+        anchors.fill: parent
+        z: 1020
+        visible: root.microsoftDialogOpen && root.deleteIndex < 0
+        style: root.style
+        backend: root.backend
+
+        onCompleted: {
+            root.reloadAccounts()
+            root.microsoftDialogOpen = false
+        }
+        onCanceled: root.microsoftDialogOpen = false
+    }
+
     CreateAccountPane {
         id: createAccountPane
         anchors.fill: parent
         z: 1000
         visible: root.deleteIndex < 0
                  && (root.dialogMode === "offline"
-                     || root.dialogMode === "yggdrasil"
-                     || root.dialogMode === "microsoft")
+                     || root.dialogMode === "yggdrasil")
         style: root.style
         backend: root.backend
         mode: root.dialogMode
@@ -574,12 +588,6 @@ Item {
             createAccountPane.errorText = ""
             root.backend.loginYggdrasil(serverUrl, username, password)
             yggdrasilLoginPoller.restart()
-        }
-
-        onMicrosoftAccepted: function(clientId) {
-            root.backend.loginMicrosoftBrowser(clientId)
-            root.reloadAccounts()
-            root.closeDialog()
         }
 
         onCanceled: root.closeDialog()
@@ -643,235 +651,7 @@ Item {
         }
     }
 
-    Rectangle {
-        id: accountDialogOverlay
-
-        anchors.fill: parent
-        visible: false // replaced by HMCL account dialog components
-        z: 1000
-        color: "#80000000"
-
-        MouseArea {
-            anchors.fill: parent
-        }
-
-        Rectangle {
-            anchors.centerIn: parent
-            width: Math.min(parent.width - 64, 560)
-            height: dialogContent.implicitHeight + 34
-            radius: 4
-            color: root.style.cSurface
-            border.color: root.style.cBorder
-            border.width: 1
-            clip: true
-
-            ColumnLayout {
-                id: dialogContent
-
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.margins: 17
-                spacing: 14
-
-                Text {
-                    Layout.fillWidth: true
-                    text: root.dialogTitle()
-                    color: root.style.cTextOnSurface
-                    font.pixelSize: 18
-                    font.bold: true
-                    elide: Text.ElideRight
-                }
-
-                Text {
-                    Layout.fillWidth: true
-                    text: root.dialogSubtitle()
-                    color: root.style.cTextOnSurfaceVariant
-                    font.pixelSize: 12
-                    wrapMode: Text.WordWrap
-                }
-
-                RowLayout {
-                    id: offlineSkinPreview
-                    visible: root.dialogMode === "offline"
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 54
-                    spacing: 10
-
-                    AvatarBox {
-                        style: root.style
-                        source: root.offlineAvatarUrl
-                        fallbackText: root.offlineName.length > 0 ? root.offlineName.substring(0, 1).toUpperCase() : "?"
-                        size: 44
-                    }
-
-                    Column {
-                        Layout.fillWidth: true
-                        spacing: 3
-
-                        Text {
-                            width: parent.width
-                            text: "离线默认头像"
-                            color: root.style.cTextOnSurface
-                            font.pixelSize: 13
-                            font.bold: true
-                            elide: Text.ElideRight
-                        }
-
-                        Text {
-                            width: parent.width
-                            text: "按 HMCL/Minecraft 离线 UUID 从默认皮肤中选择，并裁剪头像。"
-                            color: root.style.cTextOnSurfaceVariant
-                            font.pixelSize: 11
-                            wrapMode: Text.WordWrap
-                        }
-                    }
-                }
-
-                AccountField {
-                    visible: root.dialogMode === "offline"
-                    Layout.fillWidth: true
-                    style: root.style
-                    label: "玩家名"
-                    textValue: root.offlineName
-                    placeholderText: "Steve"
-                    onEdited: function(value) {
-                        root.offlineName = value
-                        root.updateOfflinePreview()
-                    }
-                }
-
-                Rectangle {
-                    visible: root.dialogMode === "microsoft"
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 62
-                    radius: 4
-                    color: root.style.cSurfaceContainer
-                    border.color: root.style.cBorder
-                    border.width: 1
-
-                    Text {
-                        anchors.fill: parent
-                        anchors.margins: 10
-                        text: "当前后端使用浏览器 OAuth。需要你自己的 Azure Public Client ID。"
-                        color: root.style.cTextOnSurfaceVariant
-                        font.pixelSize: 12
-                        wrapMode: Text.WordWrap
-                        verticalAlignment: Text.AlignVCenter
-                    }
-                }
-
-                AccountField {
-                    visible: root.dialogMode === "microsoft"
-                    Layout.fillWidth: true
-                    style: root.style
-                    label: "Microsoft Client ID"
-                    textValue: root.microsoftClientId
-                    placeholderText: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                    onEdited: function(value) {
-                        root.microsoftClientId = value
-                    }
-                }
-
-                AccountField {
-                    visible: root.dialogMode === "yggdrasil"
-                    Layout.fillWidth: true
-                    style: root.style
-                    label: "服务器 API 根地址"
-                    textValue: root.yggdrasilServer
-                    placeholderText: "https://littleskin.cn/api/yggdrasil"
-                    onEdited: function(value) {
-                        root.yggdrasilServer = value
-                    }
-                }
-
-                AccountField {
-                    visible: root.dialogMode === "yggdrasil"
-                    Layout.fillWidth: true
-                    style: root.style
-                    label: "用户名 / 邮箱"
-                    textValue: root.yggdrasilUsername
-                    placeholderText: "name@example.com"
-                    onEdited: function(value) {
-                        root.yggdrasilUsername = value
-                    }
-                }
-
-                AccountField {
-                    visible: root.dialogMode === "yggdrasil"
-                    Layout.fillWidth: true
-                    style: root.style
-                    label: "密码"
-                    textValue: root.yggdrasilPassword
-                    placeholderText: "Password"
-                    password: true
-                    onEdited: function(value) {
-                        root.yggdrasilPassword = value
-                    }
-                }
-
-                AccountField {
-                    visible: root.dialogMode === "addServer"
-                    Layout.fillWidth: true
-                    style: root.style
-                    label: "服务器名称"
-                    textValue: root.addServerName
-                    placeholderText: "LittleSkin"
-                    onEdited: function(value) {
-                        root.addServerName = value
-                    }
-                }
-
-                AccountField {
-                    visible: root.dialogMode === "addServer"
-                    Layout.fillWidth: true
-                    style: root.style
-                    label: "服务器 API 根地址"
-                    textValue: root.addServerUrl
-                    placeholderText: "https://example.com/api/yggdrasil"
-                    onEdited: function(value) {
-                        root.addServerUrl = value
-                    }
-                }
-
-                Text {
-                    visible: root.backend.output.length > 0
-                             && (root.dialogMode === "microsoft" || root.dialogMode === "yggdrasil")
-                    Layout.fillWidth: true
-                    text: root.backend.output
-                    color: root.style.cTextOnSurfaceVariant
-                    font.pixelSize: 11
-                    wrapMode: Text.WordWrap
-                    maximumLineCount: 6
-                    elide: Text.ElideRight
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 8
-
-                    Item {
-                        Layout.fillWidth: true
-                    }
-
-                    DialogButton {
-                        style: root.style
-                        text: "取消"
-                        onClicked: root.closeDialog()
-                    }
-
-                    DialogButton {
-                        style: root.style
-                        text: root.dialogAcceptText()
-                        primary: true
-                        onClicked: root.acceptDialog()
-                    }
-                }
-            }
-        }
-    }
-
-    Rectangle {
+Rectangle {
         id: deleteOverlay
 
         anchors.fill: parent
@@ -1199,10 +979,17 @@ Item {
         root.accountMenuIndex = -1
     }
 
+    function openMicrosoftDialog() {
+        root.closeAccountMenu()
+        root.dialogMode = ""
+        root.microsoftDialogOpen = true
+        microsoftLoginPane.begin()
+    }
+
     function openDialog(mode) {
         root.dialogMode = mode
         root.accountErrorText = ""
-        if (mode === "offline" || mode === "yggdrasil" || mode === "microsoft") {
+        if (mode === "offline" || mode === "yggdrasil") {
             createAccountPane.begin(mode)
         } else if (mode === "addServer") {
             addAuthServerPane.begin()
@@ -1217,7 +1004,6 @@ Item {
 
     function dialogTitle() {
         if (root.dialogMode === "offline") return "添加离线账户"
-        if (root.dialogMode === "microsoft") return "添加 Microsoft 账户"
         if (root.dialogMode === "yggdrasil") return "添加第三方服务器账户"
         if (root.dialogMode === "addServer") return "添加认证服务器"
         return ""
@@ -1225,7 +1011,6 @@ Item {
 
     function dialogSubtitle() {
         if (root.dialogMode === "offline") return "创建一个本地离线账户。"
-        if (root.dialogMode === "microsoft") return "打开系统浏览器完成 Microsoft 正版登录。"
         if (root.dialogMode === "yggdrasil") return "适用于 LittleSkin、Blessing Skin 或其他 Yggdrasil/authlib-injector 兼容服务器。"
         if (root.dialogMode === "addServer") return "添加后会出现在左侧创建账户列表中。"
         return ""
@@ -1239,13 +1024,6 @@ Item {
     function acceptDialog() {
         if (root.dialogMode === "offline") {
             root.backend.loginOffline(root.offlineName)
-            root.reloadAccounts()
-            root.closeDialog()
-            return
-        }
-
-        if (root.dialogMode === "microsoft") {
-            root.backend.loginMicrosoftBrowser(root.microsoftClientId)
             root.reloadAccounts()
             root.closeDialog()
             return
@@ -1386,6 +1164,13 @@ Item {
                 root.taskAccountIndex = -1
                 root.taskKind = ""
                 root.pendingSkinUploadIndex = -1
+
+                if (completedKind === "refresh" && status.requiresMicrosoftLogin) {
+                    root.openMicrosoftDialog()
+                    microsoftLoginPane.errorText = status.message || "Microsoft 登录状态已失效，请重新登录。"
+                    microsoftLoginPane.stateName = "failed"
+                    return
+                }
 
                 if (completedKind === "refresh" && status.requiresPassword) {
                     if (completedIndex >= 0 && completedIndex < accountsModel.count) {
@@ -1794,8 +1579,13 @@ Item {
 
         height: 48
         radius: 4
-        color: style.cSurfaceContainer
+        color: card.selected ? style.cNavSelected
+                             : (cardMouse.containsMouse ? style.cSurfaceContainerHigh
+                                                        : style.cSurfaceContainer)
         border.color: "transparent"
+        Behavior on color {
+            ColorAnimation { duration: card.style.animationsEnabled ? card.style.motionShort4 : 0 }
+        }
         border.width: 0
 
         MouseArea {

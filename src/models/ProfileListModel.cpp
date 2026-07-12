@@ -17,7 +17,7 @@ QVariant ProfileListModel::data(const QModelIndex &index, int role) const {
     default: return {};
     }
 }
-QHash<int, QByteArray> ProfileListModel::roleNames() const { return {{ProfileIdRole, "profileId"}, {ProfileNameRole, "profileName"}, {ProfilePathRole, "profilePath"}, {ProfileSelectedRole, "selected"}}; }
+QHash<int, QByteArray> ProfileListModel::roleNames() const { return {{ProfileIdRole, "profileId"}, {ProfileNameRole, "profileName"}, {ProfilePathRole, "profilePath"}, {ProfileSelectedRole, "profileSelected"}}; }
 void ProfileListModel::refresh() {
     InstanceService s;
     auto rows = s.list().value("profiles").toArray();

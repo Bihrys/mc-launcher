@@ -61,6 +61,7 @@ Item {
     MouseArea { anchors.fill: parent }
 
     Rectangle {
+        id: dialog
         anchors.centerIn: parent
         width: Math.min(root.width - 48, 740)
         height: Math.min(root.height - 48, 390)
@@ -68,17 +69,31 @@ Item {
         color: root.style.cSurface
         border.color: root.style.cBorder
         border.width: 1
+        scale: root.visible ? 1 : 0.97
+        opacity: root.visible ? 1 : 0
+        Behavior on scale {
+            NumberAnimation {
+                duration: root.style.animationsEnabled ? root.style.motionShort4 : 0
+                easing.type: Easing.OutCubic
+            }
+        }
+        Behavior on opacity {
+            NumberAnimation { duration: root.style.animationsEnabled ? root.style.motionShort4 : 0 }
+        }
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 17
+            anchors.leftMargin: 24
+            anchors.rightMargin: 24
+            anchors.topMargin: 24
+            anchors.bottomMargin: 16
             spacing: 12
 
             Text {
                 Layout.fillWidth: true
                 text: "皮肤"
                 color: root.style.cTextOnSurface
-                font.pixelSize: 18
+                font.pixelSize: 20
                 font.bold: true
             }
 

@@ -44,6 +44,9 @@ ui_*.h
 /*.tar.gz
 /*.7z
 
+# Project-local documentation (not published)
+/docs/
+
 # Local development notes
 /HMCL*.md
 /*记录*.md
@@ -64,4 +67,3 @@ Thumbs.db
 /.vscode/settings.json
 /.vscode/tasks.json
 /.vscode/launch.json
-/docs/
