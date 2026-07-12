@@ -20,12 +20,16 @@ Item {
     property string scanUri: ""
     property string userCode: ""
     property string qrCodeSource: ""
+    property string loginFlow: "device" // device | browser
+    property int beginGeneration: 0
     property bool bodyOnly: false
 
     signal completed()
     signal canceled()
 
     function begin() {
+        beginGeneration += 1
+        var generation = beginGeneration
         backend.cancelMicrosoftLogin()
         taskPoller.stop()
         task = ({ "active": false, "state": "idle" })
@@ -35,16 +39,34 @@ Item {
         scanUri = ""
         userCode = ""
         qrCodeSource = ""
+        loginFlow = "device"
         try {
             configuration = JSON.parse(backend.microsoftClientConfiguration())
         } catch (e) {
             configuration = ({ "configured": false })
         }
-        stateName = configuration.configured ? "init" : "missingConfiguration"
+
+        if (!configuration.configured) {
+            stateName = "missingConfiguration"
+            stateChange.restart()
+            return
+        }
+
+        // HMCL device-code path: clicking Microsoft immediately requests a code,
+        // opens the system browser, and waits for the user to enter that code.
+        stateName = "requestingDeviceCode"
         stateChange.restart()
+        Qt.callLater(function() {
+            if (generation !== root.beginGeneration
+                    || !root.visible
+                    || root.stateName !== "requestingDeviceCode")
+                return
+            root.startDevice()
+        })
     }
 
     function startBrowser() {
+        loginFlow = "browser"
         errorText = ""
         stateName = "startingBrowser"
         backend.loginMicrosoftBrowser()
@@ -53,6 +75,7 @@ Item {
     }
 
     function startDevice() {
+        loginFlow = "device"
         errorText = ""
         stateName = "requestingDeviceCode"
         backend.loginMicrosoftDeviceCode()
@@ -61,8 +84,16 @@ Item {
     }
 
     function cancelLogin() {
+        beginGeneration += 1
         backend.cancelMicrosoftLogin()
         taskPoller.stop()
+        task = ({ "active": false, "state": "cancelled" })
+        authorizationUrl = ""
+        verificationUri = ""
+        scanUri = ""
+        userCode = ""
+        qrCodeSource = ""
+        stateName = "cancelled"
         canceled()
     }
 
@@ -99,7 +130,9 @@ Item {
     }
 
     function openCurrentUrl() {
-        var target = stateName === "waitForDevice" ? (scanUri || verificationUri) : authorizationUrl
+        // The QR code may contain the prefilled OTC URL, while the browser button
+        // follows HMCL and opens the verification page where the user enters the code.
+        var target = stateName === "waitForDevice" ? verificationUri : authorizationUrl
         if (target && target.length > 0)
             backend.openUrl(target)
     }
@@ -215,7 +248,7 @@ Item {
                         visible: root.stateName === "missingConfiguration"
                         style: root.style
                         kind: "warning"
-                        text: "当前构建未配置 Microsoft Public Client ID，因此正版登录不可用。请按下方路径创建配置文件，并在 Microsoft Entra 中注册对应回调地址。"
+                        text: "当前构建未配置 Microsoft Public Client ID，因此正版登录不可用。请先在 Microsoft Entra 注册桌面公共客户端，并把 Application (client) ID 写入下方配置文件。设备代码登录不需要 Client Secret。"
                     }
 
                     ColumnLayout {
@@ -225,9 +258,11 @@ Item {
 
                         LabelValue { style: root.style; label: "配置文件"; value: root.configuration.configPath || "~/.config/mc-launcher-qt-cpp/microsoft-oauth.json" }
                         LabelValue { style: root.style; label: "配置键"; value: "clientId" }
+                        LabelValue { style: root.style; label: "账户类型"; value: "仅个人 Microsoft 账户" }
+                        LabelValue { style: root.style; label: "公共客户端"; value: "Allow public client flows = Yes" }
                         Text {
                             Layout.fillWidth: true
-                            text: "必须注册的回调地址：\n" + ((root.configuration.redirectUris || []).join("\n"))
+                            text: "浏览器授权备用回调：\n" + ((root.configuration.redirectUris || []).join("\n"))
                             color: root.style.cTextOnSurfaceVariant
                             font.pixelSize: 11
                             wrapMode: Text.WrapAnywhere
@@ -260,7 +295,7 @@ Item {
                             Layout.fillWidth: true
                             style: root.style
                             kind: "info"
-                            text: "在浏览器中打开 Microsoft 设备登录页面，然后输入下方代码。完成授权后，启动器会自动继续 Xbox 与 Minecraft 验证。"
+                            text: "浏览器已打开。请在 Microsoft 页面输入下方代码，再使用拥有 Minecraft Java 版的 Microsoft 账户完成登录。启动器不会读取或保存账户密码。"
                         }
 
                         RowLayout {
@@ -302,7 +337,7 @@ Item {
                                 id: codeLabel
                                 anchors.centerIn: parent
                                 text: root.userCode
-                                color: root.style.cTextOnSurface
+                                color: root.style.cButtonSelected
                                 font.pixelSize: 22
                                 font.bold: true
                                 font.family: "monospace"
@@ -352,12 +387,12 @@ Item {
 
                         LinkLabel {
                             style: root.style
-                            text: root.stateName === "waitForDevice" ? "改用浏览器授权" : "改用设备代码"
+                            text: root.loginFlow === "device" ? "改用浏览器授权" : "改用设备代码"
                             visible: root.configuration.configured
                                      && root.stateName !== "missingConfiguration"
                                      && root.stateName !== "authenticating"
                             onClicked: {
-                                if (root.stateName === "waitForDevice") root.startBrowser()
+                                if (root.loginFlow === "device") root.startBrowser()
                                 else root.startDevice()
                             }
                         }
@@ -385,18 +420,20 @@ Item {
                 PaneButton {
                     style: root.style
                     text: root.stateName === "waitForBrowser" || root.stateName === "waitForDevice"
-                          ? "打开浏览器" : "登录"
+                          ? "打开浏览器" : "重试"
                     primary: true
-                    visible: root.stateName === "init"
-                             || root.stateName === "waitForBrowser"
+                    visible: root.stateName === "waitForBrowser"
                              || root.stateName === "waitForDevice"
                              || root.stateName === "failed"
                     enabled: root.configuration.configured
                     onClicked: {
-                        if (root.stateName === "waitForBrowser" || root.stateName === "waitForDevice")
+                        if (root.stateName === "waitForBrowser" || root.stateName === "waitForDevice") {
                             root.openCurrentUrl()
-                        else
+                        } else if (root.loginFlow === "device") {
+                            root.startDevice()
+                        } else {
                             root.startBrowser()
+                        }
                     }
                 }
 

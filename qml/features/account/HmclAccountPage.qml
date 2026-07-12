@@ -1485,6 +1485,8 @@ Rectangle {
             onPressed: function(event) {
                 ripple.press(event.x, event.y)
             }
+            onReleased: ripple.release()
+            onCanceled: ripple.cancel()
 
             onClicked: item.clicked()
         }

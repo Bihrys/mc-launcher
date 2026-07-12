@@ -881,7 +881,14 @@ void LauncherBackend::loginMicrosoftDeviceCode() {
             {"message", codeResult.value("message")},
             {"userCode", userCode}, {"verificationUri", verificationUri},
             {"scanUri", scanUri}, {"expiresIn", expiresIn}, {"interval", interval}});
-        QDesktopServices::openUrl(QUrl(scanUri));
+        // Let QML render the device code before the browser takes focus. The
+        // browser opens HMCL's verification page; the QR code separately uses
+        // scanUri so scanning can prefill the OTC code.
+        QTimer::singleShot(180, this, [this, serial, verificationUri]() {
+            if (serial != m_microsoftRequestSerial) return;
+            if (m_microsoftCancellation && m_microsoftCancellation->load()) return;
+            QDesktopServices::openUrl(QUrl(verificationUri));
+        });
 
         auto *loginWatcher = new QFutureWatcher<QJsonObject>(this);
         const auto cancellation = m_microsoftCancellation;
