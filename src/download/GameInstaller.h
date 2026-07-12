@@ -52,7 +52,7 @@ public:
     // caller polls task() until status is a terminal value.
     void start(const QString &source, const QString &gameVersion,
                const QString &instanceName, const QString &loaderKind,
-               const QString &loaderVersion);
+               const QString &loaderVersion, const QString &addonsJson);
 
     // Thread-safe snapshot of the current status object.
     QJsonObject task() const;
@@ -65,7 +65,7 @@ public:
 private:
     void runPipeline(const QString &source, const QString &gameVersion,
                      const QString &instanceName, const QString &loaderKind,
-                     const QString &loaderVersion);
+                     const QString &loaderVersion, const QString &addonsJson);
 
     void setTask(const QJsonObject &task);
     void mergeTask(const QJsonObject &patch);

@@ -24,8 +24,9 @@ void DownloadService::startInstall(const QString &source,
                                    const QString &gameVersion,
                                    const QString &instanceName,
                                    const QString &loaderKind,
-                                   const QString &loaderVersion) {
-    m_installer.start(source, gameVersion, instanceName, loaderKind, loaderVersion);
+                                   const QString &loaderVersion,
+                                   const QString &addonsJson) {
+    m_installer.start(source, gameVersion, instanceName, loaderKind, loaderVersion, addonsJson);
 }
 
 QJsonObject DownloadService::pollTask() {

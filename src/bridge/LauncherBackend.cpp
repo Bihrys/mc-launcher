@@ -13,6 +13,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonParseError>
+#include <QPointer>
 #include <QRegularExpression>
 #include <QSysInfo>
 #include <QStringConverter>
@@ -77,6 +78,7 @@ LauncherBackend::LauncherBackend(QObject *parent) : QObject(parent) {
     m_javaTaskJson = R"({"active":false,"runtimes":[]})";
     m_accountTaskJson = R"({"active":false})";
     m_yggdrasilTaskJson = R"({"active":false})";
+    m_authServerProbeTaskJson = R"({"active":false})";
 
     refreshLauncherSettings();
     refreshAuthServers();
@@ -187,28 +189,51 @@ void LauncherBackend::setAccountsPayload(const QJsonObject &payload) {
 
 void LauncherBackend::finishJavaOperation(const QJsonObject &result,
                                           const QString &fallbackTitle) {
-    const bool success = result.value("success").toBool(false);
+    const bool cancelled = result.value("cancelled").toBool(false);
+    const bool success = result.value("success").toBool(false) && !cancelled;
     const QString message = result.value("message").toString(
-        success ? fallbackTitle : QStringLiteral("Java 操作失败。"));
+        cancelled ? QStringLiteral("Java 操作已取消。")
+                  : (success ? fallbackTitle : QStringLiteral("Java 操作失败。")));
 
     if (result.value("runtimes").isArray()) {
         setString(m_detectedJavaJson, stringify(result),
                   &LauncherBackend::detectedJavaJsonChanged);
     }
 
+    QJsonArray stages;
+    if (success) {
+        stages.append(QJsonObject{{"id", "hmcl.java.finished"},
+                                  {"title", fallbackTitle},
+                                  {"status", "success"},
+                                  {"count", 1}, {"total", 1}});
+    } else if (cancelled) {
+        stages.append(QJsonObject{{"id", "hmcl.java.cancelled"},
+                                  {"title", "已取消"},
+                                  {"status", "failed"},
+                                  {"count", 0}, {"total", 1}});
+    } else {
+        stages.append(QJsonObject{{"id", "hmcl.java.failed"},
+                                  {"title", "Java 操作失败"},
+                                  {"status", "failed"},
+                                  {"count", 0}, {"total", 1}});
+    }
+
     m_javaTaskJson = stringify(QJsonObject{
-        {"active", false},
-        {"success", success},
+        {"kind", "java"}, {"active", false}, {"success", success},
+        {"cancelled", cancelled}, {"canCancel", false},
+        {"status", cancelled ? "cancelled" : (success ? "finished" : "failed")},
         {"percent", success ? 100 : 0},
-        {"title", success ? fallbackTitle : QStringLiteral("Java 操作失败")},
-        {"message", message},
+        {"title", cancelled ? QStringLiteral("Java 下载已取消")
+                             : (success ? fallbackTitle : QStringLiteral("Java 操作失败"))},
+        {"message", message}, {"speed", 0}, {"speedText", "0 B/s"},
+        {"files", QJsonArray{}}, {"stages", stages},
         {"runtimes", result.value("runtimes").toArray()},
         {"disabled", result.value("disabled").toArray()},
         {"result", result}
     });
     setOutput(message);
     AppLogger::info("backend.state", "java_task_changed", QString(), {
-        {"success", success},
+        {"success", success}, {"cancelled", cancelled},
         {"runtimeCount", result.value("runtimes").toArray().size()},
         {"disabledCount", result.value("disabled").toArray().size()},
         {"summary", AppLogger::summarizeJson(m_javaTaskJson)}
@@ -219,9 +244,15 @@ void LauncherBackend::startJavaOperation(const QString &title,
                                          const QString &message,
                                          std::function<QJsonObject()> operation) {
     const quint64 requestSerial = ++m_javaRequestSerial;
+    m_javaCancellation.reset();
     m_javaTaskJson = stringify(QJsonObject{
-        {"active", true}, {"success", false}, {"percent", 5},
-        {"title", title}, {"message", message}
+        {"kind", "java"}, {"active", true}, {"success", false},
+        {"cancelled", false}, {"canCancel", false}, {"status", "preparing"},
+        {"percent", 5}, {"title", title}, {"message", message},
+        {"speed", 0}, {"speedText", "0 B/s"}, {"files", QJsonArray{}},
+        {"stages", QJsonArray{QJsonObject{{"id", "hmcl.java.operation"},
+                                           {"title", message}, {"status", "running"},
+                                           {"count", 0}, {"total", 1}}}}
     });
     AppLogger::info("backend.state", "java_task_changed", QString(), {
         {"requestSerial", static_cast<double>(requestSerial)},
@@ -277,14 +308,65 @@ void LauncherBackend::downloadJava(const QString &distribution,
                             QStringLiteral("Java 下载完成"));
         return;
     }
+
+    const quint64 requestSerial = ++m_javaRequestSerial;
     const QString dist = distribution;
     const QString package = packageType;
-    startJavaOperation(QStringLiteral("Java 下载完成"),
-                       QStringLiteral("正在获取并安装 Java。"),
-                       [dist, javaMajor, package]() {
-        JavaService service;
-        return service.downloadJava(dist, javaMajor, package);
+    m_javaCancellation = std::make_shared<std::atomic_bool>(false);
+    const auto cancellation = m_javaCancellation;
+
+    m_javaTaskJson = stringify(QJsonObject{
+        {"kind", "java"}, {"active", true}, {"success", false},
+        {"cancelled", false}, {"canCancel", true}, {"status", "preparing"},
+        {"percent", 2}, {"title", QString("准备下载 Java %1").arg(javaMajor)},
+        {"message", QStringLiteral("正在获取下载信息。")},
+        {"speed", 0}, {"speedText", "0 B/s"}, {"files", QJsonArray{}},
+        {"stages", QJsonArray{QJsonObject{{"id", "hmcl.java.metadata"},
+                                           {"title", "获取 Java 下载信息"},
+                                           {"status", "running"},
+                                           {"count", 0}, {"total", 1}}}}
     });
+
+    QPointer<LauncherBackend> guard(this);
+    auto progressCallback = [guard, requestSerial](const QJsonObject &status) {
+        if (!guard) return;
+        QMetaObject::invokeMethod(guard, [guard, requestSerial, status]() {
+            if (!guard || requestSerial != guard->m_javaRequestSerial) return;
+            // The global task dialog polls this value. Do not synchronously
+            // flush a disk log for every network buffer; that I/O was capable
+            // of reducing throughput during long Java downloads.
+            guard->m_javaTaskJson = guard->stringify(status);
+        }, Qt::QueuedConnection);
+    };
+
+    auto *watcher = new QFutureWatcher<QJsonObject>(this);
+    connect(watcher, &QFutureWatcher<QJsonObject>::finished, this,
+            [this, watcher, requestSerial]() {
+        const QJsonObject result = watcher->result();
+        watcher->deleteLater();
+        if (requestSerial != m_javaRequestSerial) return;
+        m_javaCancellation.reset();
+        finishJavaOperation(result, QStringLiteral("Java 下载完成"));
+    });
+    watcher->setFuture(QtConcurrent::run(
+        [dist, javaMajor, package, progressCallback, cancellation]() {
+            JavaService service;
+            return service.downloadJava(dist, javaMajor, package,
+                                        progressCallback, cancellation);
+        }));
+}
+
+void LauncherBackend::cancelJavaTask() {
+    AppLogScope scope("backend", "cancelJavaTask");
+    if (m_javaCancellation) m_javaCancellation->store(true);
+
+    QJsonObject status = JsonUtil::objectFromString(m_javaTaskJson, {});
+    if (!status.value("active").toBool()) return;
+    status.insert("status", "cancelling");
+    status.insert("title", "正在取消 Java 下载");
+    status.insert("message", "正在中止网络请求并清理临时文件。" );
+    status.insert("canCancel", false);
+    m_javaTaskJson = stringify(status);
 }
 
 void LauncherBackend::addJavaPath(const QString &path) {
@@ -388,18 +470,50 @@ void LauncherBackend::loginOffline(const QString &username) {
     setOutput("离线账户添加完成：" + m_currentAccountName);
 }
 
+void LauncherBackend::loginOfflineWithUuid(const QString &username,
+                                           const QString &uuid) {
+    AppLogScope scope("backend", "loginOfflineWithUuid", {
+        {"username", username}, {"uuidProvided", !uuid.trimmed().isEmpty()}
+    });
+    const auto payload = m_accounts.addOffline(username, uuid);
+    setAccountsPayload(payload);
+    setOutput("离线账户添加完成：" + m_currentAccountName);
+}
+
 void LauncherBackend::loginYggdrasil(const QString &serverUrl, const QString &username,
                                      const QString &password) {
     AppLogScope scope("backend", "loginYggdrasil", {
         {"serverUrl", serverUrl}, {"username", username}, {"passwordLength", password.size()}
     });
-    auto payload = m_accounts.addYggdrasilPlaceholder(serverUrl, username);
-    setAccountsPayload(payload);
-    m_yggdrasilTaskJson = R"({"active":false,"success":true,"message":"第三方账户占位已创建"})";
-    AppLogger::info("backend.state", "yggdrasil_task_changed", QString(), {
-        {"summary", AppLogger::summarizeJson(m_yggdrasilTaskJson)}
+    const quint64 serial = ++m_accountRequestSerial;
+    m_yggdrasilTaskJson = stringify(QJsonObject{{"active", true}, {"success", false},
+        {"title", "正在登录"}, {"message", "正在连接第三方认证服务器…"}, {"percent", 20}});
+
+    auto *watcher = new QFutureWatcher<QJsonObject>(this);
+    connect(watcher, &QFutureWatcher<QJsonObject>::finished, this, [this, watcher, serial]() {
+        const QJsonObject result = watcher->result();
+        watcher->deleteLater();
+        if (serial != m_accountRequestSerial) return;
+        const bool success = result.value("success").toBool(false);
+        const bool requiresSelection = result.value("requiresProfileSelection").toBool(false);
+        if (result.value("accounts").isArray())
+            setAccountsPayload(QJsonObject{{"accounts", result.value("accounts").toArray()}});
+        if (requiresSelection) {
+            setString(m_pendingYggdrasilProfilesJson, stringify(result),
+                      &LauncherBackend::pendingYggdrasilProfilesJsonChanged);
+        } else {
+            setString(m_pendingYggdrasilProfilesJson, QStringLiteral("{}"),
+                      &LauncherBackend::pendingYggdrasilProfilesJsonChanged);
+        }
+        m_yggdrasilTaskJson = stringify(QJsonObject{{"active", false}, {"success", success},
+            {"requiresProfileSelection", requiresSelection},
+            {"message", result.value("message").toString(success ? "登录完成" : "登录失败")},
+            {"percent", success ? 100 : 0}});
+        setOutput(result.value("message").toString());
     });
-    setOutput("第三方账户占位已创建。真实登录后续按 HMCL authlib-injector/Yggdrasil 流程接入。");
+    watcher->setFuture(QtConcurrent::run([this, serverUrl, username, password]() {
+        return m_accounts.authenticateYggdrasil(serverUrl, username, password);
+    }));
 }
 
 QString LauncherBackend::pollYggdrasilLoginTask() { return m_yggdrasilTaskJson; }
@@ -416,6 +530,15 @@ void LauncherBackend::loginMicrosoftBrowser(const QString &clientId) {
 
 void LauncherBackend::selectYggdrasilProfile(const QString &index) {
     AppLogScope scope("backend", "selectYggdrasilProfile", {{"index", index}});
+    const QJsonObject result = m_accounts.selectPendingYggdrasilProfile(index.toInt());
+    if (result.value("accounts").isArray())
+        setAccountsPayload(QJsonObject{{"accounts", result.value("accounts").toArray()}});
+    setString(m_pendingYggdrasilProfilesJson, QStringLiteral("{}"),
+              &LauncherBackend::pendingYggdrasilProfilesJsonChanged);
+    m_yggdrasilTaskJson = stringify(QJsonObject{{"active", false},
+        {"success", result.value("success").toBool(false)},
+        {"message", result.value("message").toString()}});
+    setOutput(result.value("message").toString());
 }
 
 QString LauncherBackend::refreshAccounts() {
@@ -430,6 +553,43 @@ QString LauncherBackend::refreshAuthServers() {
     setString(m_authServersJson, stringify(m_accounts.authServers()),
               &LauncherBackend::authServersJsonChanged);
     return m_authServersJson;
+}
+
+QString LauncherBackend::probeAuthServer(const QString &url) {
+    AppLogScope scope("backend", "probeAuthServer", {{"url", url}});
+    return stringify(m_accounts.probeAuthServer(url));
+}
+
+void LauncherBackend::startProbeAuthServer(const QString &url) {
+    AppLogScope scope("backend", "startProbeAuthServer", {{"url", url}});
+    const quint64 serial = ++m_authServerProbeRequestSerial;
+    m_authServerProbeTaskJson = stringify(QJsonObject{
+        {"active", true}, {"success", false}, {"percent", 15},
+        {"title", "正在连接认证服务器"}, {"message", url}
+    });
+
+    auto *watcher = new QFutureWatcher<QJsonObject>(this);
+    connect(watcher, &QFutureWatcher<QJsonObject>::finished, this,
+            [this, watcher, serial]() {
+        const QJsonObject result = watcher->result();
+        watcher->deleteLater();
+        if (serial != m_authServerProbeRequestSerial) return;
+        QJsonObject task = result;
+        task.insert("active", false);
+        task.insert("percent", result.value("success").toBool(false) ? 100 : 0);
+        task.insert("title", result.value("success").toBool(false)
+                                  ? QStringLiteral("认证服务器信息已获取")
+                                  : QStringLiteral("无法连接认证服务器"));
+        m_authServerProbeTaskJson = stringify(task);
+        setOutput(result.value("message").toString());
+    });
+    watcher->setFuture(QtConcurrent::run([this, url]() {
+        return m_accounts.probeAuthServer(url);
+    }));
+}
+
+QString LauncherBackend::pollAuthServerProbeTask() {
+    return m_authServerProbeTaskJson;
 }
 
 QString LauncherBackend::addAuthServer(const QString &name, const QString &url) {
@@ -449,6 +609,19 @@ QString LauncherBackend::deleteAuthServer(const QString &index) {
 QString LauncherBackend::offlineAvatarPreview(const QString &username) {
     AppLogger::debug("backend", "offlineAvatarPreview", QString(), {{"username", username}});
     return m_accounts.offlineAvatarPreview(username);
+}
+
+QString LauncherBackend::setOfflineSkin(const QString &index, const QString &fileUrl,
+                                               const QString &capeFileUrl, const QString &model,
+                                               const QString &cslApi, const QString &skinType) {
+    AppLogScope scope("backend", "setOfflineSkin", {
+        {"index", index}, {"model", model}, {"skinType", skinType}
+    });
+    const QJsonObject payload = m_accounts.setOfflineSkin(index.toInt(), fileUrl, capeFileUrl,
+                                                           model, cslApi, skinType);
+    setAccountsPayload(payload);
+    setOutput(QStringLiteral("离线账户皮肤已更新。"));
+    return m_accountsJson;
 }
 
 void LauncherBackend::switchAccount(const QString &index) {
@@ -502,10 +675,95 @@ void LauncherBackend::deleteAccount(const QString &index) {
 
 void LauncherBackend::startRefreshAccount(const QString &index) {
     AppLogScope scope("backend", "startRefreshAccount", {{"index", index}});
-    m_accountTaskJson = R"({"active":false,"success":true,"message":"刷新完成"})";
-    AppLogger::info("backend.state", "account_task_changed", QString(), {
-        {"summary", AppLogger::summarizeJson(m_accountTaskJson)}
+    const int accountIndex = index.toInt();
+    const quint64 serial = ++m_accountRequestSerial;
+    m_accountTaskJson = stringify(QJsonObject{
+        {"active", true}, {"success", false}, {"requiresPassword", false},
+        {"kind", "refresh"}, {"index", accountIndex}, {"percent", 20},
+        {"title", "正在刷新账户"}, {"message", "正在验证账户登录状态…"}
     });
+
+    auto *watcher = new QFutureWatcher<QJsonObject>(this);
+    connect(watcher, &QFutureWatcher<QJsonObject>::finished, this,
+            [this, watcher, serial, accountIndex]() {
+        const QJsonObject result = watcher->result();
+        watcher->deleteLater();
+        if (serial != m_accountRequestSerial) return;
+
+        const bool success = result.value("success").toBool(false);
+        const bool requiresPassword = result.value("requiresPassword").toBool(false);
+        if (success && result.value("accounts").isArray()) {
+            setAccountsPayload(QJsonObject{{"accounts", result.value("accounts").toArray()}});
+        }
+
+        QJsonObject task = result;
+        task.insert("active", false);
+        task.insert("success", success);
+        task.insert("requiresPassword", requiresPassword);
+        task.insert("kind", "refresh");
+        task.insert("index", accountIndex);
+        task.insert("percent", success ? 100 : 0);
+        task.insert("title", success ? QStringLiteral("账户刷新完成")
+                                      : (requiresPassword
+                                             ? QStringLiteral("需要重新登录")
+                                             : QStringLiteral("账户刷新失败")));
+        if (success) task.insert("accountsJson", m_accountsJson);
+        m_accountTaskJson = stringify(task);
+        setOutput(task.value("message").toString());
+        AppLogger::info("backend.state", "account_task_changed", QString(), {
+            {"success", success}, {"requiresPassword", requiresPassword},
+            {"summary", AppLogger::summarizeJson(m_accountTaskJson)}
+        });
+    });
+    watcher->setFuture(QtConcurrent::run([this, accountIndex]() {
+        return m_accounts.refreshAccount(accountIndex);
+    }));
+}
+
+void LauncherBackend::reauthenticateYggdrasil(const QString &index,
+                                               const QString &password) {
+    AppLogScope scope("backend", "reauthenticateYggdrasil", {
+        {"index", index}, {"passwordLength", password.size()}
+    });
+    const int accountIndex = index.toInt();
+    const quint64 serial = ++m_accountRequestSerial;
+    m_accountTaskJson = stringify(QJsonObject{
+        {"active", true}, {"success", false}, {"requiresPassword", false},
+        {"kind", "reauthenticate"}, {"index", accountIndex}, {"percent", 20},
+        {"title", "正在重新登录"}, {"message", "正在连接第三方认证服务器…"}
+    });
+
+    auto *watcher = new QFutureWatcher<QJsonObject>(this);
+    connect(watcher, &QFutureWatcher<QJsonObject>::finished, this,
+            [this, watcher, serial, accountIndex]() {
+        const QJsonObject result = watcher->result();
+        watcher->deleteLater();
+        if (serial != m_accountRequestSerial) return;
+
+        const bool success = result.value("success").toBool(false);
+        if (success && result.value("accounts").isArray()) {
+            setAccountsPayload(QJsonObject{{"accounts", result.value("accounts").toArray()}});
+        }
+
+        QJsonObject task = result;
+        task.insert("active", false);
+        task.insert("success", success);
+        task.insert("requiresPassword", !success);
+        task.insert("kind", "reauthenticate");
+        task.insert("index", accountIndex);
+        task.insert("percent", success ? 100 : 0);
+        task.insert("title", success ? QStringLiteral("重新登录完成")
+                                      : QStringLiteral("重新登录失败"));
+        if (success) task.insert("accountsJson", m_accountsJson);
+        m_accountTaskJson = stringify(task);
+        setOutput(task.value("message").toString());
+        AppLogger::info("backend.state", "account_task_changed", QString(), {
+            {"success", success}, {"summary", AppLogger::summarizeJson(m_accountTaskJson)}
+        });
+    });
+    watcher->setFuture(QtConcurrent::run([this, accountIndex, password]() {
+        return m_accounts.reauthenticateYggdrasil(accountIndex, password);
+    }));
 }
 
 void LauncherBackend::startUploadSkin(const QString &index, const QString &fileUrl,
@@ -513,10 +771,39 @@ void LauncherBackend::startUploadSkin(const QString &index, const QString &fileU
     AppLogScope scope("backend", "startUploadSkin", {
         {"index", index}, {"fileUrl", fileUrl}, {"model", model}
     });
-    m_accountTaskJson = R"({"active":false,"success":false,"message":"皮肤上传后续接入"})";
-    AppLogger::info("backend.state", "account_task_changed", QString(), {
-        {"summary", AppLogger::summarizeJson(m_accountTaskJson)}
+    const int accountIndex = index.toInt();
+    const quint64 serial = ++m_accountRequestSerial;
+    m_accountTaskJson = stringify(QJsonObject{
+        {"active", true}, {"success", false}, {"kind", "upload"},
+        {"index", accountIndex}, {"percent", 15},
+        {"title", "正在上传皮肤"}, {"message", "正在连接认证服务器…"}
     });
+
+    auto *watcher = new QFutureWatcher<QJsonObject>(this);
+    connect(watcher, &QFutureWatcher<QJsonObject>::finished, this,
+            [this, watcher, serial, accountIndex]() {
+        const QJsonObject result = watcher->result();
+        watcher->deleteLater();
+        if (serial != m_accountRequestSerial) return;
+        const bool success = result.value("success").toBool(false);
+        if (success && result.value("accounts").isArray()) {
+            setAccountsPayload(QJsonObject{{"accounts", result.value("accounts").toArray()}});
+        }
+        QJsonObject task = result;
+        task.insert("active", false);
+        task.insert("success", success);
+        task.insert("kind", "upload");
+        task.insert("index", accountIndex);
+        task.insert("percent", success ? 100 : 0);
+        task.insert("title", success ? QStringLiteral("皮肤上传完成")
+                                      : QStringLiteral("皮肤上传失败"));
+        if (success) task.insert("accountsJson", m_accountsJson);
+        m_accountTaskJson = stringify(task);
+        setOutput(task.value("message").toString());
+    });
+    watcher->setFuture(QtConcurrent::run([this, accountIndex, fileUrl, model]() {
+        return m_accounts.uploadSkin(accountIndex, fileUrl, model);
+    }));
 }
 
 void LauncherBackend::startMigrateAccount(const QString &index, const QString &target) {
@@ -529,10 +816,36 @@ void LauncherBackend::startMigrateAccount(const QString &index, const QString &t
 
 void LauncherBackend::startCleanupAvatarCache() {
     AppLogScope scope("backend", "startCleanupAvatarCache");
-    m_accountTaskJson = R"({"active":false,"success":true,"message":"头像缓存清理完成"})";
-    AppLogger::info("backend.state", "account_task_changed", QString(), {
-        {"summary", AppLogger::summarizeJson(m_accountTaskJson)}
+    const quint64 serial = ++m_accountRequestSerial;
+    m_accountTaskJson = stringify(QJsonObject{
+        {"active", true}, {"success", false}, {"kind", "cleanup"},
+        {"percent", 15}, {"title", "正在清理头像缓存"},
+        {"message", "正在重新生成玩家头像…"}
     });
+    auto *watcher = new QFutureWatcher<QJsonObject>(this);
+    connect(watcher, &QFutureWatcher<QJsonObject>::finished, this,
+            [this, watcher, serial]() {
+        const QJsonObject result = watcher->result();
+        watcher->deleteLater();
+        if (serial != m_accountRequestSerial) return;
+        const bool success = result.value("success").toBool(false);
+        if (success && result.value("accounts").isArray()) {
+            setAccountsPayload(QJsonObject{{"accounts", result.value("accounts").toArray()}});
+        }
+        QJsonObject task = result;
+        task.insert("active", false);
+        task.insert("success", success);
+        task.insert("kind", "cleanup");
+        task.insert("percent", success ? 100 : 0);
+        task.insert("title", success ? QStringLiteral("头像缓存清理完成")
+                                      : QStringLiteral("头像缓存清理失败"));
+        if (success) task.insert("accountsJson", m_accountsJson);
+        m_accountTaskJson = stringify(task);
+        setOutput(task.value("message").toString());
+    });
+    watcher->setFuture(QtConcurrent::run([this]() {
+        return m_accounts.cleanupAvatarCache();
+    }));
 }
 
 QString LauncherBackend::pollRefreshAccountTask() { return m_accountTaskJson; }
@@ -728,7 +1041,8 @@ void LauncherBackend::installGameVersion(const QString &source,
                                          const QString &gameVersion,
                                          const QString &instanceName,
                                          const QString &loaderKind,
-                                         const QString &loaderVersion) {
+                                         const QString &loaderVersion,
+                                         const QString &addonsJson) {
     AppLogScope scope("backend", "installGameVersion", {
         {"source", source}, {"gameVersion", gameVersion},
         {"instanceName", instanceName}, {"loaderKind", loaderKind},
@@ -748,7 +1062,7 @@ void LauncherBackend::installGameVersion(const QString &source,
     }
 
     m_downloads.startInstall(source, gameVersion, normalizedName,
-                             loaderKind, loaderVersion);
+                             loaderKind, loaderVersion, addonsJson);
     m_downloadFinishRefreshed = false;
     setOutput(QString("开始安装：") + normalizedName);
     setString(m_downloadTaskJson, stringify(m_downloads.pollTask()),
@@ -962,10 +1276,15 @@ void LauncherBackend::startLaunchSelectedVersion(const QString &visibility) {
         {"selectedGameVersion", m_selectedGameVersion},
         {"commandLength", command.size()}
     });
-    setString(m_launchTaskJson,
-              stringify(m_launch.launch(m_selectedGameVersion, visibility, command)),
+    const QJsonObject launchResult = m_launch.launch(m_selectedGameVersion, visibility, command);
+    setString(m_launchTaskJson, stringify(launchResult),
               &LauncherBackend::launchTaskJsonChanged);
-    setOutput("启动命令：" + command);
+    if (launchResult.value("gameStarted").toBool()) {
+        setOutput(QString("游戏 %1 已启动。日志：%2")
+                      .arg(m_selectedGameVersion, launchResult.value("gameLogFile").toString()));
+    } else {
+        setOutput(launchResult.value("message").toString("游戏启动失败。"));
+    }
 }
 
 void LauncherBackend::cancelLaunchTask() {

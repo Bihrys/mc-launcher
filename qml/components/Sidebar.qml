@@ -277,9 +277,12 @@ Rectangle {
                 source: item.avatarUrl
                 asynchronous: true
                 fillMode: Image.PreserveAspectFit
-                smooth: true
+                smooth: false
+                mipmap: false
+                sourceSize.width: 32
+                sourceSize.height: 32
                 cache: true
-                visible: item.avatarUrl.length > 0 && status !== Image.Error
+                visible: item.avatarUrl.length > 0 && status === Image.Ready
             }
 
             Text {

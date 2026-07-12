@@ -3,7 +3,9 @@
 #include <QObject>
 #include <QString>
 
+#include <atomic>
 #include <functional>
+#include <memory>
 
 #include "account/AccountService.h"
 #include "download/DownloadService.h"
@@ -92,6 +94,7 @@ public:
   Q_INVOKABLE void downloadJava(const QString &distribution,
                                 const QString &major,
                                 const QString &packageType);
+  Q_INVOKABLE void cancelJavaTask();
   Q_INVOKABLE void addJavaPath(const QString &path);
   Q_INVOKABLE void installJavaArchive(const QString &archivePath);
   Q_INVOKABLE void disableJava(const QString &path);
@@ -101,6 +104,8 @@ public:
   Q_INVOKABLE void revealJava(const QString &path);
 
   Q_INVOKABLE void loginOffline(const QString &username);
+  Q_INVOKABLE void loginOfflineWithUuid(const QString &username,
+                                        const QString &uuid);
   Q_INVOKABLE void loginYggdrasil(const QString &serverUrl,
                                   const QString &username,
                                   const QString &password);
@@ -109,9 +114,16 @@ public:
   Q_INVOKABLE void selectYggdrasilProfile(const QString &index);
   Q_INVOKABLE QString refreshAccounts();
   Q_INVOKABLE QString refreshAuthServers();
+  Q_INVOKABLE QString probeAuthServer(const QString &url);
+  Q_INVOKABLE void startProbeAuthServer(const QString &url);
+  Q_INVOKABLE QString pollAuthServerProbeTask();
   Q_INVOKABLE QString addAuthServer(const QString &name, const QString &url);
   Q_INVOKABLE QString deleteAuthServer(const QString &index);
   Q_INVOKABLE QString offlineAvatarPreview(const QString &username);
+  Q_INVOKABLE QString setOfflineSkin(const QString &index, const QString &fileUrl,
+                                     const QString &capeFileUrl, const QString &model,
+                                     const QString &cslApi,
+                                     const QString &skinType = QStringLiteral("default"));
   Q_INVOKABLE void switchAccount(const QString &index);
   Q_INVOKABLE void switchAccountFast(const QString &index,
                                      const QString &username,
@@ -123,6 +135,8 @@ public:
                                              const QString &avatarUrl);
   Q_INVOKABLE void deleteAccount(const QString &index);
   Q_INVOKABLE void startRefreshAccount(const QString &index);
+  Q_INVOKABLE void reauthenticateYggdrasil(const QString &index,
+                                           const QString &password);
   Q_INVOKABLE void startUploadSkin(const QString &index, const QString &fileUrl,
                                    const QString &model);
   Q_INVOKABLE void startMigrateAccount(const QString &index,
@@ -144,7 +158,8 @@ public:
                                       const QString &gameVersion,
                                       const QString &instanceName,
                                       const QString &loaderKind,
-                                      const QString &loaderVersion);
+                                      const QString &loaderVersion,
+                                      const QString &addonsJson);
   Q_INVOKABLE QString pollDownloadTask();
   Q_INVOKABLE void cancelDownloadTask();
   Q_INVOKABLE QString refreshInstalledVersions();
@@ -271,10 +286,14 @@ private:
   QString m_javaTaskJson;
   QString m_accountTaskJson;
   QString m_yggdrasilTaskJson;
+  QString m_authServerProbeTaskJson;
 
   // HMCL-style asynchronous version-list tasks. A monotonically increasing
   // serial prevents an older network response from overwriting a newer refresh.
   quint64 m_catalogRequestSerial = 0;
   quint64 m_installerRequestSerial = 0;
   quint64 m_javaRequestSerial = 0;
+  quint64 m_accountRequestSerial = 0;
+  quint64 m_authServerProbeRequestSerial = 0;
+  std::shared_ptr<std::atomic_bool> m_javaCancellation;
 };

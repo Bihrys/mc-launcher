@@ -10,6 +10,7 @@ Item {
 
     required property var style
     required property var backend
+    required property var taskDialogHost
 
     property string selectedDistribution: "temurin"
     property string selectedMajor: "17"
@@ -282,11 +283,14 @@ Item {
                             style: root.style
                             text: "下载所选 Java"
                             primary: true
-                            onClicked: root.backend.downloadJava(
-                                root.selectedDistribution,
-                                root.selectedMajor,
-                                root.selectedPackageType
-                            )
+                            onClicked: {
+                                root.backend.downloadJava(
+                                    root.selectedDistribution,
+                                    root.selectedMajor,
+                                    root.selectedPackageType
+                                )
+                                root.taskDialogHost.openTransferTask("java")
+                            }
                         }
 
                         Text {

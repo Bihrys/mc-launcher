@@ -4,6 +4,7 @@
 #include "core/LauncherPaths.h"
 #include "game/VersionRules.h"
 
+#include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -12,9 +13,13 @@
 #include <QHash>
 #include <QJsonValue>
 #include <QProcess>
+#include <QStandardPaths>
+#include <QSysInfo>
 #include <QSet>
 #include <QDesktopServices>
 #include <QUrl>
+
+#include <utility>
 
 namespace {
 
@@ -93,7 +98,100 @@ QStringList parseArgumentList(const QJsonArray &array, const QHash<QString, QStr
     return out;
 }
 
-QString buildClasspath(const QString &versionId, const QJsonObject &versionJson) {
+QString nativeClassifierForLibrary(const QJsonObject &library) {
+#ifdef Q_OS_WIN
+    const QString os = QStringLiteral("windows");
+#elif defined(Q_OS_MACOS)
+    const QString os = QStringLiteral("osx");
+#else
+    const QString os = QStringLiteral("linux");
+#endif
+    QString classifier = library.value("natives").toObject().value(os).toString();
+    classifier.replace("${arch}", QSysInfo::WordSize >= 64 ? "64" : "32");
+    return classifier;
+}
+
+bool extractArchive(const QString &archive, const QString &destination, QString *error) {
+    QString program = QStandardPaths::findExecutable(QStringLiteral("bsdtar"));
+    QStringList arguments;
+    if (!program.isEmpty()) {
+        arguments << "-xf" << archive << "-C" << destination;
+    } else {
+        program = QStandardPaths::findExecutable(QStringLiteral("unzip"));
+        if (!program.isEmpty()) arguments << "-o" << "-q" << archive << "-d" << destination;
+    }
+    if (program.isEmpty()) {
+        if (error) *error = QStringLiteral("缺少原生库解压工具：请安装 libarchive(bsdtar) 或 unzip。");
+        return false;
+    }
+
+    QProcess process;
+    process.start(program, arguments);
+    if (!process.waitForStarted(5000) || !process.waitForFinished(60000)
+            || process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
+        if (error) {
+            *error = QString("无法解压原生库 %1：%2")
+                         .arg(QFileInfo(archive).fileName(),
+                              QString::fromUtf8(process.readAllStandardError()).trimmed());
+        }
+        return false;
+    }
+    return true;
+}
+
+bool prepareNativeLibraries(const QJsonObject &versionJson, const QString &nativesDir,
+                            QString *error) {
+    QStringList archives;
+    const QString librariesRoot = LauncherPaths::minecraftDir() + "/libraries";
+    for (const QJsonValue &value : versionJson.value("libraries").toArray()) {
+        const QJsonObject library = value.toObject();
+        if (!VersionRules::allowedByRules(library.value("rules").toArray())) continue;
+        const QString classifier = nativeClassifierForLibrary(library);
+        if (classifier.isEmpty()) continue;
+        const QJsonObject artifact = library.value("downloads").toObject()
+                                         .value("classifiers").toObject()
+                                         .value(classifier).toObject();
+        const QString rel = artifact.value("path").toString();
+        if (rel.isEmpty()) continue;
+        const QString archive = librariesRoot + "/" + rel;
+        if (!QFileInfo::exists(archive)) {
+            if (error) *error = QString("缺少原生库：%1。请重新安装或修复该版本。").arg(rel);
+            return false;
+        }
+        archives << archive;
+    }
+
+    if (archives.isEmpty()) return true;
+    QCryptographicHash hash(QCryptographicHash::Sha1);
+    for (const QString &archive : std::as_const(archives)) {
+        const QFileInfo info(archive);
+        hash.addData(archive.toUtf8());
+        hash.addData(QByteArray::number(info.size()));
+        hash.addData(QByteArray::number(info.lastModified().toMSecsSinceEpoch()));
+    }
+    const QByteArray cacheKey = hash.result().toHex();
+    QFile marker(nativesDir + "/.native-cache-key");
+    if (marker.open(QIODevice::ReadOnly)) {
+        const bool cacheValid = marker.readAll().trimmed() == cacheKey;
+        marker.close();
+        if (cacheValid) return true;
+    }
+
+    QDir(nativesDir).removeRecursively();
+    if (!QDir().mkpath(nativesDir)) {
+        if (error) *error = QString("无法创建原生库目录：%1").arg(nativesDir);
+        return false;
+    }
+    for (const QString &archive : std::as_const(archives)) {
+        if (!extractArchive(archive, nativesDir, error)) return false;
+    }
+    QDir(nativesDir + "/META-INF").removeRecursively();
+    marker.setFileName(nativesDir + "/.native-cache-key");
+    if (marker.open(QIODevice::WriteOnly | QIODevice::Truncate)) marker.write(cacheKey);
+    return true;
+}
+
+QString buildClasspath(const QString &clientJarVersionId, const QJsonObject &versionJson) {
     QStringList entries;
     QSet<QString> seen;
     const QString librariesRoot = LauncherPaths::minecraftDir() + "/libraries";
@@ -109,7 +207,8 @@ QString buildClasspath(const QString &versionId, const QJsonObject &versionJson)
             seen.insert(abs);
         }
     }
-    const QString clientJar = LauncherPaths::versionsDir() + "/" + versionId + "/" + versionId + ".jar";
+    const QString clientJar = LauncherPaths::versionsDir() + "/" + clientJarVersionId
+        + "/" + clientJarVersionId + ".jar";
     if (QFileInfo::exists(clientJar)) entries << clientJar;
     return entries.join(":");
 }
@@ -286,13 +385,23 @@ QString InstanceService::generateLaunchCommand(const QString &versionId) {
     const QString parentId = child.value("inheritsFrom").toString();
     QJsonObject versionJson = parentId.isEmpty() ? child : mergeVersionJson(readVersionObjectById(parentId), child);
     const QString mainClass = versionJson.value("mainClass").toString("net.minecraft.client.main.Main");
-    const QString clientJar = versionDir(id) + "/" + id + ".jar";
+
+    // Inherited loader versions normally have no <child>.jar. Mojang/HMCL use
+    // the parent (or explicit `jar`) client archive while appending the child
+    // libraries and arguments. Checking only the renamed child jar made every
+    // Fabric/Forge-style instance look incomplete.
+    const QString clientJarVersionId = child.value("jar").toString(
+        parentId.isEmpty() ? id : parentId);
+    const QString clientJar = versionDir(clientJarVersionId) + "/"
+        + clientJarVersionId + ".jar";
     QFileInfo jarInfo(clientJar);
     if (!jarInfo.exists() || jarInfo.size() <= 0) {
-        return QString("echo ") + shellQuote(QString("版本 ") + id + QString(" 不是完整安装。当前 C++ 骨架只创建了空 jar/空 version.json，不能真正启动。请后续接入 HMCL 的 GameInstallTask 下载 libraries、assets 和 client.jar。"));
+        return QString("echo ") + shellQuote(
+            QString("版本 %1 缺少客户端 JAR：%2。请重新安装或修复该版本。")
+                .arg(id, clientJar));
     }
 
-    const QString classpath = buildClasspath(id, versionJson);
+    const QString classpath = buildClasspath(clientJarVersionId, versionJson);
     if (classpath.isEmpty()) {
         return QString("echo ") + shellQuote(QString("版本 ") + id + QString(" 缺少 classpath。请检查 libraries 是否已下载。路径: ") + LauncherPaths::minecraftDir() + QString("/libraries"));
     }
@@ -300,7 +409,9 @@ QString InstanceService::generateLaunchCommand(const QString &versionId) {
     const QString assetIndex = versionJson.value("assetIndex").toObject().value("id").toString(versionJson.value("assets").toString("legacy"));
     const QString gameDir = LauncherPaths::minecraftDir();
     const QString nativesDir = versionDir(id) + "/natives";
-    QDir().mkpath(nativesDir);
+    QString nativeError;
+    if (!prepareNativeLibraries(versionJson, nativesDir, &nativeError))
+        return QString("echo ") + shellQuote(nativeError);
 
     QHash<QString, QString> vars;
     vars.insert("auth_player_name", "Steve");
@@ -320,12 +431,18 @@ QString InstanceService::generateLaunchCommand(const QString &versionId) {
     vars.insert("classpath", classpath);
 
     QStringList args;
-    args << "java" << "-Xmx2G" << (QString("-Djava.library.path=") + nativesDir);
+    args << "java" << "-Xmx2G";
 
     const QJsonObject arguments = versionJson.value("arguments").toObject();
     QStringList jvmArgs = parseArgumentList(arguments.value("jvm").toArray(), vars);
-    if (!jvmArgs.isEmpty()) args << jvmArgs;
-    else args << "-cp" << classpath;
+    if (!jvmArgs.isEmpty()) {
+        // Modern version JSON already supplies java.library.path and classpath.
+        // Adding them a second time diverges from HMCL and can produce subtly
+        // different JVM option resolution.
+        args << jvmArgs;
+    } else {
+        args << (QString("-Djava.library.path=") + nativesDir) << "-cp" << classpath;
+    }
 
     args << mainClass;
 

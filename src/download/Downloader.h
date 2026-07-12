@@ -1,35 +1,34 @@
 #pragma once
 
+#include <QElapsedTimer>
 #include <QHash>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QList>
 #include <QObject>
 #include <QString>
 #include <QUrl>
 
 #include <atomic>
+#include <memory>
 
 class QNetworkAccessManager;
 class QNetworkReply;
 class QEventLoop;
 class QFile;
 
-// One file to fetch. sha1 empty means "no integrity check". Candidate URLs are
-// tried in order (first is primary, rest are mirrors) — HMCL tries multiple
-// download providers per file; this slice only fills in the Mojang URL but the
-// list shape lets mirrors drop in later without touching call sites.
 struct DownloadItem {
     QList<QUrl> urls;
     QString destPath;
     QString sha1;
     qint64 size = 0;
+    QString displayName;
+    QString stageId;
 };
 
-// Concurrent multi-file downloader, ported in spirit from HMCL's
-// FileDownloadTask + task scheduler. Runs up to `concurrency` simultaneous
-// replies from a queue, writes to a `.part` temp then renames on success, and
-// verifies SHA-1 with a small retry budget. Blocking run()/downloadSync() drive
-// an internal event loop, so they are meant to be called from a worker thread
-// that owns this object. cancel() is thread-safe.
+// Reusable HMCL-style multi-file downloader. Every consumer (Minecraft, Java,
+// loaders and future add-ons) receives the same aggregate and per-file task
+// stream, so UI code never needs a bespoke download popup.
 class Downloader : public QObject {
     Q_OBJECT
 public:
@@ -37,24 +36,22 @@ public:
     ~Downloader() override;
 
     void setConcurrency(int n) { m_concurrency = n > 0 ? n : 1; }
+    void setCancellationFlag(std::shared_ptr<std::atomic_bool> flag) {
+        m_externalCancellation = std::move(flag);
+    }
 
-    // Downloads every item; returns true only if all succeeded. Files already
-    // present with a matching SHA-1 are skipped (idempotent re-install).
     bool run(const QList<DownloadItem> &items);
-
-    // Blocking single-file fetch for the sequential head of the pipeline
-    // (manifest, version JSON, asset index). Returns true on success.
     bool downloadSync(const QList<QUrl> &urls, const QString &destPath,
-                      const QString &sha1 = QString());
+                      const QString &sha1 = QString(),
+                      const QString &displayName = QString());
 
-    // Callable from any thread; aborts in-flight replies and stops dispatch.
     void cancel();
-
     Q_INVOKABLE void abortAll();
 
 signals:
     void progress(int finishedFiles, int totalFiles, qint64 downloadedBytes,
-                  const QString &currentFile);
+                  const QString &currentFile, qint64 bytesPerSecond,
+                  const QJsonArray &files, const QJsonObject &stageProgress);
 
 private:
     struct Active {
@@ -71,6 +68,14 @@ private:
     void onReplyFinished(QNetworkReply *reply);
     void finishOne();
     void maybeQuit();
+    qint64 visibleDownloadedBytes() const;
+    qint64 updateRollingSpeed(qint64 visibleBytes);
+    QJsonArray filesSnapshot() const;
+    QJsonObject stageProgressSnapshot() const;
+    void appendRecentFile(const DownloadItem &item, const QString &status,
+                          qint64 bytes, qint64 total);
+    QString itemName(const DownloadItem &item) const;
+    void emitProgress(const QString &currentFile = QString());
 
     QNetworkAccessManager *m_manager = nullptr;
     QEventLoop *m_loop = nullptr;
@@ -80,11 +85,18 @@ private:
     int m_concurrency = 6;
     int m_totalFiles = 0;
     int m_finishedFiles = 0;
-    // Bytes of fully completed files. In-flight reply progress is added when
-    // emitting status, which makes the QML dialog show live speed instead of
-    // only jumping when each file finishes.
     qint64 m_downloadedBytes = 0;
 
+    QElapsedTimer m_speedTimer;
+    qint64 m_lastSpeedSampleMs = 0;
+    qint64 m_lastSpeedBytes = 0;
+    qint64 m_lastProgressEmitMs = -1000;
+    qint64 m_smoothedSpeed = 0;
+    QJsonArray m_recentFiles;
+    QHash<QString, int> m_stageTotals;
+    QHash<QString, int> m_stageFinished;
+
+    std::shared_ptr<std::atomic_bool> m_externalCancellation;
     std::atomic_bool m_cancelled{false};
     bool m_failed = false;
     QString m_error;

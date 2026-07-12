@@ -2,16 +2,29 @@
 
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QMutex>
 #include <QString>
 
 class AccountService {
 public:
     QJsonObject list();
     QJsonObject authServers();
+    QJsonObject probeAuthServer(const QString &url) const;
     QJsonObject addAuthServer(const QString &name, const QString &url);
     QJsonObject deleteAuthServer(int index);
-    QJsonObject addOffline(const QString &username);
-    QJsonObject addYggdrasilPlaceholder(const QString &serverUrl, const QString &username);
+    QJsonObject addOffline(const QString &username, const QString &uuid = QString());
+    QJsonObject setOfflineSkin(int index, const QString &fileUrl,
+                               const QString &capeFileUrl, const QString &model,
+                               const QString &cslApi,
+                               const QString &skinType = QStringLiteral("default"));
+    QJsonObject authenticateYggdrasil(const QString &serverUrl,
+                                      const QString &username,
+                                      const QString &password);
+    QJsonObject selectPendingYggdrasilProfile(int index);
+    QJsonObject refreshAccount(int index);
+    QJsonObject reauthenticateYggdrasil(int index, const QString &password);
+    QJsonObject uploadSkin(int index, const QString &fileUrl, const QString &model);
+    QJsonObject cleanupAvatarCache();
     QJsonObject addMicrosoftPlaceholder(const QString &clientId);
     QJsonObject switchAccountByIdentifier(const QString &kind, const QString &uuid, const QString &serverUrl);
     QJsonObject deleteAccount(int index);
@@ -23,4 +36,22 @@ private:
     QString offlineUuid(const QString &username) const;
     QJsonObject publicPayload(const QJsonArray &accounts) const;
     QJsonObject selectedOrFirst(QJsonArray &accounts) const;
+
+    QString normalizeAuthServer(const QString &url, QJsonObject *metadata = nullptr,
+                                QString *errorMessage = nullptr) const;
+    QJsonObject postJson(const QUrl &url, const QJsonObject &body,
+                         QString *errorMessage = nullptr) const;
+    QJsonObject getJson(const QUrl &url, QString *errorMessage = nullptr) const;
+    QString defaultAvatarForUuid(const QString &uuid) const;
+    QString avatarFromSkinUrl(const QString &uuid, const QString &skinUrl) const;
+    QString avatarFromSkinImage(const QString &uuid, const QString &sourcePath) const;
+    QString profileSkinUrl(const QString &serverUrl, const QString &uuid) const;
+    QJsonObject saveYggdrasilAccount(const QString &serverUrl,
+                                     const QString &loginName,
+                                     const QString &accessToken,
+                                     const QString &clientToken,
+                                     const QJsonObject &profile);
+
+    mutable QMutex m_pendingMutex;
+    QJsonObject m_pendingYggdrasil;
 };

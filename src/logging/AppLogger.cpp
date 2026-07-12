@@ -70,6 +70,21 @@ QString normalizedMessage(QString value) {
     return value;
 }
 
+bool shouldEchoToConsole(const char *level, const QString &category, const QString &event) {
+    const QByteArray verbose = qgetenv("MC_LAUNCHER_VERBOSE_LOGS").trimmed().toLower();
+    if (verbose == "1" || verbose == "true" || verbose == "yes") return true;
+
+    const QByteArray severity(level);
+    if (severity == "WARN" || severity == "ERROR" || severity == "FATAL") return true;
+
+    // Keep only the useful lifecycle and launch milestones on the terminal.
+    if (category == "lifecycle" &&
+        (event == "logger_initialized" || event == "clean_shutdown")) return true;
+    if (category == "launch" &&
+        (event == "process_started" || event == "process_start_failed")) return true;
+    return false;
+}
+
 QString threadIdString() {
 #ifdef __linux__
     return QString::number(static_cast<qulonglong>(::syscall(SYS_gettid)));
@@ -502,8 +517,10 @@ void AppLogger::write(const char *level, const QString &category,
         }
     }
 
-    std::fwrite(bytes.constData(), 1, static_cast<size_t>(bytes.size()), stderr);
-    std::fflush(stderr);
+    if (shouldEchoToConsole(level, category, event)) {
+        std::fwrite(bytes.constData(), 1, static_cast<size_t>(bytes.size()), stderr);
+        std::fflush(stderr);
+    }
 }
 
 AppLogScope::AppLogScope(QString category, QString operation,

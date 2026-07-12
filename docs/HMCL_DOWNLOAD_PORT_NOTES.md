@@ -45,3 +45,10 @@ Forge / NeoForge / OptiFine / LiteLoader 的“可启动安装”没有在本补
 - `Downloader` 增加 `QNetworkReply::downloadProgress` 对接，下载速度不再等到单个文件完成后才跳变。
 - 减少 `QNetworkReply` 在关闭状态下 `readAll()/abort()` 产生的 `QIODevice::read/write device not open` 警告。
 - Forge / NeoForge 不再直接返回“未完成”：下载 installer JAR 后调用安装器 CLI 执行 client 安装，行为对齐 HMCL 使用 Forge/NeoForge installer/processor 的方向。此实现优先保证可用性；后续若要完全不调用 Java，需要继续重写 Forge binarypatcher、jarsplitter、mapping remapper 等 processor 本体。
+
+## 2026-07-12 patch: Fabric API metadata and installer card alignment
+
+- `FabricAPIVersionList` 对接 Modrinth 项目 `P7dR8mSH`，优先按当前 Minecraft 版本和 Fabric loader 过滤请求，失败时回退到 HMCL 使用的完整项目版本列表接口。
+- Fabric API 元数据包含版本、完整名称、发布时间、主文件 URL、文件名、SHA-1、SHA-512 与文件大小，并继续传入安装 addons JSON。
+- Fabric API 主文件安装到目标实例的 `mods` 目录，不再只显示空版本列表。
+- 安装器卡片底部操作行上移 2 px，修正箭头视觉偏下。

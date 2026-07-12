@@ -91,9 +91,12 @@ QString HmclDownloadProvider::id() const {
 }
 
 int HmclDownloadProvider::concurrency() const {
-    if (m_kind == Kind::Mojang) return 6;
+    // Match HMCL FetchTask.DEFAULT_CONCURRENCY: CPU * 4, capped at 64.
+    // Minecraft asset installation contains thousands of small files; a fixed
+    // pool of six connections looks fast at first and then collapses during the
+    // small-file tail because network latency dominates transfer time.
     const int cores = QThread::idealThreadCount() > 0 ? QThread::idealThreadCount() : 4;
-    return qMax(cores * 2, 6);
+    return qBound(4, cores * 4, 64);
 }
 
 QList<QUrl> HmclDownloadProvider::versionListUrls() const {

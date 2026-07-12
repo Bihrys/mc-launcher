@@ -43,6 +43,28 @@ QString metadataCacheRoot() {
     return root;
 }
 
+QString catalogSnapshotPath() {
+    return metadataCacheRoot() + "/minecraft-version-catalog-v2.json";
+}
+
+QJsonObject readCatalogSnapshot() {
+    QFile file(catalogSnapshotPath());
+    if (!file.open(QIODevice::ReadOnly)) return {};
+    QJsonParseError error{};
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &error);
+    if (error.error != QJsonParseError::NoError || !document.isObject()) return {};
+    const QJsonObject catalog = document.object();
+    return catalog.value("gameVersions").toArray().isEmpty() ? QJsonObject{} : catalog;
+}
+
+void writeCatalogSnapshot(const QJsonObject &catalog) {
+    if (catalog.value("gameVersions").toArray().isEmpty()) return;
+    QSaveFile file(catalogSnapshotPath());
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) return;
+    file.write(QJsonDocument(catalog).toJson(QJsonDocument::Compact));
+    file.commit();
+}
+
 QString cacheKeyForUrl(const QUrl &url) {
     const QByteArray encoded = url.toEncoded(QUrl::FullyEncoded);
     return QString::fromLatin1(QCryptographicHash::hash(encoded, QCryptographicHash::Sha1).toHex());
@@ -88,7 +110,7 @@ QJsonObject catalogFromManifest(const QJsonObject &manifest) {
 
     QJsonArray versions;
     const QJsonArray input = manifest.value("versions").toArray();
-    for (int i = 0; i < input.size() && i < 300; ++i) {
+    for (int i = 0; i < input.size(); ++i) {
         const QJsonObject item = input.at(i).toObject();
         const QString id = item.value("id").toString();
         if (id.isEmpty()) continue;
@@ -237,6 +259,17 @@ QJsonArray HmclVersionListService::getArray(const QList<QUrl> &urls, bool *reque
 }
 
 QJsonObject HmclVersionListService::cachedCatalog() const {
+    // A provider-independent parsed snapshot gives HMCL-like instant entry
+    // even after the user switches between official/balanced/mirror sources.
+    const QJsonObject snapshot = readCatalogSnapshot();
+    if (!snapshot.isEmpty()) {
+        AppLogger::info("download.metadata", "catalog_snapshot_loaded", QString(), {
+            {"path", catalogSnapshotPath()},
+            {"versions", snapshot.value("gameVersions").toArray().size()}
+        });
+        return snapshot;
+    }
+
     for (const QUrl &url : m_provider.versionListUrls()) {
         const QByteArray data = cachedBytesFor(url);
         if (data.isEmpty()) continue;
@@ -245,6 +278,7 @@ QJsonObject HmclVersionListService::cachedCatalog() const {
         if (error.error != QJsonParseError::NoError || !document.isObject()) continue;
         const QJsonObject catalog = catalogFromManifest(document.object());
         if (!catalog.isEmpty()) {
+            writeCatalogSnapshot(catalog);
             AppLogger::info("download.metadata", "catalog_cache_loaded", QString(), {
                 {"url", url.toString(QUrl::RemoveQuery | QUrl::RemoveFragment)},
                 {"versions", catalog.value("gameVersions").toArray().size()},
@@ -265,6 +299,91 @@ QJsonArray HmclVersionListService::fabricLoaders(bool *requestOk) const {
         if (version.isEmpty()) continue;
         out.append(QJsonObject{{"version", version}, {"stable", o.value("stable").toBool()}});
     }
+    return out;
+}
+
+QJsonArray HmclVersionListService::fabricApiVersions(const QString &gameVersion,
+                                                      bool *requestOk) const {
+    // Exact HMCL FabricAPIVersionList source: Modrinth project P7dR8mSH.
+    // Use both the project id and slug endpoints. Some mirrors only implement
+    // one form, while the official API accepts both.
+    QList<QUrl> urls;
+    auto appendUnique = [&urls](const QList<QUrl> &values) {
+        for (const QUrl &url : values) {
+            if (url.isValid() && !urls.contains(url)) urls.append(url);
+        }
+    };
+    const QString encodedGame = QString::fromLatin1(
+        QUrl::toPercentEncoding(QStringLiteral("[\"%1\"]").arg(gameVersion)));
+    const QString encodedLoaders = QStringLiteral("%5B%22fabric%22%5D");
+    const QString filteredQuery = QStringLiteral(
+        "?game_versions=%1&loaders=%2&include_changelog=false")
+                                      .arg(encodedGame, encodedLoaders);
+    // Ask Modrinth for just the selected Minecraft version first. This keeps
+    // the response small enough for slower BMCLAPI/Modrinth mirrors and is
+    // equivalent to HMCL's repository-side filtering.
+    appendUnique(m_provider.candidatesFor(
+        QStringLiteral("https://api.modrinth.com/v2/project/P7dR8mSH/version") + filteredQuery));
+    appendUnique(m_provider.candidatesFor(
+        QStringLiteral("https://api.modrinth.com/v2/project/fabric-api/version") + filteredQuery));
+    // Compatibility fallbacks for mirrors that do not support filter query
+    // parameters or only recognize the project id form.
+    appendUnique(m_provider.candidatesFor(
+        QStringLiteral("https://api.modrinth.com/v2/project/P7dR8mSH/version?include_changelog=false")));
+    appendUnique(m_provider.candidatesFor(
+        QStringLiteral("https://api.modrinth.com/v2/project/fabric-api/version?include_changelog=false")));
+    appendUnique(m_provider.candidatesFor(
+        QStringLiteral("https://api.modrinth.com/v2/project/P7dR8mSH/version")));
+
+    bool ok = false;
+    const QJsonArray versions = getArray(urls, &ok);
+    if (requestOk) *requestOk = ok;
+    if (!ok) return {};
+
+    QJsonArray out;
+    for (const QJsonValue &value : versions) {
+        const QJsonObject version = value.toObject();
+        const QJsonArray games = version.value("game_versions").toArray();
+        bool supportsGame = false;
+        for (const QJsonValue &game : games) {
+            if (game.toString() == gameVersion) {
+                supportsGame = true;
+                break;
+            }
+        }
+        if (!supportsGame) continue;
+
+        QJsonObject selectedFile;
+        const QJsonArray files = version.value("files").toArray();
+        for (const QJsonValue &fileValue : files) {
+            const QJsonObject file = fileValue.toObject();
+            if (selectedFile.isEmpty() || file.value("primary").toBool(false)) {
+                selectedFile = file;
+                if (file.value("primary").toBool(false)) break;
+            }
+        }
+        const QString url = selectedFile.value("url").toString();
+        const QString versionNumber = version.value("version_number").toString();
+        if (url.isEmpty() || versionNumber.isEmpty()) continue;
+
+        const QJsonObject hashes = selectedFile.value("hashes").toObject();
+        out.append(QJsonObject{
+            {"version", versionNumber},
+            {"fullVersion", version.value("name").toString(versionNumber)},
+            {"releaseTime", version.value("date_published").toString()},
+            {"fileUrl", url},
+            {"fileName", selectedFile.value("filename").toString(
+                 QStringLiteral("fabric-api-%1.jar").arg(versionNumber))},
+            {"sha1", hashes.value("sha1").toString()},
+            {"sha512", hashes.value("sha512").toString()},
+            {"size", selectedFile.value("size").toDouble()},
+            {"stable", version.value("version_type").toString() == QStringLiteral("release")}
+        });
+    }
+
+    AppLogger::info("download.metadata", "fabric_api_versions_loaded", QString(), {
+        {"gameVersion", gameVersion}, {"count", out.size()}
+    });
     return out;
 }
 
@@ -358,7 +477,10 @@ QJsonArray HmclVersionListService::liteLoaderInstallers(const QString &gameVersi
 QJsonObject HmclVersionListService::refreshCatalog() const {
     bool manifestOk = false;
     const QJsonObject manifest = getObject(m_provider.versionListUrls(), &manifestOk);
-    return manifestOk ? catalogFromManifest(manifest) : QJsonObject{};
+    if (!manifestOk) return {};
+    const QJsonObject catalog = catalogFromManifest(manifest);
+    writeCatalogSnapshot(catalog);
+    return catalog;
 }
 
 QJsonObject HmclVersionListService::loaderMetadata(const QString &gameVersion,
@@ -371,6 +493,12 @@ QJsonObject HmclVersionListService::loaderMetadata(const QString &gameVersion,
         const QJsonArray values = fabricLoaders(&requestOk);
         if (!requestOk) ok = false;
         out.insert("fabricLoaders", values);
+    }
+    if (loaderKind.isEmpty() || loaderKind == "fabric-api") {
+        bool requestOk = false;
+        const QJsonArray values = fabricApiVersions(gameVersion, &requestOk);
+        if (!requestOk) ok = false;
+        out.insert("fabricApiVersions", values);
     }
     if (loaderKind.isEmpty() || loaderKind == "quilt") {
         bool requestOk = false;

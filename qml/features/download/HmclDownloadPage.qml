@@ -8,6 +8,13 @@ Item {
 
     required property var style
     required property var backend
+    required property var taskDialogHost
+
+    readonly property string pageTitle: controller.loaderVersionPaneOpen
+                                                ? "选择 " + controller.loaderTitle(controller.loaderVersionKind) + " 版本"
+                                                : (controller.installerPaneOpen
+                                                   ? "安装新游戏 - " + controller.selectedGameVersion
+                                                   : "下载")
 
     function handleBack() {
         return controller.handleBack()
@@ -74,57 +81,13 @@ Item {
         }
     }
 
-    Rectangle {
-        anchors.fill: parent
-        z: 1000
-        visible: opacity > 0
-        opacity: controller.downloadDialogOpen ? 1 : 0
-        color: "#80000000"
+    Connections {
+        target: controller
 
-        Behavior on opacity {
-            NumberAnimation {
-                duration: root.style.animationsEnabled ? 160 : 0
-                easing.type: Easing.OutCubic
-            }
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            enabled: controller.downloadDialogOpen
-            onClicked: {
-                if (!controller.downloadTaskStatus.active)
-                    controller.downloadDialogOpen = false
-            }
-        }
-
-        TaskExecutorDialogPane {
-            anchors.centerIn: parent
-            width: Math.min(root.width - 64, 500)
-            height: Math.min(root.height - 64, 300)
-            opacity: controller.downloadDialogOpen ? 1 : 0
-            scale: controller.downloadDialogOpen ? 1 : 0.97
-            style: root.style
-            status: controller.downloadTaskStatus
-
-            Behavior on opacity {
-                NumberAnimation {
-                    duration: root.style.animationsEnabled ? 160 : 0
-                    easing.type: Easing.OutCubic
-                }
-            }
-            Behavior on scale {
-                NumberAnimation {
-                    duration: root.style.animationsEnabled ? 180 : 0
-                    easing.type: Easing.OutCubic
-                }
-            }
-
-            onCancelRequested: {
-                controller.downloadCancelDismissed = true
-                controller.downloadDialogOpen = false
-                root.backend.cancelDownloadTask()
-            }
-            onCloseRequested: controller.downloadDialogOpen = false
+        function onDownloadDialogOpenChanged() {
+            if (!controller.downloadDialogOpen)
+                return
+            root.taskDialogHost.openTransferTask("game")
         }
     }
 }

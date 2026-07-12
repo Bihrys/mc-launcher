@@ -22,6 +22,10 @@ Item {
     property string installVersionName: ""
     property bool installNameModifiedByUser: false
     property string selectedFabricVersion: ""
+    property string selectedFabricApiVersion: ""
+    property string selectedFabricApiFileUrl: ""
+    property string selectedFabricApiFileName: ""
+    property string selectedFabricApiSha1: ""
     property string selectedQuiltVersion: ""
     property string selectedForgeVersion: ""
     property string selectedNeoForgeVersion: ""
@@ -78,6 +82,7 @@ Item {
     })
 
     ListModel { id: fabricLoaderModel }
+    ListModel { id: fabricApiModel }
     ListModel { id: quiltLoaderModel }
     ListModel { id: forgeInstallerModel }
     ListModel { id: neoforgeInstallerModel }
@@ -86,6 +91,7 @@ Item {
     property var allVersions: []
     property var visibleVersions: []
     readonly property var fabricLoaders: fabricLoaderModel
+    readonly property var fabricApiVersions: fabricApiModel
     readonly property var quiltLoaders: quiltLoaderModel
     readonly property var forgeInstallers: forgeInstallerModel
     readonly property var neoForgeInstallers: neoforgeInstallerModel
@@ -303,6 +309,7 @@ Item {
         }
 
         fabricLoaderModel.clear()
+        fabricApiModel.clear()
         quiltLoaderModel.clear()
         forgeInstallerModel.clear()
         neoforgeInstallerModel.clear()
@@ -333,6 +340,8 @@ Item {
         if (kind === "fabric") {
             fabricLoaderModel.clear()
             root.selectedFabricVersion = ""
+        } else if (kind === "fabric-api") {
+            fabricApiModel.clear()
         } else if (kind === "quilt") {
             quiltLoaderModel.clear()
             root.selectedQuiltVersion = ""
@@ -402,6 +411,9 @@ Item {
             if (!kind || kind === "fabric") {
                 fabricLoaderModel.clear()
             }
+            if (!kind || kind === "fabric-api") {
+                fabricApiModel.clear()
+            }
             if (!kind || kind === "quilt") {
                 quiltLoaderModel.clear()
             }
@@ -417,6 +429,20 @@ Item {
                 fabricLoaderModel.append({
                     "version": fabric[f].version || "",
                     "stable": !!fabric[f].stable
+                })
+            }
+
+            var fabricApi = data.fabricApiVersions || []
+            for (var fa = 0; fa < fabricApi.length; fa++) {
+                fabricApiModel.append({
+                    "version": fabricApi[fa].version || "",
+                    "fullVersion": fabricApi[fa].fullVersion || fabricApi[fa].version || "",
+                    "releaseTime": fabricApi[fa].releaseTime || "",
+                    "fileUrl": fabricApi[fa].fileUrl || "",
+                    "fileName": fabricApi[fa].fileName || "",
+                    "sha1": fabricApi[fa].sha1 || "",
+                    "size": Number(fabricApi[fa].size || 0),
+                    "stable": fabricApi[fa].stable !== false
                 })
             }
 
@@ -450,6 +476,7 @@ Item {
             root.logAction("installer_metadata_models_rebuilt", {
                 "loaderKind": kind || "all",
                 "fabricCount": fabricLoaderModel.count,
+                "fabricApiCount": fabricApiModel.count,
                 "quiltCount": quiltLoaderModel.count,
                 "forgeCount": forgeInstallerModel.count,
                 "neoForgeCount": neoforgeInstallerModel.count,
@@ -529,6 +556,7 @@ Item {
             root.allVersions = nextVersions
 
             fabricLoaderModel.clear()
+            fabricApiModel.clear()
             quiltLoaderModel.clear()
             forgeInstallerModel.clear()
             neoforgeInstallerModel.clear()
@@ -648,6 +676,10 @@ Item {
         root.installNameModifiedByUser = false
         root.selectedLoaderKind = "vanilla"
         root.selectedFabricVersion = ""
+        root.selectedFabricApiVersion = ""
+        root.selectedFabricApiFileUrl = ""
+        root.selectedFabricApiFileName = ""
+        root.selectedFabricApiSha1 = ""
         root.selectedQuiltVersion = ""
         root.selectedForgeVersion = ""
         root.selectedNeoForgeVersion = ""
@@ -683,6 +715,11 @@ Item {
             return
         }
 
+        if (kind === "fabric-api" && root.selectedFabricVersion.length === 0) {
+            root.backend.output = "请先选择 Fabric，再安装 Fabric API。"
+            return
+        }
+
         if (kind === "vanilla") {
             root.selectedLoaderKind = "vanilla"
             root.selectedFabricVersion = ""
@@ -703,6 +740,13 @@ Item {
         if (kind === "fabric" && index >= 0 && index < fabricLoaderModel.count) {
             version = fabricLoaderModel.get(index).version || ""
             root.selectedFabricVersion = version
+        } else if (kind === "fabric-api" && index >= 0 && index < fabricApiModel.count) {
+            var api = fabricApiModel.get(index)
+            version = api.version || ""
+            root.selectedFabricApiVersion = version
+            root.selectedFabricApiFileUrl = api.fileUrl || ""
+            root.selectedFabricApiFileName = api.fileName || ""
+            root.selectedFabricApiSha1 = api.sha1 || ""
         } else if (kind === "quilt" && index >= 0 && index < quiltLoaderModel.count) {
             version = quiltLoaderModel.get(index).version || ""
             root.selectedQuiltVersion = version
@@ -718,8 +762,10 @@ Item {
             return
         }
 
-        root.clearOtherLoaderSelections(kind)
-        root.selectedLoaderKind = kind
+        if (kind !== "fabric-api") {
+            root.clearOtherLoaderSelections(kind)
+            root.selectedLoaderKind = kind
+        }
         if (!root.installNameModifiedByUser)
             root.installVersionName = root.buildInstallVersionName()
         root.closeLoaderVersionPane()
@@ -728,6 +774,10 @@ Item {
     function clearOtherLoaderSelections(kind) {
         if (kind !== "fabric") {
             root.selectedFabricVersion = ""
+            root.selectedFabricApiVersion = ""
+            root.selectedFabricApiFileUrl = ""
+            root.selectedFabricApiFileName = ""
+            root.selectedFabricApiSha1 = ""
         }
         if (kind !== "quilt") {
             root.selectedQuiltVersion = ""
@@ -743,6 +793,10 @@ Item {
     function firstInstallerVersion(kind) {
         if (kind === "fabric" && fabricLoaderModel.count > 0) {
             return fabricLoaderModel.get(0).version || ""
+        }
+
+        if (kind === "fabric-api" && fabricApiModel.count > 0) {
+            return fabricApiModel.get(0).version || ""
         }
 
         if (kind === "quilt" && quiltLoaderModel.count > 0) {
@@ -764,6 +818,9 @@ Item {
         if (kind === "fabric") {
             return fabricLoaderModel.count
         }
+        if (kind === "fabric-api") {
+            return fabricApiModel.count
+        }
         if (kind === "quilt") {
             return quiltLoaderModel.count
         }
@@ -783,6 +840,9 @@ Item {
         if (kind === "fabric" && index < fabricLoaderModel.count) {
             return fabricLoaderModel.get(index).version || ""
         }
+        if (kind === "fabric-api" && index < fabricApiModel.count) {
+            return fabricApiModel.get(index).version || ""
+        }
         if (kind === "quilt" && index < quiltLoaderModel.count) {
             return quiltLoaderModel.get(index).version || ""
         }
@@ -798,6 +858,9 @@ Item {
     function loaderSubtitleAt(kind, index) {
         if (kind === "fabric" && index < fabricLoaderModel.count) {
             return fabricLoaderModel.get(index).stable ? "稳定版" : "实验版"
+        }
+        if (kind === "fabric-api" && index < fabricApiModel.count) {
+            return fabricApiModel.get(index).fullVersion || fabricApiModel.get(index).releaseTime || "Fabric API"
         }
         if (kind === "quilt" && index < quiltLoaderModel.count) {
             return quiltLoaderModel.get(index).stable ? "稳定版" : "实验版"
@@ -851,6 +914,12 @@ Item {
 
         if (kind === "fabric" && index < fabricLoaderModel.count) {
             root.selectedFabricVersion = fabricLoaderModel.get(index).version || ""
+        } else if (kind === "fabric-api" && index < fabricApiModel.count) {
+            var api = fabricApiModel.get(index)
+            root.selectedFabricApiVersion = api.version || ""
+            root.selectedFabricApiFileUrl = api.fileUrl || ""
+            root.selectedFabricApiFileName = api.fileName || ""
+            root.selectedFabricApiSha1 = api.sha1 || ""
         } else if (kind === "quilt" && index < quiltLoaderModel.count) {
             root.selectedQuiltVersion = quiltLoaderModel.get(index).version || ""
         } else if (kind === "forge" && index < forgeInstallerModel.count) {
@@ -883,7 +952,7 @@ Item {
         case "fabric-api":
             return "Fabric API"
         case "quilt-api":
-            return "Quilt API"
+            return "QSL/QFAPI"
         case "optifine":
             return "OptiFine"
         default:
@@ -929,6 +998,7 @@ Item {
         if (root.selectedForgeVersion.length > 0) out.push("forge")
         if (root.selectedNeoForgeVersion.length > 0) out.push("neoforge")
         if (root.selectedFabricVersion.length > 0) out.push("fabric")
+        if (root.selectedFabricApiVersion.length > 0) out.push("fabric-api")
         if (root.selectedQuiltVersion.length > 0) out.push("quilt")
         return out
     }
@@ -972,27 +1042,30 @@ Item {
         if (conflict.length > 0)
             return "与 " + root.loaderTitle(conflict) + " 不兼容"
         if (kind === "vanilla") {
-            return "版本 " + root.selectedGameVersion
+            return root.selectedGameVersion
         }
 
         if (kind === "fabric") {
-            return root.selectedFabricVersion.length > 0 ? "版本 " + root.selectedFabricVersion : "不安装"
+            return root.selectedFabricVersion.length > 0 ? root.selectedFabricVersion : "不安装"
         }
 
         if (kind === "quilt") {
-            return root.selectedQuiltVersion.length > 0 ? "版本 " + root.selectedQuiltVersion : "不安装"
+            return root.selectedQuiltVersion.length > 0 ? root.selectedQuiltVersion : "不安装"
         }
 
         if (kind === "forge") {
-            return root.selectedForgeVersion.length > 0 ? "版本 " + root.selectedForgeVersion : "不安装"
+            return root.selectedForgeVersion.length > 0 ? root.selectedForgeVersion : "不安装"
         }
 
         if (kind === "neoforge") {
-            return root.selectedNeoForgeVersion.length > 0 ? "版本 " + root.selectedNeoForgeVersion : "不安装"
+            return root.selectedNeoForgeVersion.length > 0 ? root.selectedNeoForgeVersion : "不安装"
         }
 
-        if (kind === "fabric-api" || kind === "quilt-api" || kind === "optifine") {
-            return "待开发"
+        if (kind === "fabric-api") {
+            return root.selectedFabricApiVersion.length > 0 ? root.selectedFabricApiVersion : "不安装"
+        }
+        if (kind === "quilt-api" || kind === "optifine") {
+            return "不安装"
         }
 
         return "不安装"
@@ -1003,10 +1076,19 @@ Item {
             return true
         }
 
+        if (kind === "fabric-api")
+            return root.selectedFabricApiVersion.length > 0
         return root.selectedLoaderKind === kind
     }
 
     function removeInstaller(kind) {
+        if (kind === "fabric-api") {
+            root.selectedFabricApiVersion = ""
+            root.selectedFabricApiFileUrl = ""
+            root.selectedFabricApiFileName = ""
+            root.selectedFabricApiSha1 = ""
+            return
+        }
         if (root.selectedLoaderKind === kind) {
             root.selectedLoaderKind = "vanilla"
             root.selectedFabricVersion = ""
@@ -1085,14 +1167,26 @@ Item {
 
         root.downloadFinishHandled = false
         root.downloadCancelDismissed = false
+        // Toggle deliberately so the global task host is reopened even when a
+        // previous terminal dialog left this compatibility flag true.
+        root.downloadDialogOpen = false
         root.downloadDialogOpen = true
 
+        var addons = {
+            "fabricApi": {
+                "version": root.selectedFabricApiVersion,
+                "fileUrl": root.selectedFabricApiFileUrl,
+                "fileName": root.selectedFabricApiFileName,
+                "sha1": root.selectedFabricApiSha1
+            }
+        }
         root.backend.installGameVersion(
             root.fileDownloadSource,
             root.selectedGameVersion,
             instanceName,
             root.selectedLoaderKind,
-            loaderVersion
+            loaderVersion,
+            JSON.stringify(addons)
         )
 
         root.pollDownloadTask()

@@ -3,6 +3,10 @@
 #include <QJsonObject>
 #include <QString>
 
+#include <atomic>
+#include <functional>
+#include <memory>
+
 class JavaService {
 public:
     QJsonObject detect(bool useCache = true) const;
@@ -12,9 +16,12 @@ public:
     QJsonObject removeDisabledJava(const QString &path) const;
     QJsonObject uninstallManagedJava(const QString &path) const;
     QJsonObject installJavaArchive(const QString &archivePath) const;
-    QJsonObject downloadJava(const QString &distribution,
-                             int major,
-                             const QString &packageType) const;
+    QJsonObject downloadJava(
+        const QString &distribution,
+        int major,
+        const QString &packageType,
+        const std::function<void(const QJsonObject &)> &progress = {},
+        std::shared_ptr<std::atomic_bool> cancellation = {}) const;
 
 private:
     QString normalizeInputPath(const QString &path) const;

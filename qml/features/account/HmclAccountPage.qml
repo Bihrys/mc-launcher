@@ -3,6 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Dialogs
 import "../../components"
+import "dialogs"
 
 Item {
     id: root
@@ -19,9 +20,22 @@ Item {
     property string yggdrasilUsername: ""
     property string yggdrasilPassword: ""
     property bool yggdrasilLoginBusy: false
+    property string yggdrasilServerName: ""
+    property var yggdrasilServerLinks: ({})
+    property bool yggdrasilServerNonEmailLogin: false
 
     property string addServerName: ""
     property string addServerUrl: ""
+    property bool offlineSkinDialogOpen: false
+    property int offlineSkinAccountIndex: -1
+    property string offlineSkinUsername: ""
+    property string offlineSkinUuid: ""
+    property string offlineSkinAvatarUrl: ""
+    property bool classicLoginDialogOpen: false
+    property int classicLoginAccountIndex: -1
+    property string classicLoginUsername: ""
+    property string classicLoginServerUrl: ""
+    property string classicLoginLoginName: ""
 
     property int deleteIndex: -1
     property bool accountMenuOpen: false
@@ -57,6 +71,9 @@ Item {
             name: "LittleSkin"
             url: "https://littleskin.cn/api/yggdrasil"
             host: "littleskin.cn"
+            homepage: "https://littleskin.cn/"
+            register: "https://littleskin.cn/auth/register"
+            nonEmailLogin: false
         }
     }
 
@@ -218,6 +235,9 @@ Item {
                                 required property string name
                                 required property string url
                                 required property string host
+                                required property string homepage
+                                required property string register
+                                required property bool nonEmailLogin
                                 property var pageRoot: root
 
                                 width: 200
@@ -233,6 +253,12 @@ Item {
 
                                     onClicked: {
                                         parent.pageRoot.yggdrasilServer = parent.url
+                                        parent.pageRoot.yggdrasilServerName = parent.name
+                                        parent.pageRoot.yggdrasilServerLinks = {
+                                            "homepage": parent.homepage,
+                                            "register": parent.register
+                                        }
+                                        parent.pageRoot.yggdrasilServerNonEmailLogin = parent.nonEmailLogin
                                         parent.pageRoot.openDialog("yggdrasil")
                                     }
 
@@ -310,8 +336,10 @@ Item {
                         required property int index
                         required property string username
                         required property string uuid
+                        required property string kind
                         required property string displayKind
                         required property string serverUrl
+                        required property string loginName
                         required property string avatarUrl
                         required property string identifier
                         required property bool selected
@@ -412,7 +440,7 @@ Item {
 
             x: Math.max(8, Math.min(root.accountMenuX, root.width - width - 8))
             y: Math.max(8, Math.min(root.accountMenuY, root.height - height - 8))
-            width: 210
+            width: 220
             height: menuColumn.implicitHeight + 8
             radius: 4
             color: root.style.cSurfaceContainerHigh
@@ -513,11 +541,113 @@ Item {
         }
     }
 
+    CreateAccountPane {
+        id: createAccountPane
+        anchors.fill: parent
+        z: 1000
+        visible: root.deleteIndex < 0
+                 && (root.dialogMode === "offline"
+                     || root.dialogMode === "yggdrasil"
+                     || root.dialogMode === "microsoft")
+        style: root.style
+        backend: root.backend
+        mode: root.dialogMode
+        serverName: root.yggdrasilServerName
+        serverUrl: root.yggdrasilServer
+        serverLinks: root.yggdrasilServerLinks
+        nonEmailLogin: root.yggdrasilServerNonEmailLogin
+        busy: root.yggdrasilLoginBusy
+
+        onOfflineAccepted: function(username, uuid) {
+            root.backend.loginOfflineWithUuid(username, uuid)
+            root.reloadAccounts()
+            root.closeDialog()
+        }
+
+        onYggdrasilAccepted: function(serverUrl, username, password) {
+            if (root.yggdrasilLoginBusy)
+                return
+            root.yggdrasilServer = serverUrl
+            root.yggdrasilUsername = username
+            root.yggdrasilPassword = password
+            root.yggdrasilLoginBusy = true
+            createAccountPane.errorText = ""
+            root.backend.loginYggdrasil(serverUrl, username, password)
+            yggdrasilLoginPoller.restart()
+        }
+
+        onMicrosoftAccepted: function(clientId) {
+            root.backend.loginMicrosoftBrowser(clientId)
+            root.reloadAccounts()
+            root.closeDialog()
+        }
+
+        onCanceled: root.closeDialog()
+    }
+
+    AddAuthlibInjectorServerPane {
+        id: addAuthServerPane
+        anchors.fill: parent
+        z: 1010
+        visible: root.deleteIndex < 0 && root.dialogMode === "addServer"
+        style: root.style
+        backend: root.backend
+        onCompleted: function(name, url) {
+            root.reloadAuthServersFromJson(root.backend.addAuthServer(name, url))
+            root.yggdrasilServer = url
+            root.yggdrasilServerName = name
+            root.closeDialog()
+        }
+        onCanceled: root.closeDialog()
+    }
+
+    OfflineAccountSkinPane {
+        id: offlineSkinPane
+        anchors.fill: parent
+        z: 1150
+        visible: root.offlineSkinDialogOpen
+        style: root.style
+        backend: root.backend
+        onAccepted: function(index, fileUrl, capeFileUrl, model, cslApi, skinType) {
+            root.reloadAccountsFromJson(root.backend.setOfflineSkin(String(index), fileUrl, capeFileUrl, model, cslApi, skinType))
+            root.offlineSkinDialogOpen = false
+        }
+        onCanceled: root.offlineSkinDialogOpen = false
+    }
+
+    ClassicAccountLoginDialog {
+        id: classicLoginPane
+        anchors.fill: parent
+        z: 1160
+        visible: root.classicLoginDialogOpen
+        style: root.style
+        onAccepted: function(password) {
+            if (root.taskAccountIndex >= 0 || root.classicLoginAccountIndex < 0)
+                return
+            classicLoginPane.busy = true
+            classicLoginPane.errorText = ""
+            root.taskAccountIndex = root.classicLoginAccountIndex
+            root.taskKind = "reauthenticate"
+            root.refreshingAccountIndex = root.classicLoginAccountIndex
+            root.accountRefreshStatus = {
+                "active": true,
+                "index": root.classicLoginAccountIndex,
+                "title": "正在重新登录"
+            }
+            root.backend.reauthenticateYggdrasil(String(root.classicLoginAccountIndex), password)
+            accountRefreshPoller.restart()
+        }
+        onCanceled: {
+            if (!classicLoginPane.busy)
+                root.classicLoginDialogOpen = false
+        }
+    }
+
     Rectangle {
         id: accountDialogOverlay
 
         anchors.fill: parent
-        visible: root.dialogMode.length > 0 && root.deleteIndex < 0
+        visible: false // replaced by HMCL account dialog components
         z: 1000
         color: "#80000000"
 
@@ -941,7 +1071,7 @@ Item {
                                 fallbackText: profileDelegate.name.length > 0
                                               ? profileDelegate.name.substring(0, 1).toUpperCase()
                                               : "?"
-                                size: 44
+                                size: 32
                             }
 
                             Column {
@@ -1033,7 +1163,10 @@ Item {
                 authServersModel.append({
                     "name": server.name || "",
                     "url": server.url || "",
-                    "host": server.host || root.hostFromUrl(server.url || "")
+                    "host": server.host || root.hostFromUrl(server.url || ""),
+                    "homepage": server.links && server.links.homepage ? server.links.homepage : "",
+                    "register": server.links && server.links.register ? server.links.register : "",
+                    "nonEmailLogin": !!server.nonEmailLogin
                 })
             }
         } catch (e) {
@@ -1068,13 +1201,18 @@ Item {
 
     function openDialog(mode) {
         root.dialogMode = mode
-        if (mode === "offline") {
-            root.updateOfflinePreview()
+        root.accountErrorText = ""
+        if (mode === "offline" || mode === "yggdrasil" || mode === "microsoft") {
+            createAccountPane.begin(mode)
+        } else if (mode === "addServer") {
+            addAuthServerPane.begin()
         }
     }
 
     function closeDialog() {
         root.dialogMode = ""
+        root.yggdrasilLoginBusy = false
+        createAccountPane.busy = false
     }
 
     function dialogTitle() {
@@ -1149,9 +1287,15 @@ Item {
     }
 
     function startAccountRefresh(index) {
-        if (root.taskAccountIndex >= 0) {
+        if (root.taskAccountIndex >= 0 || index < 0 || index >= accountsModel.count) {
             return
         }
+
+        var account = accountsModel.get(index)
+        root.classicLoginAccountIndex = index
+        root.classicLoginUsername = account.username || ""
+        root.classicLoginServerUrl = account.serverUrl || ""
+        root.classicLoginLoginName = account.loginName || account.username || ""
 
         root.taskAccountIndex = index
         root.taskKind = "refresh"
@@ -1167,7 +1311,21 @@ Item {
     }
 
     function openSkinUpload(index) {
-        if (root.taskAccountIndex >= 0) {
+        if (root.taskAccountIndex >= 0 || index < 0 || index >= accountsModel.count) {
+            return
+        }
+        var account = accountsModel.get(index)
+        if (account.kind === "offline") {
+            root.offlineSkinAccountIndex = index
+            root.offlineSkinUsername = account.username || ""
+            root.offlineSkinUuid = account.uuid || ""
+            root.offlineSkinAvatarUrl = account.avatarUrl || ""
+            offlineSkinPane.begin(index, root.offlineSkinUsername,
+                                  root.offlineSkinUuid, root.offlineSkinAvatarUrl,
+                                  account.skinType || "default", account.skinModel || "wide",
+                                  account.skinPath || "", account.capePath || "",
+                                  account.skinCslApi || "")
+            root.offlineSkinDialogOpen = true
             return
         }
 
@@ -1221,15 +1379,46 @@ Item {
             }
 
             if (!status.active) {
+                var completedKind = root.taskKind
+                var completedIndex = root.taskAccountIndex
                 accountRefreshPoller.stop()
                 root.refreshingAccountIndex = -1
                 root.taskAccountIndex = -1
                 root.taskKind = ""
                 root.pendingSkinUploadIndex = -1
+
+                if (completedKind === "refresh" && status.requiresPassword) {
+                    if (completedIndex >= 0 && completedIndex < accountsModel.count) {
+                        var account = accountsModel.get(completedIndex)
+                        root.classicLoginAccountIndex = completedIndex
+                        root.classicLoginUsername = account.username || ""
+                        root.classicLoginServerUrl = account.serverUrl || ""
+                        root.classicLoginLoginName = account.loginName || account.username || ""
+                    }
+                    classicLoginPane.begin(root.classicLoginLoginName)
+                    classicLoginPane.errorText = status.message || "登录状态已失效，请重新输入密码。"
+                    classicLoginPane.busy = false
+                    root.classicLoginDialogOpen = true
+                    return
+                }
+
+                if (completedKind === "reauthenticate") {
+                    classicLoginPane.busy = false
+                    if (status.success) {
+                        root.classicLoginDialogOpen = false
+                        root.reloadAccounts()
+                    } else {
+                        classicLoginPane.errorText = status.message || "第三方认证失败。"
+                    }
+                }
             }
         } catch (e) {
             accountRefreshPoller.stop()
             root.refreshingAccountIndex = -1
+            root.taskAccountIndex = -1
+            root.taskKind = ""
+            root.pendingSkinUploadIndex = -1
+            classicLoginPane.busy = false
             root.logAction("account_refresh_parse_failed", {"error": String(e), "rawLength": raw ? raw.length : 0}); console.log("Failed to parse account refresh task", e)
         }
     }
@@ -1251,19 +1440,25 @@ Item {
             yggdrasilLoginPoller.stop()
             root.yggdrasilLoginBusy = false
 
-            if (status.accountsJson && status.accountsJson.length > 0) {
-                root.reloadAccountsFromJson(status.accountsJson)
-                root.closeDialog()
-            }
-
-            if (status.pendingProfilesJson && status.pendingProfilesJson.length > 0) {
+            if (status.requiresProfileSelection) {
                 root.loadPendingYggdrasilProfiles()
                 root.closeDialog()
+                root.classicLoginDialogOpen = false
                 return
             }
 
+            if (status.success) {
+                root.reloadAccounts()
+                root.closeDialog()
+                root.classicLoginDialogOpen = false
+            }
+
             if (!status.success) {
-                // 失败时保留弹窗，方便修改用户名/密码后重试。
+                // 失败时保留弹窗，和 HMCL 一样在原对话框显示本地化错误。
+                var message = status.message || root.backend.output || "第三方认证失败。"
+                createAccountPane.errorText = message
+                classicLoginPane.errorText = message
+                classicLoginPane.busy = false
                 return
             }
 
@@ -1302,7 +1497,13 @@ Item {
                     "kind": account.kind || "",
                     "displayKind": account.displayKind || "",
                     "serverUrl": account.serverUrl || "",
+                    "loginName": account.loginName || account.username || "",
                     "avatarUrl": account.avatarUrl || "",
+                    "skinType": account.skinType || "default",
+                    "skinModel": account.skinModel || "wide",
+                    "skinPath": account.skinPath || "",
+                    "capePath": account.capePath || "",
+                    "skinCslApi": account.skinCslApi || "",
                     "note": account.note || "",
                     "identifier": account.identifier || "",
                     "selected": !!account.selected
@@ -1746,7 +1947,7 @@ Item {
             source: avatar.source
             asynchronous: true
             fillMode: Image.PreserveAspectFit
-            visible: avatar.source.length > 0 && status !== Image.Error
+            visible: avatar.source.length > 0 && status === Image.Ready
             cache: true
             smooth: false
         }

@@ -1,8 +1,11 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import "../../Hmcl/controls" as HmclControls
+import "../../components"
 
+// Qt Quick port of HMCL TaskExecutorDialogPane + TaskListPane.
+// Stage rows remain visible, while running file rows are inserted directly
+// beneath their inherited stage with the same 26 px indentation as HMCL.
 Rectangle {
     id: root
 
@@ -10,228 +13,296 @@ Rectangle {
     property var status: ({})
     property bool activeTask: !!root.status.active
     property var stages: root.status.stages || []
+    property var files: root.status.files || []
 
     signal cancelRequested()
     signal closeRequested()
 
     radius: 4
     color: style.cSurfaceContainerHigh
-    border.color: style.cBorder
-    border.width: 1
     clip: true
 
-    function formatBytes(v) {
-        var n = Number(v || 0)
-        if (n <= 0) return "0 B"
-        var units = ["B", "KB", "MB", "GB"]
-        var idx = 0
-        while (n >= 1024 && idx < units.length - 1) {
-            n = n / 1024
-            idx++
-        }
-        return n.toFixed(idx === 0 ? 0 : 1) + " " + units[idx]
+    function formatBytes(value) {
+        var bytes = Number(value || 0)
+        if (bytes < 1024)
+            return bytes.toFixed(0) + " B"
+        if (bytes < 1024 * 1024)
+            return (bytes / 1024).toFixed(1) + " KiB"
+        if (bytes < 1024 * 1024 * 1024)
+            return (bytes / (1024 * 1024)).toFixed(1) + " MiB"
+        return (bytes / (1024 * 1024 * 1024)).toFixed(1) + " GiB"
     }
 
-    function formatSpeed(v) {
+    function formatSpeed(value) {
         if (root.status.speedText && String(root.status.speedText).length > 0)
             return String(root.status.speedText)
-        return formatBytes(v) + "/s"
+        return root.formatBytes(value) + "/s"
+    }
+
+    function stageTitle(stage) {
+        var title = String(stage.title || "")
+        var total = Number(stage.total || 0)
+        var count = Number(stage.count || 0)
+        return total > 0 ? title + " - " + count + "/" + total : title
+    }
+
+    function stageGlyph(stageStatus) {
+        if (stageStatus === "running") return "→"
+        if (stageStatus === "success" || stageStatus === "finished") return "✓"
+        if (stageStatus === "failed") return "×"
+        return "…"
+    }
+
+    function stageGlyphColor(stageStatus) {
+        if (stageStatus === "failed") return "#F44336"
+        return root.style.cTextOnSurface
+    }
+
+    function filesForStage(stageId) {
+        var result = []
+        for (var i = 0; i < root.files.length; ++i) {
+            var file = root.files[i]
+            if (String(file.stageId || "") === String(stageId || ""))
+                result.push(file)
+        }
+        return result
+    }
+
+    function orphanFiles() {
+        var result = []
+        for (var i = 0; i < root.files.length; ++i) {
+            var file = root.files[i]
+            if (!file.stageId || String(file.stageId).length === 0)
+                result.push(file)
+        }
+        return result
     }
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 16
         spacing: 0
 
-        Label {
-            Layout.fillWidth: true
-            Layout.bottomMargin: 12
-            text: root.status.title || "下载任务"
-            color: root.style.cTextOnSurface
-            font.pixelSize: 14
-            font.bold: true
-            elide: Text.ElideRight
-        }
-
-        ListView {
-            id: taskListView
+        ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            clip: true
-            spacing: 0
-            model: root.stages
-
-            delegate: Item {
-                required property var modelData
-                required property int index
-                width: taskListView.width
-                height: stageRow.implicitHeight + stageBar.height + 6
-
-                RowLayout {
-                    id: stageRow
-                    width: parent.width
-                    height: 24
-                    spacing: 8
-
-                    Item {
-                        Layout.preferredWidth: 14
-                        Layout.preferredHeight: 14
-                        Layout.alignment: Qt.AlignVCenter
-
-                        Canvas {
-                            anchors.fill: parent
-                            onPaint: {
-                                var ctx = getContext("2d")
-                                ctx.reset()
-                                var s = modelData.status || "waiting"
-                                var color = s === "running" ? root.style.cPrimary
-                                          : s === "success" ? "#4CAF50"
-                                          : s === "failed" ? "#F44336"
-                                          : root.style.cTextOnSurfaceVariant
-                                ctx.fillStyle = color
-                                ctx.font = "bold 12px sans-serif"
-                                ctx.textAlign = "center"
-                                ctx.textBaseline = "middle"
-                                var icon = s === "running" ? "▶"
-                                         : s === "success" ? "✔"
-                                         : s === "failed" ? "✖"
-                                         : "•••"
-                                ctx.fillText(icon, 7, 7)
-                            }
-                            Component.onCompleted: requestPaint()
-                            Connections {
-                                target: modelData ? null : null
-                                function onStatusChanged() { requestPaint() }
-                            }
-                            Timer {
-                                interval: 500
-                                running: true
-                                repeat: true
-                                onTriggered: parent.requestPaint()
-                            }
-                        }
-                    }
-
-                    Label {
-                        Layout.fillWidth: true
-                        Layout.alignment: Qt.AlignVCenter
-                        text: {
-                            var title = modelData.title || ""
-                            var total = modelData.total || 0
-                            var count = modelData.count || 0
-                            if (total > 0)
-                                return title + " - " + count + "/" + total
-                            return title
-                        }
-                        color: root.style.cTextOnSurface
-                        font.pixelSize: 12
-                        elide: Text.ElideRight
-                    }
-                }
-
-                Rectangle {
-                    id: stageBar
-                    anchors.top: stageRow.bottom
-                    anchors.topMargin: 2
-                    anchors.left: parent.left
-                    anchors.leftMargin: 22
-                    anchors.right: parent.right
-                    height: 3
-                    radius: 1.5
-                    color: Qt.rgba(root.style.cTextOnSurface.r, root.style.cTextOnSurface.g, root.style.cTextOnSurface.b, 0.08)
-                    visible: (modelData.status || "waiting") === "running"
-
-                    Rectangle {
-                        height: parent.height
-                        radius: 1.5
-                        width: {
-                            var total = modelData.total || 0
-                            var count = modelData.count || 0
-                            if (total <= 0) return 0
-                            return parent.width * Math.min(1.0, count / total)
-                        }
-                        color: root.style.cPrimary
-
-                        Behavior on width {
-                            NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
-                        }
-                    }
-                }
-            }
+            Layout.leftMargin: 16
+            Layout.rightMargin: 16
+            Layout.topMargin: 16
+            spacing: 8
 
             Label {
-                anchors.centerIn: parent
-                visible: root.stages.length === 0 && root.activeTask
-                text: root.status.message || "正在准备…"
-                color: root.style.cTextOnSurfaceVariant
-                font.pixelSize: 12
+                Layout.fillWidth: true
+                text: root.status.title || "安装新游戏"
+                color: root.style.cTextOnSurface
+                font.pixelSize: 14
+                font.bold: true
+                elide: Text.ElideRight
             }
-        }
 
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 1
-            Layout.topMargin: 8
-            Layout.bottomMargin: 8
-            color: root.style.cBorder
+            ScrollView {
+                id: taskScroll
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                clip: true
+                contentWidth: availableWidth
+                ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AlwaysOff }
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                Column {
+                    id: taskColumn
+                    width: taskScroll.availableWidth
+                    spacing: 0
+
+                    Repeater {
+                        model: root.stages
+
+                        delegate: Column {
+                            id: stageBlock
+                            required property var modelData
+                            width: taskColumn.width
+                            spacing: 0
+
+                            Item {
+                                width: stageBlock.width
+                                height: 27
+
+                                Text {
+                                    anchors.left: parent.left
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 14
+                                    text: root.stageGlyph(stageBlock.modelData.status || "waiting")
+                                    color: root.stageGlyphColor(stageBlock.modelData.status || "waiting")
+                                    font.pixelSize: 15
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+
+                                Text {
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 26
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: root.stageTitle(stageBlock.modelData)
+                                    color: root.style.cTextOnSurface
+                                    font.pixelSize: 12
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            Repeater {
+                                model: root.filesForStage(stageBlock.modelData.id || "")
+
+                                delegate: Item {
+                                    id: fileNode
+                                    required property var modelData
+                                    width: stageBlock.width
+                                    height: 42
+
+                                    Column {
+                                        anchors.left: parent.left
+                                        anchors.leftMargin: 26
+                                        anchors.right: parent.right
+                                        anchors.top: parent.top
+                                        spacing: 5
+
+                                        Text {
+                                            width: parent.width
+                                            text: fileNode.modelData.name || "下载文件"
+                                            color: root.style.cTextOnSurface
+                                            font.pixelSize: 12
+                                            elide: Text.ElideMiddle
+                                        }
+
+                                        Rectangle {
+                                            width: parent.width
+                                            height: 4
+                                            color: Qt.rgba(root.style.cPrimary.r,
+                                                           root.style.cPrimary.g,
+                                                           root.style.cPrimary.b, 0.16)
+
+                                            Rectangle {
+                                                height: parent.height
+                                                width: parent.width * Math.max(0, Math.min(100,
+                                                       Number(fileNode.modelData.percent || 0))) / 100
+                                                color: fileNode.modelData.status === "failed"
+                                                       ? "#F44336" : root.style.cPrimary
+
+                                                Behavior on width {
+                                                    NumberAnimation {
+                                                        duration: root.style.animationsEnabled ? 160 : 0
+                                                        easing.type: Easing.OutCubic
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Repeater {
+                        model: root.orphanFiles()
+
+                        delegate: Item {
+                            id: orphanNode
+                            required property var modelData
+                            width: taskColumn.width
+                            height: 42
+
+                            Column {
+                                anchors.left: parent.left
+                                anchors.leftMargin: 26
+                                anchors.right: parent.right
+                                spacing: 5
+
+                                Text {
+                                    width: parent.width
+                                    text: orphanNode.modelData.name || "下载文件"
+                                    color: root.style.cTextOnSurface
+                                    font.pixelSize: 12
+                                    elide: Text.ElideMiddle
+                                }
+
+                                Rectangle {
+                                    width: parent.width
+                                    height: 4
+                                    color: Qt.rgba(root.style.cPrimary.r,
+                                                   root.style.cPrimary.g,
+                                                   root.style.cPrimary.b, 0.16)
+                                    Rectangle {
+                                        height: parent.height
+                                        width: parent.width * Math.max(0, Math.min(100,
+                                               Number(orphanNode.modelData.percent || 0))) / 100
+                                        color: root.style.cPrimary
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Text {
+                        width: taskColumn.width
+                        height: 80
+                        visible: root.stages.length === 0 && root.files.length === 0
+                        text: root.status.message || "正在准备…"
+                        color: root.style.cTextOnSurfaceVariant
+                        font.pixelSize: 12
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        wrapMode: Text.WordWrap
+                    }
+                }
+            }
         }
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 12
+            Layout.preferredHeight: 48
+            Layout.leftMargin: 8
+            Layout.rightMargin: 8
+            Layout.bottomMargin: 0
+            spacing: 8
 
-            ColumnLayout {
+            Label {
                 Layout.fillWidth: true
-                spacing: 2
-
-                Label {
-                    Layout.fillWidth: true
-                    text: root.activeTask ? root.formatSpeed(root.status.speed || 0) : ""
-                    color: root.style.cTextOnSurfaceVariant
-                    font.pixelSize: 11
-                }
-
-                Label {
-                    Layout.fillWidth: true
-                    text: {
-                        if (!root.activeTask) {
-                            if (root.status.status === "finished") return "安装完成"
-                            if (root.status.status === "failed") return root.status.message || "安装失败"
-                            if (root.status.status === "cancelled") return "已取消"
-                            return ""
-                        }
-                        var finished = root.status.finishedFiles || 0
-                        var total = root.status.totalFiles || 0
-                        var bytes = root.formatBytes(root.status.downloadedBytes || 0)
-                        var totalB = root.formatBytes(root.status.totalBytes || 0)
-                        return finished + "/" + total + " 文件  " + bytes + "/" + totalB
-                    }
-                    color: root.style.cTextOnSurfaceVariant
-                    font.pixelSize: 11
-                    elide: Text.ElideRight
-                }
+                text: root.activeTask ? root.formatSpeed(root.status.speed || 0) : ""
+                color: root.style.cTextOnSurface
+                font.pixelSize: 12
+                elide: Text.ElideRight
             }
 
-            Rectangle {
-                Layout.preferredWidth: 80
-                Layout.preferredHeight: 32
-                radius: 3
-                color: cancelMouse.containsMouse ? root.style.cButtonHover : root.style.cButtonSurface
+            Item {
+                Layout.preferredWidth: 64
+                Layout.preferredHeight: 36
 
-                Label {
+                Text {
                     anchors.centerIn: parent
-                    text: root.activeTask ? "取消" : "关闭"
-                    color: root.style.cTextOnSurface
+                    text: root.activeTask && root.status.canCancel !== false ? "取消" : "关闭"
+                    color: root.style.cTextOnSurfaceVariant
                     font.pixelSize: 12
+                    z: 1
+                }
+
+                HmclRipple {
+                    id: actionRipple
+                    anchors.fill: parent
+                    hoverColor: root.style.cTextOnSurface
+                    rippleColor: root.style.cPrimary
+                    hovered: actionMouse.containsMouse
+                    animationsEnabled: root.style.animationsEnabled
                 }
 
                 MouseArea {
-                    id: cancelMouse
+                    id: actionMouse
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
+                    onPressed: function(event) { actionRipple.press(event.x, event.y) }
+                    onReleased: actionRipple.release()
+                    onCanceled: actionRipple.cancel()
                     onClicked: {
-                        if (root.activeTask)
+                        if (root.activeTask && root.status.canCancel !== false)
                             root.cancelRequested()
                         else
                             root.closeRequested()

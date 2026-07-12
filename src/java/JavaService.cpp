@@ -35,6 +35,19 @@
 
 namespace {
 
+QString formatSpeed(qint64 bytesPerSecond) {
+    double value = static_cast<double>(qMax<qint64>(0, bytesPerSecond));
+    const char *unit = "B/s";
+    if (value >= 1024.0 * 1024.0) {
+        value /= 1024.0 * 1024.0;
+        unit = "MiB/s";
+    } else if (value >= 1024.0) {
+        value /= 1024.0;
+        unit = "KiB/s";
+    }
+    return QString::number(value, 'f', value >= 10.0 ? 0 : 1) + " " + unit;
+}
+
 QString javaExecutableName() {
 #ifdef Q_OS_WIN
     return QStringLiteral("java.exe");
@@ -192,10 +205,10 @@ void addHomeCandidate(QSet<QString> &out, const QString &home) {
     if (home.trimmed().isEmpty()) return;
     const QString normalized = QDir::cleanPath(home);
     const QString normal = QDir(normalized).filePath("bin/" + javaExecutableName());
-    if (QFileInfo::isFile(normal)) out.insert(canonicalOrAbsolute(normal));
+    if (QFileInfo(normal).isFile()) out.insert(canonicalOrAbsolute(normal));
 #ifdef Q_OS_MACOS
     const QString bundle = QDir(normalized).filePath("jre.bundle/Contents/Home/bin/java");
-    if (QFileInfo::isFile(bundle)) out.insert(canonicalOrAbsolute(bundle));
+    if (QFileInfo(bundle).isFile()) out.insert(canonicalOrAbsolute(bundle));
 #endif
 }
 
@@ -213,7 +226,7 @@ void searchImmediateHomes(QSet<QString> &out, const QString &root) {
 }
 
 void searchRecursiveJava(QSet<QString> &out, const QString &root, int limit = 256) {
-    if (!QFileInfo::isDir(root)) return;
+    if (!QFileInfo(root).isDir()) return;
     QDirIterator it(root, QStringList{javaExecutableName()},
                     QDir::Files | QDir::Executable | QDir::NoSymLinks,
                     QDirIterator::Subdirectories);
@@ -247,14 +260,14 @@ bool copyRecursively(const QString &source, const QString &destination) {
 }
 
 QString findExtractedJavaHome(const QString &root) {
-    if (QFileInfo::isFile(QDir(root).filePath("release"))
-        && QFileInfo::isFile(QDir(root).filePath("bin/" + javaExecutableName())))
+    if (QFileInfo(QDir(root).filePath("release")).isFile()
+        && QFileInfo(QDir(root).filePath("bin/" + javaExecutableName())).isFile())
         return root;
     QDirIterator it(root, QStringList{"release"}, QDir::Files, QDirIterator::Subdirectories);
     while (it.hasNext()) {
         const QFileInfo release(it.next());
         const QString home = release.absolutePath();
-        if (QFileInfo::isFile(QDir(home).filePath("bin/" + javaExecutableName())))
+        if (QFileInfo(QDir(home).filePath("bin/" + javaExecutableName())).isFile())
             return home;
     }
     return {};
@@ -370,10 +383,10 @@ QString JavaService::resolveJavaExecutable(const QString &path) const {
     }
     if (info.isDir()) {
         const QString direct = QDir(value).filePath("bin/" + javaExecutableName());
-        if (QFileInfo::isFile(direct)) return canonicalOrAbsolute(direct);
+        if (QFileInfo(direct).isFile()) return canonicalOrAbsolute(direct);
 #ifdef Q_OS_MACOS
         const QString bundle = QDir(value).filePath("Contents/Home/bin/java");
-        if (QFileInfo::isFile(bundle)) return canonicalOrAbsolute(bundle);
+        if (QFileInfo(bundle).isFile()) return canonicalOrAbsolute(bundle);
 #endif
     }
     return {};
@@ -452,7 +465,7 @@ QJsonObject JavaService::inspectRuntime(const QString &executable,
     const int major = parseMajor(version);
     const QString normalizedArch = normalizeArchitecture(arch);
     const bool managed = real.startsWith(managedRoot() + "/");
-    const bool jdk = QFileInfo::isFile(exeInfo.dir().filePath(javacExecutableName()));
+    const bool jdk = QFileInfo(exeInfo.dir().filePath(javacExecutableName())).isFile();
 
     return QJsonObject{
         {"path", real}, {"executable", real}, {"home", javaHome},
@@ -485,7 +498,7 @@ QJsonObject JavaService::detect(bool useCache) const {
     const QStringList pathEntries = qEnvironmentVariable("PATH").split(QDir::listSeparator(), Qt::SkipEmptyParts);
     for (const QString &entry : pathEntries) {
         const QString executable = QDir(entry).filePath(javaExecutableName());
-        if (QFileInfo::isFile(executable)) candidates.insert(canonicalOrAbsolute(executable));
+        if (QFileInfo(executable).isFile()) candidates.insert(canonicalOrAbsolute(executable));
     }
     for (const char *name : {"JAVA_HOME", "JDK_HOME"}) addHomeCandidate(candidates, qEnvironmentVariable(name));
     for (const QString &home : qEnvironmentVariable("HMCL_JRES").split(QDir::listSeparator(), Qt::SkipEmptyParts))
@@ -646,7 +659,7 @@ QJsonObject JavaService::uninstallManagedJava(const QString &path) const {
 
 QJsonObject JavaService::installJavaArchive(const QString &archivePath) const {
     const QString archive = normalizeInputPath(archivePath);
-    if (!QFileInfo::isFile(archive)) return errorResult("Java 压缩包不存在。");
+    if (!QFileInfo(archive).isFile()) return errorResult("Java 压缩包不存在。");
 
     const QString temp = managedRoot() + "/.tmp/" + QUuid::createUuid().toString(QUuid::WithoutBraces);
     QString extractError;
@@ -686,14 +699,40 @@ QJsonObject JavaService::installJavaArchive(const QString &archivePath) const {
     return result;
 }
 
-QJsonObject JavaService::downloadJava(const QString &distribution,
-                                      int major,
-                                      const QString &packageType) const {
+QJsonObject JavaService::downloadJava(
+    const QString &distribution,
+    int major,
+    const QString &packageType,
+    const std::function<void(const QJsonObject &)> &progress,
+    std::shared_ptr<std::atomic_bool> cancellation) const {
+    const auto cancelled = [&]() {
+        return cancellation && cancellation->load();
+    };
+    const auto publish = [&](const QJsonObject &status) {
+        if (progress) progress(status);
+    };
+    const auto cancelledResult = []() {
+        return QJsonObject{{"success", false}, {"cancelled", true},
+                           {"message", QStringLiteral("Java 下载已取消。")}};
+    };
+
     if (major <= 0) return errorResult("Java 主版本无效。");
     const QString dist = distribution.trimmed().toLower();
     const QString package = packageType.trimmed().toLower();
     if (dist.isEmpty() || (package != "jdk" && package != "jre"))
         return errorResult("Java 发行版或包类型无效。");
+
+    publish(QJsonObject{
+        {"active", true}, {"success", false}, {"cancelled", false},
+        {"canCancel", true}, {"status", "preparing"}, {"percent", 3},
+        {"title", QString("正在获取 Java %1 %2").arg(major).arg(package.toUpper())},
+        {"message", QStringLiteral("正在连接 Foojay Disco 元数据服务。")},
+        {"speed", 0}, {"speedText", "0 B/s"}, {"files", QJsonArray{}},
+        {"stages", QJsonArray{QJsonObject{{"id", "hmcl.java.metadata"},
+                                           {"title", "获取 Java 下载信息"},
+                                           {"status", "running"},
+                                           {"count", 0}, {"total", 1}}}}
+    });
 
     QUrl api("https://api.foojay.io/disco/v3.0/packages");
     QUrlQuery query;
@@ -709,6 +748,7 @@ QJsonObject JavaService::downloadJava(const QString &distribution,
 
     QString fetchError;
     const QByteArray data = blockingGet(api, &fetchError);
+    if (cancelled()) return cancelledResult();
     if (data.isEmpty()) return errorResult("获取 Java 下载列表失败：" + fetchError);
     QJsonParseError parseError{};
     const QJsonDocument document = QJsonDocument::fromJson(data, &parseError);
@@ -740,14 +780,73 @@ QJsonObject JavaService::downloadJava(const QString &distribution,
     const QUrl downloadUrl(links.value("pkg_download_redirect").toString());
     if (!downloadUrl.isValid()) return errorResult("Java 下载地址无效。");
     QString fileName = selected.value("filename").toString();
-    if (fileName.isEmpty()) fileName = QString("%1-%2-%3.%4").arg(dist).arg(major).arg(package).arg(archiveType());
+    if (fileName.isEmpty())
+        fileName = QString("%1-%2-%3.%4").arg(dist).arg(major).arg(package).arg(archiveType());
     const QString archive = QDir(downloadsRoot()).filePath(fileName);
+    const qint64 expectedSize = static_cast<qint64>(selected.value("size").toDouble(
+        selected.value("download_size").toDouble()));
 
     Downloader downloader;
-    if (!downloader.downloadSync({downloadUrl}, archive))
+    downloader.setConcurrency(1);
+    downloader.setCancellationFlag(cancellation);
+    QObject::connect(&downloader, &Downloader::progress, &downloader,
+        [&](int finished, int total, qint64 bytes, const QString &current,
+            qint64 speed, const QJsonArray &files, const QJsonObject &) {
+            const int percent = expectedSize > 0
+                ? qBound(5, static_cast<int>(bytes * 85 / expectedSize) + 5, 90)
+                : (total > 0 ? qBound(5, static_cast<int>(finished * 85.0 / total) + 5, 90) : 5);
+            publish(QJsonObject{
+                {"active", true}, {"success", false}, {"cancelled", false},
+                {"canCancel", true}, {"status", "downloading"},
+                {"percent", percent},
+                {"title", QString("正在下载 Java %1 %2").arg(major).arg(package.toUpper())},
+                {"message", current.isEmpty() ? fileName : current},
+                {"totalFiles", total}, {"finishedFiles", finished},
+                {"totalBytes", static_cast<double>(expectedSize)},
+                {"downloadedBytes", static_cast<double>(bytes)},
+                {"currentFile", current}, {"speed", static_cast<double>(speed)},
+                {"speedText", formatSpeed(speed)}, {"files", files},
+                {"stages", QJsonArray{
+                    QJsonObject{{"id", "hmcl.java.metadata"}, {"title", "获取 Java 下载信息"},
+                                {"status", "success"}, {"count", 1}, {"total", 1}},
+                    QJsonObject{{"id", "hmcl.java.download"}, {"title", fileName},
+                                {"status", "running"}, {"count", finished}, {"total", total}},
+                    QJsonObject{{"id", "hmcl.java.install"}, {"title", "安装 Java"},
+                                {"status", "waiting"}, {"count", 0}, {"total", 1}}
+                }}
+            });
+        }, Qt::DirectConnection);
+
+    DownloadItem item;
+    item.urls = {downloadUrl};
+    item.destPath = archive;
+    item.size = expectedSize;
+    item.displayName = fileName;
+    item.stageId = QStringLiteral("hmcl.java.download");
+    if (!downloader.run({item})) {
+        if (cancelled()) return cancelledResult();
         return errorResult("Java 文件下载失败。请检查网络和日志。");
+    }
+    if (cancelled()) return cancelledResult();
+
+    publish(QJsonObject{
+        {"active", true}, {"success", false}, {"cancelled", false},
+        {"canCancel", false}, {"status", "installing"}, {"percent", 94},
+        {"title", QString("正在安装 Java %1 %2").arg(major).arg(package.toUpper())},
+        {"message", QStringLiteral("正在解压、验证并写入托管 Java 目录。")},
+        {"speed", 0}, {"speedText", "0 B/s"}, {"files", QJsonArray{}},
+        {"stages", QJsonArray{
+            QJsonObject{{"id", "hmcl.java.metadata"}, {"title", "获取 Java 下载信息"},
+                        {"status", "success"}, {"count", 1}, {"total", 1}},
+            QJsonObject{{"id", "hmcl.java.download"}, {"title", fileName},
+                        {"status", "success"}, {"count", 1}, {"total", 1}},
+            QJsonObject{{"id", "hmcl.java.install"}, {"title", "安装 Java"},
+                        {"status", "running"}, {"count", 0}, {"total", 1}}
+        }}
+    });
 
     QJsonObject result = installJavaArchive(archive);
+    if (cancelled()) return cancelledResult();
     if (result.value("success").toBool()) {
         result.insert("download", QJsonObject{{"distribution", dist}, {"major", major},
                                                {"packageType", package}, {"fileName", fileName},
@@ -756,3 +855,4 @@ QJsonObject JavaService::downloadJava(const QString &distribution,
     }
     return result;
 }
+

@@ -61,6 +61,29 @@ Item {
     })
 
     property bool launchDialogOpen: false
+
+    // HMCL-style global task executor. Every download entry point feeds this
+    // one host so navigation never destroys an active task dialog.
+    property var transferTaskStatus: ({
+        "id": "",
+        "active": false,
+        "percent": 0,
+        "title": "下载任务",
+        "message": "尚未开始。",
+        "status": "idle",
+        "speed": 0,
+        "speedText": "",
+        "downloadedBytes": 0,
+        "totalBytes": 0,
+        "finishedFiles": 0,
+        "totalFiles": 0,
+        "canCancel": false,
+        "stages": [],
+        "files": []
+    })
+    property string transferTaskKind: ""
+    property bool transferDialogOpen: false
+
     property string launchWindowActionHandledId: ""
     property string launchReopenHandledId: ""
     property bool launchActionArmed: false
@@ -241,6 +264,14 @@ Item {
         onTriggered: root.pollLaunchTask()
     }
 
+    Timer {
+        id: transferTaskPoller
+        interval: 200
+        repeat: true
+        running: root.transferDialogOpen || !!root.transferTaskStatus.active
+        onTriggered: root.pollTransferTask()
+    }
+
     Rectangle {
         id: baseGradientBackground
         anchors.fill: parent
@@ -347,7 +378,7 @@ Item {
     PageState {
         id: downloadState
         key: "download"
-        title: "下载"
+        title: root.activeDownloadPage ? root.activeDownloadPage.pageTitle : "下载"
         showBrand: false
         backable: true
         refreshable: false
@@ -455,6 +486,66 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             style: style
+        }
+    }
+
+    Rectangle {
+        id: transferDialogOverlay
+
+        anchors.fill: parent
+        z: 1200
+        visible: opacity > 0
+        opacity: root.transferDialogOpen ? 1 : 0
+        color: "#28000000"
+
+        Behavior on opacity {
+            NumberAnimation {
+                duration: root.style.animationsEnabled ? 160 : 0
+                easing.type: Easing.OutCubic
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            enabled: root.transferDialogOpen
+            onClicked: {
+                if (!root.transferTaskStatus.active)
+                    root.transferDialogOpen = false
+            }
+        }
+
+        Item {
+            id: transferDialogCard
+            anchors.centerIn: parent
+            width: Math.min(root.width - 64, 500)
+            height: Math.min(root.height - 64, 300)
+            opacity: root.transferDialogOpen ? 1 : 0
+            scale: root.transferDialogOpen ? 1 : 0.97
+
+            Behavior on opacity {
+                NumberAnimation { duration: root.style.animationsEnabled ? 160 : 0; easing.type: Easing.OutCubic }
+            }
+            Behavior on scale {
+                NumberAnimation { duration: root.style.animationsEnabled ? 180 : 0; easing.type: Easing.OutCubic }
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                anchors.leftMargin: 2
+                anchors.rightMargin: -2
+                anchors.topMargin: 3
+                anchors.bottomMargin: -3
+                radius: 4
+                color: Qt.rgba(0, 0, 0, root.style.darkMode ? 0.42 : 0.28)
+            }
+
+            TaskExecutorDialogPane {
+                anchors.fill: parent
+                style: root.style
+                status: root.transferTaskStatus
+                onCancelRequested: root.cancelTransferTask()
+                onCloseRequested: root.transferDialogOpen = false
+            }
         }
     }
 
@@ -591,6 +682,7 @@ Item {
                     anchors.fill: parent
                     style: root.appStyle
                     backend: root.backend
+                    taskDialogHost: root
 
                     Component.onCompleted: {
                         root.activeDownloadPage = downloadPageInstance
@@ -735,6 +827,7 @@ Item {
                     anchors.fill: parent
                     style: root.appStyle
                     backend: root.backend
+                    taskDialogHost: root
                 }
             }
         }
@@ -913,6 +1006,43 @@ Item {
             placeholderState.title = root.getPageTitle(page)
             return placeholderState
         }
+    }
+
+    function openTransferTask(kind) {
+        root.transferTaskKind = String(kind || "")
+        root.transferDialogOpen = true
+        root.pollTransferTask()
+    }
+
+    function pollTransferTask() {
+        if (!root.backend || root.transferTaskKind.length === 0)
+            return
+
+        var raw = root.transferTaskKind === "java"
+                ? root.backend.pollJavaTask()
+                : root.backend.pollDownloadTask()
+        if (!raw || raw.length === 0)
+            return
+
+        try {
+            root.transferTaskStatus = JSON.parse(raw)
+            if (root.transferTaskStatus.active)
+                root.transferDialogOpen = true
+        } catch (e) {
+            root.logAction("ui.error", "transfer_task_parse_failed", {
+                "kind": root.transferTaskKind,
+                "error": String(e),
+                "rawLength": raw ? raw.length : 0
+            })
+        }
+    }
+
+    function cancelTransferTask() {
+        if (root.transferTaskKind === "java")
+            root.backend.cancelJavaTask()
+        else
+            root.backend.cancelDownloadTask()
+        root.pollTransferTask()
     }
 
     function startLaunch() {

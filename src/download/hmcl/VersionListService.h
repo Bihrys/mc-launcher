@@ -21,6 +21,7 @@ public:
     QJsonObject loaderMetadata(const QString &gameVersion, const QString &loaderKind) const;
 
     QJsonArray fabricLoaders(bool *requestOk = nullptr) const;
+    QJsonArray fabricApiVersions(const QString &gameVersion, bool *requestOk = nullptr) const;
     QJsonArray quiltLoaders(bool *requestOk = nullptr) const;
     QJsonArray forgeInstallers(const QString &gameVersion, bool *requestOk = nullptr) const;
     QJsonArray neoForgeInstallers(const QString &gameVersion, bool *requestOk = nullptr) const;
@@ -28,7 +29,7 @@ public:
     QJsonArray liteLoaderInstallers(const QString &gameVersion) const;
 
 private:
-    QByteArray httpGetFirst(const QList<QUrl> &urls, int timeoutMs = 15000) const;
+    QByteArray httpGetFirst(const QList<QUrl> &urls, int timeoutMs = 30000) const;
     QByteArray cachedBytesFor(const QUrl &url) const;
     QJsonObject getObject(const QList<QUrl> &urls, bool *requestOk = nullptr) const;
     QJsonArray getArray(const QList<QUrl> &urls, bool *requestOk = nullptr) const;
