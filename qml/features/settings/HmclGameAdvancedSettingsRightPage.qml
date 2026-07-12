@@ -101,6 +101,16 @@ Column {
         width: parent.width
         style: root.style
         HmclSelectLine { style: root.style; developmentPending: true; title: "图形 API"; value: root.st("graphicsBackend", "default"); options: [{"text":"默认","value":"default"},{"text":"OpenGL","value":"opengl"},{"text":"Vulkan","value":"vulkan"}]; onSelected: function(v) { root.set("graphicsBackend", v) } }
-        HmclSelectLine { style: root.style; developmentPending: true; title: "OpenGL 渲染器"; value: root.st("openGLRenderer", "default"); options: [{"text":"默认","value":"default"},{"text":"系统默认","value":"system"},{"text":"软件渲染","value":"software"}]; onSelected: function(v) { root.set("openGLRenderer", v) } }
+        HmclSelectLine {
+            style: root.style
+            title: "OpenGL 渲染器"
+            value: root.st("openGLRenderer", "default")
+            options: [
+                {"text":"默认","value":"default"},
+                {"text":"LLVMpipe 软件渲染","value":"llvmpipe"},
+                {"text":"Zink","value":"zink"}
+            ]
+            onSelected: function(v) { root.set("openGLRenderer", v) }
+        }
     }
 }

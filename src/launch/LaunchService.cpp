@@ -1,5 +1,6 @@
 #include "launch/LaunchService.h"
 
+#include "launch/LaunchCrashAnalyzer.h"
 #include "logging/AppLogger.h"
 
 #include <QDateTime>
@@ -14,6 +15,7 @@
 #include <QUrl>
 
 namespace {
+
 QJsonArray initialStages() {
     return QJsonArray{
         QJsonObject{{"id", "launch.state.java"},
@@ -38,7 +40,19 @@ QString formatSpeed(qint64 bytesPerSecond) {
         return QString::number(value / 1024.0, 'f', 1) + QStringLiteral(" KiB/s");
     return QString::number(value / (1024.0 * 1024.0), 'f', 1) + QStringLiteral(" MiB/s");
 }
+
+QString exitTypeName(ProcessListener::ExitType type) {
+    switch (type) {
+    case ProcessListener::ExitType::JvmError: return QStringLiteral("JVM_ERROR");
+    case ProcessListener::ExitType::ApplicationError: return QStringLiteral("APPLICATION_ERROR");
+    case ProcessListener::ExitType::SigKill: return QStringLiteral("SIGKILL");
+    case ProcessListener::ExitType::Normal: return QStringLiteral("NORMAL");
+    case ProcessListener::ExitType::Interrupted: return QStringLiteral("INTERRUPTED");
+    }
+    return QStringLiteral("APPLICATION_ERROR");
 }
+
+} // namespace
 
 LaunchService::LaunchService(QObject *parent) : QObject(parent), m_status(idle()) {}
 
@@ -51,6 +65,7 @@ QJsonObject LaunchService::idle() const {
         {"shouldClose", false}, {"shouldReopen", false},
         {"pid", 0}, {"canCancel", false}, {"cancelled", false},
         {"speedText", ""}, {"currentStage", ""},
+        {"analysisCategory", ""},
         {"stages", QJsonArray{}}, {"tasks", QJsonArray{}},
         {"files", QJsonArray{}}
     };
@@ -72,6 +87,7 @@ void LaunchService::start(const LaunchOptions &options, const QString &visibilit
     m_launcher.reset();
     m_processReady = false;
     m_terminal = false;
+    m_processLog.clear();
 
     m_status = QJsonObject{
         {"id", QStringLiteral("launch-") + options.versionId + u'-'
@@ -84,6 +100,7 @@ void LaunchService::start(const LaunchOptions &options, const QString &visibilit
         {"pid", 0}, {"canCancel", true}, {"cancelled", false},
         {"speedText", "请耐心等待"},
         {"currentStage", "launch.state.java"},
+        {"analysisCategory", ""},
         {"stages", initialStages()}, {"tasks", QJsonArray{}},
         {"files", QJsonArray{}}, {"gameLogFile", options.logFile}
     };
@@ -171,7 +188,8 @@ void LaunchService::clearTasks() {
     publish();
 }
 
-void LaunchService::fail(const QString &title, const QString &message) {
+void LaunchService::fail(const QString &title, const QString &message,
+                         const QString &category) {
     if (m_terminal && m_status.value("status").toString() == QStringLiteral("failed")) return;
     m_terminal = true;
     const QString current = m_status.value("currentStage").toString();
@@ -181,6 +199,7 @@ void LaunchService::fail(const QString &title, const QString &message) {
     m_status.insert("title", title);
     m_status.insert("message", message);
     m_status.insert("status", "failed");
+    m_status.insert("analysisCategory", category);
     m_status.insert("gameStarted", false);
     m_status.insert("canCancel", false);
     m_status.insert("speedText", "失败");
@@ -326,6 +345,12 @@ void LaunchService::onProcessStarted(qint64 pid) {
 void LaunchService::onProcessLog(const QByteArray &data, bool standardError) {
     Q_UNUSED(standardError)
     if (m_terminal || data.isEmpty()) return;
+
+    m_processLog.append(QString::fromUtf8(data));
+    constexpr qsizetype maxCharacters = 256 * 1024;
+    if (m_processLog.size() > maxCharacters)
+        m_processLog = m_processLog.right(maxCharacters);
+
     QString line = QString::fromUtf8(data).trimmed();
     if (line.size() > 240) line = line.right(240);
     if (!line.isEmpty()) {
@@ -347,9 +372,6 @@ void LaunchService::onProcessReady() {
     m_status.insert("gameStarted", true);
     m_status.insert("canCancel", false);
     m_status.insert("speedText", QString());
-    // QProcess must remain owned by the launcher while output and exit status
-    // are monitored. HMCL's CLOSE mode skips the listener; this port keeps the
-    // listener and therefore hides the window instead of destroying it.
     m_status.insert("shouldHide", m_visibility == QStringLiteral("hide")
                                   || m_visibility == QStringLiteral("close")
                                   || m_visibility == QStringLiteral("hide_and_reopen"));
@@ -358,14 +380,34 @@ void LaunchService::onProcessReady() {
     publish();
 }
 
-void LaunchService::onProcessExited(int exitCode, bool crashed, bool exitedBeforeReady) {
+void LaunchService::onProcessExited(int exitCode, ProcessListener::ExitType exitType,
+                                    bool exitedBeforeReady) {
     if (m_terminal || m_status.value("cancelled").toBool()) return;
+    if (exitType == ProcessListener::ExitType::Interrupted) return;
+
     const QString tail = gameLogTail();
-    if (exitCode != 0 || crashed || exitedBeforeReady) {
-        QString message = QString("游戏进程异常退出，退出代码：%1。\n日志：%2")
-                              .arg(exitCode).arg(m_options.logFile);
+    QString analysisText = m_processLog;
+    if (!tail.isEmpty() && !analysisText.contains(tail))
+        analysisText += QStringLiteral("\n") + tail;
+
+    const LaunchCrashAnalyzer::Result analysis =
+        LaunchCrashAnalyzer::analyze(analysisText, exitCode);
+
+    if (analysis.matched || exitType != ProcessListener::ExitType::Normal) {
+        QString message;
+        QString title = QStringLiteral("启动失败");
+        QString category;
+        if (analysis.matched) {
+            title = analysis.title;
+            category = analysis.category;
+            message = analysis.message;
+        } else {
+            message = QString("游戏进程异常退出，退出代码：%1，类型：%2。")
+                          .arg(exitCode).arg(exitTypeName(exitType));
+        }
+        message += QStringLiteral("\n游戏日志：") + m_options.logFile;
         if (!tail.isEmpty()) message += QStringLiteral("\n\n") + tail;
-        fail(QStringLiteral("启动失败"), message);
+        fail(title, message, category);
         return;
     }
 
@@ -374,7 +416,9 @@ void LaunchService::onProcessExited(int exitCode, bool crashed, bool exitedBefor
     m_status.insert("status", QStringLiteral("gameExited"));
     m_status.insert("gameStarted", m_processReady);
     m_status.insert("canCancel", false);
-    m_status.insert("message", QStringLiteral("游戏已正常退出。"));
+    m_status.insert("message", exitedBeforeReady
+        ? QStringLiteral("游戏进程已正常退出。")
+        : QStringLiteral("游戏已正常退出。"));
     m_status.insert("shouldHide", false);
     m_status.insert("shouldClose", false);
     m_status.insert("shouldReopen",
@@ -385,5 +429,5 @@ void LaunchService::onProcessExited(int exitCode, bool crashed, bool exitedBefor
 
 void LaunchService::onProcessError(const QString &message) {
     if (m_terminal) return;
-    fail(QStringLiteral("无法创建游戏进程"), message);
+    fail(QStringLiteral("无法创建游戏进程"), message, QStringLiteral("process_creation"));
 }

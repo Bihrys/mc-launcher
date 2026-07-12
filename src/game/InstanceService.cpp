@@ -4,6 +4,7 @@
 #include "core/LauncherPaths.h"
 #include "game/VersionRules.h"
 #include "java/JavaService.h"
+#include "launch/LaunchEnvironment.h"
 
 #include <QCryptographicHash>
 #include <QDateTime>
@@ -17,6 +18,7 @@
 #include <QJsonDocument>
 #include <QHash>
 #include <QJsonValue>
+#include <QLocale>
 #include <QProcess>
 #include <QStandardPaths>
 #include <QSysInfo>
@@ -248,6 +250,30 @@ QString buildClasspath(const QString &clientJarVersionId,
     return entries.join(QDir::listSeparator());
 }
 
+
+QStringList detectLoaderKinds(const QJsonObject &versionJson,
+                              const QString &versionId) {
+    QSet<QString> loaders;
+    QString corpus = versionId + u' ' + versionJson.value("mainClass").toString();
+    for (const QJsonValue &value : versionJson.value("libraries").toArray())
+        corpus += u' ' + value.toObject().value("name").toString();
+
+    const QString lower = corpus.toLower();
+    if (lower.contains("net.fabricmc:fabric-loader")
+            || lower.contains("knotclient") || lower.contains("fabric"))
+        loaders.insert(QStringLiteral("fabric"));
+    if (lower.contains("org.quiltmc:quilt-loader") || lower.contains("quilt"))
+        loaders.insert(QStringLiteral("quilt"));
+    if (lower.contains("net.neoforged") || lower.contains("neoforge"))
+        loaders.insert(QStringLiteral("neoforge"));
+    else if (lower.contains("net.minecraftforge") || lower.contains("forge"))
+        loaders.insert(QStringLiteral("forge"));
+    if (lower.contains("liteloader")) loaders.insert(QStringLiteral("liteloader"));
+    if (lower.contains("optifine")) loaders.insert(QStringLiteral("optifine"));
+    if (lower.contains("legacyfabric")) loaders.insert(QStringLiteral("legacyfabric"));
+    if (lower.contains("cleanroom")) loaders.insert(QStringLiteral("cleanroom"));
+    return loaders.values();
+}
 
 QStringList splitCommandLine(const QString &text) {
     QStringList result;
@@ -640,6 +666,8 @@ LaunchOptions InstanceService::createLaunchOptions(const QString &versionId,
         return options;
     }
     options.workingDirectory = gameDirectory;
+    options.instanceDirectory = versionDir(options.versionId);
+    options.minecraftDirectory = LauncherPaths::minecraftDir();
 
     const QString nativesDir = versionDir(options.versionId) + "/natives";
     QString nativeError;
@@ -647,6 +675,7 @@ LaunchOptions InstanceService::createLaunchOptions(const QString &versionId,
         options.error = nativeError;
         return options;
     }
+    options.nativeDirectory = nativesDir;
 
     options.requiredJavaMajor = requiredJavaMajorFor(versionJson, baseVersion);
     QString javaError;
@@ -657,6 +686,18 @@ LaunchOptions InstanceService::createLaunchOptions(const QString &versionId,
         options.error = javaError;
         return options;
     }
+
+    options.graphicsBackend = effectiveSettings.value("graphicsBackend")
+                                  .toString(QStringLiteral("default"))
+                                  .trimmed().toLower();
+    options.renderer = effectiveSettings.value("openGLRenderer")
+                           .toString(QStringLiteral("default"))
+                           .trimmed().toLower();
+    if (options.renderer == QStringLiteral("system"))
+        options.renderer = QStringLiteral("default");
+    else if (options.renderer == QStringLiteral("software"))
+        options.renderer = QStringLiteral("llvmpipe");
+    options.loaderKinds = detectLoaderKinds(versionJson, options.versionId);
 
     options.accountKind = account.value("kind").toString(QStringLiteral("offline"));
     options.accountName = account.value("username").toString(QStringLiteral("Steve"));
@@ -712,7 +753,11 @@ LaunchOptions InstanceService::createLaunchOptions(const QString &versionId,
     vars.insert(QStringLiteral("classpath"), classpath);
     vars.insert(QStringLiteral("classpath_separator"), QString(QDir::listSeparator()));
     vars.insert(QStringLiteral("library_directory"), LauncherPaths::minecraftDir() + "/libraries");
+    vars.insert(QStringLiteral("libraries_directory"), LauncherPaths::minecraftDir() + "/libraries");
     vars.insert(QStringLiteral("primary_jar"), clientJar);
+    vars.insert(QStringLiteral("primary_jar_name"), QFileInfo(clientJar).fileName());
+    vars.insert(QStringLiteral("file_separator"), QString(QDir::separator()));
+    vars.insert(QStringLiteral("language"), QLocale::system().bcp47Name());
 
     QSet<QString> enabledFeatures;
     const int width = effectiveSettings.value("width").toInt(
@@ -854,13 +899,15 @@ LaunchOptions InstanceService::createLaunchOptions(const QString &versionId,
         return options;
     }
 
+    QProcessEnvironment userEnvironment;
     const QString environmentText = effectiveSettings.value("environmentVariables").toString();
-    for (const QString &line : environmentText.split(QRegularExpression(QStringLiteral("[\\r\\n]+")),
+    for (const QString &line : environmentText.split(QRegularExpression(QStringLiteral("[\r\n]+")),
                                                       Qt::SkipEmptyParts)) {
         const int equals = line.indexOf(u'=');
         if (equals > 0)
-            options.environment.insert(line.left(equals).trimmed(), line.mid(equals + 1));
+            userEnvironment.insert(line.left(equals).trimmed(), line.mid(equals + 1));
     }
+    options.environment = LaunchEnvironment::build(options, userEnvironment);
 
     const QString gameLogDir = LauncherPaths::logsDir() + QStringLiteral("/game");
     QDir().mkpath(gameLogDir);

@@ -14,7 +14,7 @@
 
 class QNetworkReply;
 
-class LaunchService final : public QObject, private ProcessListener {
+class LaunchService final : public QObject, public ProcessListener {
     Q_OBJECT
 public:
     explicit LaunchService(QObject *parent = nullptr);
@@ -34,7 +34,8 @@ private:
     void setTask(const QString &stageId, const QString &name,
                  const QString &message = QString(), int percent = -1);
     void clearTasks();
-    void fail(const QString &title, const QString &message);
+    void fail(const QString &title, const QString &message,
+              const QString &category = QString());
     void startAuthenticationStage();
     void downloadAuthlibInjector(int candidateIndex = 0);
     void startProcess();
@@ -44,7 +45,8 @@ private:
     void onProcessStarted(qint64 pid) override;
     void onProcessLog(const QByteArray &data, bool standardError) override;
     void onProcessReady() override;
-    void onProcessExited(int exitCode, bool crashed, bool exitedBeforeReady) override;
+    void onProcessExited(int exitCode, ProcessListener::ExitType exitType,
+                         bool exitedBeforeReady) override;
     void onProcessError(const QString &message) override;
 
     QJsonObject m_status;
@@ -59,4 +61,5 @@ private:
     qint64 m_authlibLastMs = 0;
     bool m_processReady = false;
     bool m_terminal = false;
+    QString m_processLog;
 };
